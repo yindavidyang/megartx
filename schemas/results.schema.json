@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "baseline_dispatch": {
+      "enum": [
+        "unverified",
+        "unsupported",
+        "fallback",
+        "verified_flashinfer"
+      ],
+      "type": "string"
+    },
+    "boundary": {
+      "enum": [
+        "delivered_token_end_to_end",
+        "gpu_resident",
+        "microbenchmark"
+      ],
+      "type": "string"
+    },
+    "checkpoint_revision": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "code_revision": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "command": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": false
+    },
+    "correctness": {
+      "enum": [
+        "pending",
+        "pass",
+        "fail"
+      ],
+      "type": "string"
+    },
+    "environment_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "experiment_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kind": {
+      "const": "results",
+      "type": "string"
+    },
+    "memory": {
+      "enum": [
+        "pending",
+        "pass",
+        "fail"
+      ],
+      "type": "string"
+    },
+    "numerical_lane": {
+      "enum": [
+        "nvfp4_w4a4",
+        "w4a16",
+        "bf16"
+      ],
+      "type": "string"
+    },
+    "omitted_critical_path_costs": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": false
+    },
+    "pairs": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "baseline_itl_ms": {
+            "items": {
+              "minimum": 1e-09,
+              "type": "number"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": false
+          },
+          "baseline_total_response_ms": {
+            "minimum": 1e-09,
+            "type": "number"
+          },
+          "baseline_ttft_ms": {
+            "minimum": 1e-09,
+            "type": "number"
+          },
+          "candidate_itl_ms": {
+            "items": {
+              "minimum": 1e-09,
+              "type": "number"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": false
+          },
+          "candidate_total_response_ms": {
+            "minimum": 1e-09,
+            "type": "number"
+          },
+          "candidate_ttft_ms": {
+            "minimum": 1e-09,
+            "type": "number"
+          },
+          "order": {
+            "enum": [
+              "baseline_first",
+              "candidate_first"
+            ],
+            "type": "string"
+          },
+          "pair_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "seed": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pair_id",
+          "order",
+          "prompt_sha256",
+          "seed",
+          "baseline_itl_ms",
+          "candidate_itl_ms",
+          "baseline_ttft_ms",
+          "candidate_ttft_ms",
+          "baseline_total_response_ms",
+          "candidate_total_response_ms"
+        ],
+        "type": "object"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": false
+    },
+    "provenance": {
+      "enum": [
+        "template",
+        "synthetic",
+        "measured"
+      ],
+      "type": "string"
+    },
+    "quality": {
+      "enum": [
+        "pending",
+        "pass",
+        "fail"
+      ],
+      "type": "string"
+    },
+    "raw_events_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "run_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "work_package": {
+      "enum": [
+        "WP0",
+        "WP1"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "run_id",
+    "provenance",
+    "work_package",
+    "numerical_lane",
+    "boundary",
+    "checkpoint_revision",
+    "environment_sha256",
+    "experiment_sha256",
+    "code_revision",
+    "raw_events_sha256",
+    "command",
+    "correctness",
+    "quality",
+    "memory",
+    "baseline_dispatch",
+    "omitted_critical_path_costs",
+    "pairs"
+  ],
+  "title": "megartx results v1",
+  "type": "object"
+}

@@ -50,7 +50,7 @@ The authorized initial scope is repository initialization with this master plan,
 
 Inferact fused 92 Kimi K3 layers using Pallas on 16 TPU v7 chips with 64 MiB VMEM per TensorCore. Its DSpark verifier uses one anchor and seven proposals; the reported result exceeds 700 output tokens per second at acceptance length six versus 452 on 16 GB200 GPUs. Explicit lifetimes and asynchronous staging are relevant ideas. That different model, memory system, topology and acceptance rate cannot predict RTX performance. [1, 2]
 
-DeepGEMM Mega MoE fuses dispatch, FC1, SwiGLU, FC2 and combine with NVLink overlap on SM90/SM100. Its FP8 by FP4 path is not an NVFP4 SM120 backend. CUTLASS instead documents SM120 mma.sync block scaled GEMMs and GeForce grouped examples; do not import SM100 tcgen05 or TMEM assumptions. [3, 4, 5]
+DeepGEMM as a library supports SM90/SM100, but the reviewed Mega MoE entry point dispatches only to SM100-family implementations. It fuses dispatch, FC1, SwiGLU, FC2 and combine with NVLink overlap. Its FP8 by FP4 path is not an NVFP4 SM120 backend. At the pinned revision, the scale-buffer path also requires routed/shared intermediate widths divisible by 128; Gemma’s 704/2112 widths fail that direct-use requirement, so any padding or port needs a new layout/numerical contract and measured cost. These are restrictions of the reviewed implementation, not universal hardware impossibilities. [Pinned architecture and layout checks](https://github.com/deepseek-ai/DeepGEMM/blob/057ca5964aae0879ff2e0eb71ee05a3cb0ba3df7/csrc/apis/mega_moe.hpp#L87-L92). CUTLASS instead documents SM120 mma.sync block scaled GEMMs and GeForce grouped examples; do not import SM100 tcgen05 or TMEM assumptions. [3, 4, 5]
 
 ### Hypotheses to accept or reject
 
@@ -193,11 +193,13 @@ Accountable role: runtime engineer; independent reviewer signs off safety. Actio
 
 Every gate record names requirements covered, candidate and baseline hashes, evidence artifacts, unresolved deviations, measured outcome and the next decision. The accountable role proposes pass, revise or stop; the independent reviewer checks evidence, and the project owner approves material scope or acceptance changes. No dates or people are assigned until actual access and capacity are known.
 
-## Optional work packages and state transactions
+## Later work packages and state transactions
 
-### WP5  Compatible speculation
+### WP5  DSpark style speculation and draft training
 
 Accountable roles: runtime engineer and model/correctness lead. Action plans A5.1–A5.4. Depends on WP1 and an accepted stable WP3 or WP4 path; it does not replace the non speculative evidence. Use a verified compatible Gemma assistant/draft. Kimi’s DSpark model and acceptance results do not transfer. Compare equally enabled FlashInfer and candidate paths using the same draft and settings. [1, 2, 8, 15]
+
+Evaluate an existing compatible draft first. The roadmap also includes conditional Gemma-compatible draft-model training: data rights/provenance and held-out splits; a reproducible training/distillation recipe and resource approval; versioned draft checkpoints; independent quality/acceptance/cost evaluation; and a target-exact verifier/cache integration. If existing drafts are inadequate, the training path remains planned rather than disappearing from scope. Actual training, dataset acquisition and resource spending require separate approval. Do not assume a Kimi-specific DSpark checkpoint or training recipe transfers to Gemma. The evidence here does not establish who trained any external draft. See the [WP5 milestone roadmap](action-plans/wp5.md#dspark-and-draft-training-milestones).
 
 The output is a separate latency/quality decision based on total draft, verify, sample and cache cost per emitted token. Count proposals, accepted draft tokens, bonus target tokens and verifier calls consistently. Measure the union of experts touched and rejected work: additional rows can increase MoE weight traffic enough to erase a batch one gain. G5 passes only with lower wall clock cost and preserved target decoding semantics.
 
@@ -215,7 +217,7 @@ Measure small message collectives and peer copies before choosing TP, pipeline o
 
 ### Dependency and scope rules
 
-WP5 branches from the stable single GPU path. WP6 waits for hardware and may be deferred indefinitely without blocking WP0–WP4. Changes to quantization or checkpoint reopen I01/I02 and applicable G0/G1 evidence. Changes to cache layout reopen I03 and rollback tests. Any new persistent schedule reopens I04 safety review. The action playbook uses these same dependencies and gates.
+The dependency-based timeline starts with non-speculative WP0–WP1, progresses through useful WP2–WP3 fusion and optional WP4 persistence, then branches to planned WP5 draft evaluation, conditional training and verifier integration. No calendar dates or training GPU-hour estimates are assigned before discovery and approval. WP5 branches from the stable single GPU path. WP6 waits for hardware and may be deferred indefinitely without blocking WP0–WP4. Changes to quantization or checkpoint reopen I01/I02 and applicable G0/G1 evidence. Changes to cache layout reopen I03 and rollback tests. Any new persistent schedule reopens I04 safety review. The action playbook uses these same dependencies and gates.
 
 ## Risk register and plan governance
 
@@ -256,9 +258,9 @@ Checked 30 September 2026. These sources establish architecture and ecosystem co
 
 Implementation and reproduction starting point for scheduling ideas.
 
-[3] [DeepSeek DeepGEMM Mega MoE](https://github.com/deepseek-ai/DeepGEMM#mega-moe)
+[3] [DeepSeek DeepGEMM Mega MoE](https://github.com/deepseek-ai/DeepGEMM/blob/057ca5964aae0879ff2e0eb71ee05a3cb0ba3df7/README.md#mega-moe)
 
-Supported architectures, fused MoE scope, formats and NVLink overlap.
+Pinned DeepGEMM revision 057ca5964aae0879ff2e0eb71ee05a3cb0ba3df7: general library architecture support, Mega MoE scope, formats and NVLink overlap. The [Mega MoE dispatch](https://github.com/deepseek-ai/DeepGEMM/blob/057ca5964aae0879ff2e0eb71ee05a3cb0ba3df7/csrc/apis/mega_moe.hpp#L255-L277) is SM100-family only; distinguish it from general SM90 support.
 
 [4] [NVIDIA CUTLASS Blackwell SM120 GEMMs](https://docs.nvidia.com/cutlass/latest/media/docs/cpp/blackwell_functionality.html#blackwell-sm120-gemms)
 

@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "checkpoint_revision": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "kind": {
+      "const": "tensors",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "tensors": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "logical_shape": {
+            "items": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": false
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "ownership": {
+            "enum": [
+              "text",
+              "multimodal",
+              "shared",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "quantization_role": {
+            "enum": [
+              "payload",
+              "scale",
+              "unquantized",
+              "other"
+            ],
+            "type": "string"
+          },
+          "storage_bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "storage_dtype": {
+            "enum": [
+              "bool",
+              "uint8",
+              "int8",
+              "float8_e4m3fn",
+              "float8_e5m2",
+              "uint16",
+              "int16",
+              "float16",
+              "bfloat16",
+              "uint32",
+              "int32",
+              "float32",
+              "uint64",
+              "int64",
+              "float64",
+              "packed_fp4"
+            ],
+            "type": "string"
+          },
+          "storage_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "storage_shape": {
+            "items": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": false
+          }
+        },
+        "required": [
+          "name",
+          "logical_shape",
+          "storage_shape",
+          "storage_dtype",
+          "storage_id",
+          "storage_bytes",
+          "quantization_role",
+          "ownership"
+        ],
+        "type": "object"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "complete",
+    "checkpoint_revision",
+    "tensors"
+  ],
+  "title": "megartx tensors v1",
+  "type": "object"
+}

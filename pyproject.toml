@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "megartx"
+version = "0.0.1"
+description = "CPU-only WP0/WP1 experiment contracts for a single-GPU decode investigation"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+megartx = "megartx.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

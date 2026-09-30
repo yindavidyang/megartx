@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "cases_required": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": false
+          },
+          "expected_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "input_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intermediates": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": false
+          },
+          "numerical_lane": {
+            "enum": [
+              "nvfp4_w4a4",
+              "w4a16",
+              "bf16"
+            ],
+            "type": "string"
+          },
+          "oracle_revision": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "captured"
+            ],
+            "type": "string"
+          },
+          "tolerance_approval_reference": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tolerances": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "absolute_error": {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "max_routing_mismatches": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "min_cosine_similarity": {
+                    "maximum": 1,
+                    "minimum": -1,
+                    "type": "number"
+                  },
+                  "normalized_rmse": {
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "relative_error": {
+                    "minimum": 0,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "absolute_error",
+                  "relative_error",
+                  "normalized_rmse",
+                  "min_cosine_similarity",
+                  "max_routing_mismatches"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "numerical_lane",
+          "status",
+          "cases_required",
+          "intermediates",
+          "input_sha256",
+          "expected_sha256",
+          "oracle_revision",
+          "tolerances",
+          "tolerance_approval_reference"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": false
+    },
+    "checkpoint_revision": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kind": {
+      "const": "fixtures",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "checkpoint_revision",
+    "cases"
+  ],
+  "title": "megartx fixtures v1",
+  "type": "object"
+}

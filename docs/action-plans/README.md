@@ -17,7 +17,7 @@ Authority: Markdown repository initialization and a draft WP0–WP1 compatibilit
 | WP2  A2.1 to A2.4 | G1 → low M kernels and integrated MoE win at G2 | [WP2](wp2.md) |
 | WP3  A3.1 to A3.4 | G2 → smallest useful decoder fusion boundary at G3 | [WP3](wp3.md) |
 | WP4  A4.1 to A4.4 | G3 → bounded persistence or evidence-based earlier stop at G4 | [WP4](wp4.md) |
-| WP5  A5.1 to A5.4 | Optional after WP1 and an accepted stable WP3 or WP4 path; G5 | [WP5](wp5.md) |
+| WP5  A5.1 to A5.4 | Planned later DSpark/draft evaluation and conditional training after WP1 and a stable WP3 or WP4 path; G5 | [WP5](wp5.md) |
 | WP6  A6.1 to A6.4 | Optional after actual future hardware and authorization; G6 | [WP6](wp6.md) |
 
 See the [shared tests and measurement protocol](../protocols/measurement.md), [first sprint and review discipline](../protocols/review.md), and [decision/result templates](../templates/records.md). R01–R12 and G0–G6 refer to the [master plan](../master-plan.md). Interfaces I01–I06 name the handoffs that each task must preserve.

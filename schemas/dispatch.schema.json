@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_relative_path": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "artifact_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "checkpoint_revision": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "classification": {
+      "enum": [
+        "unverified",
+        "unsupported",
+        "fallback",
+        "verified_flashinfer"
+      ],
+      "type": "string"
+    },
+    "environment_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "flashinfer_revision": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "host_revision": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "host_runtime": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kind": {
+      "const": "dispatch",
+      "type": "string"
+    },
+    "non_flashinfer_components": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": false
+    },
+    "numerical_lane": {
+      "enum": [
+        "nvfp4_w4a4",
+        "w4a16",
+        "bf16"
+      ],
+      "type": "string"
+    },
+    "observations": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "component": {
+            "enum": [
+              "attention",
+              "moe"
+            ],
+            "type": "string"
+          },
+          "kernel_names": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": false
+          },
+          "native_nvfp4": {
+            "type": "boolean"
+          },
+          "provider": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "component",
+          "provider",
+          "kernel_names",
+          "native_nvfp4"
+        ],
+        "type": "object"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": false
+    },
+    "reviewer_reference": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "classification",
+    "checkpoint_revision",
+    "environment_sha256",
+    "numerical_lane",
+    "host_runtime",
+    "host_revision",
+    "flashinfer_revision",
+    "observations",
+    "non_flashinfer_components",
+    "artifact_relative_path",
+    "artifact_sha256",
+    "reviewer_reference"
+  ],
+  "title": "megartx dispatch v1",
+  "type": "object"
+}

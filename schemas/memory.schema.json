@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cached_context_tokens": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "device_total_bytes": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kind": {
+      "const": "memory",
+      "type": "string"
+    },
+    "kv_layers": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "key_dtype": {
+            "enum": [
+              "bfloat16",
+              "float16",
+              "float32"
+            ],
+            "type": "string"
+          },
+          "key_head_dim": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "kv_heads": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "layer_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "storage_policy": {
+            "enum": [
+              "full_context",
+              "bounded_window"
+            ],
+            "type": "string"
+          },
+          "value_dtype": {
+            "enum": [
+              "bfloat16",
+              "float16",
+              "float32"
+            ],
+            "type": "string"
+          },
+          "value_head_dim": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "window_tokens": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "layer_id",
+          "kv_heads",
+          "key_head_dim",
+          "value_head_dim",
+          "key_dtype",
+          "value_dtype",
+          "storage_policy",
+          "window_tokens"
+        ],
+        "type": "object"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": false
+    },
+    "other_bytes": {
+      "additionalProperties": false,
+      "properties": {
+        "graph_pools": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "persistent_buffers": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prefill_peak_increment": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retained_weight_copies": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runtime_and_display": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runtime_repacks": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scratch_peak": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "retained_weight_copies",
+        "runtime_repacks",
+        "persistent_buffers",
+        "graph_pools",
+        "scratch_peak",
+        "prefill_peak_increment",
+        "runtime_and_display"
+      ],
+      "type": "object"
+    },
+    "output_capacity_tokens": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "reserve_bytes": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "complete",
+    "device_total_bytes",
+    "reserve_bytes",
+    "cached_context_tokens",
+    "output_capacity_tokens",
+    "kv_layers",
+    "other_bytes"
+  ],
+  "title": "megartx memory v1",
+  "type": "object"
+}

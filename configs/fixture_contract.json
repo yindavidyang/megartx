@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "kind": "fixtures",
+  "checkpoint_revision": null,
+  "cases": [
+    {
+      "id": "packing",
+      "numerical_lane": "nvfp4_w4a4",
+      "status": "pending",
+      "cases_required": [
+        "nibble order",
+        "scale blocks",
+        "padding and tails",
+        "zero and extreme values",
+        "quantizer boundaries",
+        "round trip"
+      ],
+      "intermediates": [
+        "unpacked values",
+        "oracle output"
+      ],
+      "input_sha256": null,
+      "expected_sha256": null,
+      "oracle_revision": null,
+      "tolerances": null,
+      "tolerance_approval_reference": null
+    },
+    {
+      "id": "router",
+      "numerical_lane": "nvfp4_w4a4",
+      "status": "pending",
+      "cases_required": [
+        "ordinary",
+        "near ties",
+        "zero",
+        "extreme",
+        "top-8 tie policy"
+      ],
+      "intermediates": [
+        "FP32 probabilities",
+        "expert IDs",
+        "renormalized weights",
+        "learned expert scales"
+      ],
+      "input_sha256": null,
+      "expected_sha256": null,
+      "oracle_revision": null,
+      "tolerances": null,
+      "tolerance_approval_reference": null
+    },
+    {
+      "id": "layers",
+      "numerical_lane": "nvfp4_w4a4",
+      "status": "pending",
+      "cases_required": [
+        "gated GELU tanh",
+        "shared and routed branch norms",
+        "residual ordering",
+        "logit soft cap"
+      ],
+      "intermediates": [
+        "branch outputs",
+        "post-normalization",
+        "residual",
+        "logits"
+      ],
+      "input_sha256": null,
+      "expected_sha256": null,
+      "oracle_revision": null,
+      "tolerances": null,
+      "tolerance_approval_reference": null
+    },
+    {
+      "id": "kv",
+      "numerical_lane": "nvfp4_w4a4",
+      "status": "pending",
+      "cases_required": [
+        "1023/1024/1025 positions",
+        "repeated ring wraps",
+        "page and capacity boundaries",
+        "chunked prefill",
+        "handoff",
+        "global growth",
+        "distinct processed K/V"
+      ],
+      "intermediates": [
+        "Q/K/V normalization",
+        "RoPE positions",
+        "masks",
+        "cache state",
+        "attention output"
+      ],
+      "input_sha256": null,
+      "expected_sha256": null,
+      "oracle_revision": null,
+      "tolerances": null,
+      "tolerance_approval_reference": null
+    },
+    {
+      "id": "teacher_forcing",
+      "numerical_lane": "nvfp4_w4a4",
+      "status": "pending",
+      "cases_required": [
+        "first divergence",
+        "no NaNs/Infs",
+        "greedy regression"
+      ],
+      "intermediates": [
+        "per-layer intermediates",
+        "final logits"
+      ],
+      "input_sha256": null,
+      "expected_sha256": null,
+      "oracle_revision": null,
+      "tolerances": null,
+      "tolerance_approval_reference": null
+    }
+  ]
+}
