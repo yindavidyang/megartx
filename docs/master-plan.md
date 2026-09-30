@@ -10,6 +10,8 @@ The core hypothesis is that a model specific schedule can coordinate dependencie
 
 This master plan governs scope, requirements, interfaces, evidence and decisions. The companion [RTX 5090 Gemma 4 Decode Action Plans](action-plans/README.md) describes execution tasks A0.1 through A6.4. Work package IDs WP0 through WP6 and gate IDs G0 through G6 are shared. If task steps conflict with this document, resolve the conflict before execution and update both plans under the same decision record.
 
+The [SM120 execution design](design/megakernel-design.md) expands the numerical DAG, layouts, phase barriers, buffer lifetimes and falsifiable experiments. The [Mega MoE and Kimi K3 comparison](design/reference-comparison.md) records which scheduling ideas transfer and which hardware/semantic assumptions do not. Both are reviewed proposals, not implemented kernels or performance evidence; they do not override frozen contracts or gate requirements.
+
 ### Decision register
 
 | ID | Status | Decision |
@@ -48,7 +50,7 @@ The authorized initial scope is repository initialization with this master plan,
 
 ### What the references establish
 
-Inferact fused 92 Kimi K3 layers using Pallas on 16 TPU v7 chips with 64 MiB VMEM per TensorCore. Its DSpark verifier uses one anchor and seven proposals; the reported result exceeds 700 output tokens per second at acceptance length six versus 452 on 16 GB200 GPUs. Explicit lifetimes and asynchronous staging are relevant ideas. That different model, memory system, topology and acceptance rate cannot predict RTX performance. [1, 2]
+Inferact reports fusing Kimi K3’s 92 MoE layers using Pallas on 16 TPU v7 chips with 64 MiB VMEM per TensorCore. Its DSpark verifier uses one anchor and seven proposals; the reported result exceeds 700 output tokens per second at acceptance length six versus 452 on 16 GB200 GPUs. Explicit lifetimes and asynchronous staging are relevant ideas. The pinned repository config has 93 total layers including an initial dense layer; distinguish that total from the article’s 92 MoE-layer count. That different model, memory system, topology and acceptance rate cannot predict RTX performance. [1, 2]
 
 DeepGEMM as a library supports SM90/SM100, but the reviewed Mega MoE entry point dispatches only to SM100-family implementations. It fuses dispatch, FC1, SwiGLU, FC2 and combine with NVLink overlap. Its FP8 by FP4 path is not an NVFP4 SM120 backend. At the pinned revision, the scale-buffer path also requires routed/shared intermediate widths divisible by 128; Gemma’s 704/2112 widths fail that direct-use requirement, so any padding or port needs a new layout/numerical contract and measured cost. These are restrictions of the reviewed implementation, not universal hardware impossibilities. [Pinned architecture and layout checks](https://github.com/deepseek-ai/DeepGEMM/blob/057ca5964aae0879ff2e0eb71ee05a3cb0ba3df7/csrc/apis/mega_moe.hpp#L87-L92). CUTLASS instead documents SM120 mma.sync block scaled GEMMs and GeForce grouped examples; do not import SM100 tcgen05 or TMEM assumptions. [3, 4, 5]
 
@@ -254,9 +256,9 @@ Checked 30 September 2026. These sources establish architecture and ecosystem co
 
 23 September 2026. TPU design, VMEM, 16 chip experiment and DSpark results.
 
-[2] [Inferact TPU megakernels source](https://github.com/Inferact/tpu-megakernels)
+[2] [Inferact TPU megakernels source](https://github.com/Inferact/tpu-megakernels/tree/4048f0820aa4ff8787f707ca9d99b2bada9751aa)
 
-Implementation and reproduction starting point for scheduling ideas.
+Pinned revision 4048f0820aa4ff8787f707ca9d99b2bada9751aa. Implementation and reproduction starting point for scheduling ideas; [model configuration](https://github.com/Inferact/tpu-megakernels/blob/4048f0820aa4ff8787f707ca9d99b2bada9751aa/kimi/__init__.py#L16-L51) distinguishes 93 total layers from 92 MoE layers.
 
 [3] [DeepSeek DeepGEMM Mega MoE](https://github.com/deepseek-ai/DeepGEMM/blob/057ca5964aae0879ff2e0eb71ee05a3cb0ba3df7/README.md#mega-moe)
 

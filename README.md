@@ -7,6 +7,8 @@ The goal is lower end-to-end decode latency than a tuned, compatible FlashInfer-
 ## Start here
 
 - [Master engineering plan](docs/master-plan.md): requirements, interfaces, evidence gates and primary sources
+- [SM120 execution design](docs/design/megakernel-design.md): numerical DAG, layouts, barriers, lifetimes and experiments
+- [Mega MoE and Kimi K3 comparison](docs/design/reference-comparison.md): source-backed lessons and SM120 adaptations
 - [Action plans](docs/action-plans/README.md): 28 concrete tasks across WP0–WP6
 - [Decision ledger](docs/decision_ledger.md): confirmed scope and proposed defaults
 - [Measurement protocol](docs/protocols/measurement.md): fairness, correctness catalog and paired timing
