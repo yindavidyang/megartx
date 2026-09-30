@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "kind": "dispatch",
+  "classification": "unverified",
+  "checkpoint_revision": null,
+  "environment_sha256": null,
+  "numerical_lane": "nvfp4_w4a4",
+  "host_runtime": null,
+  "host_revision": null,
+  "flashinfer_revision": null,
+  "observations": [],
+  "non_flashinfer_components": [],
+  "artifact_relative_path": null,
+  "artifact_sha256": null,
+  "reviewer_reference": null
+}

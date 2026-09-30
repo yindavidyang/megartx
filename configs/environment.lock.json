@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "kind": "environment",
+  "status": "unverified",
+  "target_sm": 120,
+  "driver_version": null,
+  "cuda_toolkit_version": null,
+  "cuda_runtime_version": null,
+  "compiler_version": null,
+  "python_version": null,
+  "pytorch_version": null,
+  "host_runtime_name": null,
+  "host_runtime_revision": null,
+  "flashinfer_revision": null,
+  "cutlass_revision": null,
+  "b12x_revision": null,
+  "package_lock_sha256": null,
+  "dirty_source": null,
+  "build_flags": []
+}

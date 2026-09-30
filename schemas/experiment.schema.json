@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptance": {
+      "additionalProperties": false,
+      "properties": {
+        "max_p95_regression_fraction": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_relative_perplexity_increase": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_task_score_loss_percentage_points": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_total_response_regression_fraction": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_ttft_regression_fraction": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "median_itl_reduction_fraction": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "memory_reserve_bytes": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "min_paired_requests": {
+          "minimum": 2,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "frozen"
+          ],
+          "type": "string"
+        },
+        "stretch_reduction_fraction": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "status",
+        "min_paired_requests",
+        "median_itl_reduction_fraction",
+        "stretch_reduction_fraction",
+        "max_p95_regression_fraction",
+        "max_ttft_regression_fraction",
+        "max_total_response_regression_fraction",
+        "max_relative_perplexity_increase",
+        "max_task_score_loss_percentage_points",
+        "memory_reserve_bytes"
+      ],
+      "type": "object"
+    },
+    "checkpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "chat_template_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tokenizer_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "repository",
+        "revision",
+        "tokenizer_sha256",
+        "chat_template_sha256"
+      ],
+      "type": "object"
+    },
+    "hardware": {
+      "additionalProperties": false,
+      "properties": {
+        "gpu_count": {
+          "const": 1,
+          "type": "integer"
+        },
+        "gpu_name": {
+          "const": "RTX 5090",
+          "type": "string"
+        },
+        "sm_target": {
+          "const": 120,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "gpu_name",
+        "gpu_count",
+        "sm_target"
+      ],
+      "type": "object"
+    },
+    "kind": {
+      "const": "experiment",
+      "type": "string"
+    },
+    "numerical_lane": {
+      "enum": [
+        "nvfp4_w4a4",
+        "w4a16",
+        "bf16"
+      ],
+      "type": "string"
+    },
+    "owner_approval_reference": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "status": {
+      "enum": [
+        "proposed",
+        "frozen"
+      ],
+      "type": "string"
+    },
+    "workload": {
+      "additionalProperties": false,
+      "properties": {
+        "concurrency": {
+          "const": 1,
+          "type": "integer"
+        },
+        "conditional_context_tokens": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "context_probes_tokens": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "dynamic_batching": {
+          "const": false,
+          "type": "boolean"
+        },
+        "eos_policy": {
+          "enum": [
+            "fixed_length_ignore_eos",
+            "natural_eos_separate_cell",
+            "pending_owner_freeze"
+          ],
+          "type": "string"
+        },
+        "kv_dtype": {
+          "enum": [
+            "bfloat16"
+          ],
+          "type": "string"
+        },
+        "output_capacity_tokens": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "primary_context_tokens": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "prompt_set_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sampling_policy": {
+          "enum": [
+            "greedy",
+            "pending_owner_freeze"
+          ],
+          "type": "string"
+        },
+        "text_only": {
+          "const": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "text_only",
+        "concurrency",
+        "dynamic_batching",
+        "context_probes_tokens",
+        "conditional_context_tokens",
+        "primary_context_tokens",
+        "output_capacity_tokens",
+        "kv_dtype",
+        "sampling_policy",
+        "eos_policy",
+        "prompt_set_sha256"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "status",
+    "owner_approval_reference",
+    "hardware",
+    "checkpoint",
+    "numerical_lane",
+    "workload",
+    "acceptance"
+  ],
+  "title": "megartx experiment v1",
+  "type": "object"
+}

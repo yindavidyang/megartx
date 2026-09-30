@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "kind": "results",
+  "run_id": "pending-wp1-baseline",
+  "provenance": "template",
+  "work_package": "WP1",
+  "numerical_lane": "nvfp4_w4a4",
+  "boundary": "delivered_token_end_to_end",
+  "checkpoint_revision": null,
+  "environment_sha256": null,
+  "experiment_sha256": null,
+  "code_revision": null,
+  "raw_events_sha256": null,
+  "command": [],
+  "correctness": "pending",
+  "quality": "pending",
+  "memory": "pending",
+  "baseline_dispatch": "unverified",
+  "omitted_critical_path_costs": [],
+  "pairs": []
+}

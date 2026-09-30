@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "kind": "compatibility",
+  "checkpoint_revision": null,
+  "environment_sha256": null,
+  "paths": [
+    {
+      "feature": "gemma_architecture",
+      "status": "unverified",
+      "source_reference": null,
+      "evidence_reference": null,
+      "notes": "Requires pinned official source and exact-host evidence; package availability is not support."
+    },
+    {
+      "feature": "gated_gelu",
+      "status": "unverified",
+      "source_reference": null,
+      "evidence_reference": null,
+      "notes": "Requires pinned official source and exact-host evidence; package availability is not support."
+    },
+    {
+      "feature": "native_nvfp4_layout",
+      "status": "unverified",
+      "source_reference": null,
+      "evidence_reference": null,
+      "notes": "Requires pinned official source and exact-host evidence; package availability is not support."
+    },
+    {
+      "feature": "native_nvfp4_activation_quantizer",
+      "status": "unverified",
+      "source_reference": null,
+      "evidence_reference": null,
+      "notes": "Requires pinned official source and exact-host evidence; package availability is not support."
+    },
+    {
+      "feature": "attention_and_kv",
+      "status": "unverified",
+      "source_reference": null,
+      "evidence_reference": null,
+      "notes": "Requires pinned official source and exact-host evidence; package availability is not support."
+    },
+    {
+      "feature": "graph_capture",
+      "status": "unverified",
+      "source_reference": null,
+      "evidence_reference": null,
+      "notes": "Requires pinned official source and exact-host evidence; package availability is not support."
+    },
+    {
+      "feature": "sm120",
+      "status": "unverified",
+      "source_reference": null,
+      "evidence_reference": null,
+      "notes": "Requires pinned official source and exact-host evidence; package availability is not support."
+    },
+    {
+      "feature": "flashinfer_actual_dispatch",
+      "status": "unverified",
+      "source_reference": null,
+      "evidence_reference": null,
+      "notes": "Requires pinned official source and exact-host evidence; package availability is not support."
+    }
+  ]
+}

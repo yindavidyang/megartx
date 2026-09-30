@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "memory",
+  "complete": false,
+  "device_total_bytes": null,
+  "reserve_bytes": 2147483648,
+  "cached_context_tokens": 8192,
+  "output_capacity_tokens": 256,
+  "kv_layers": [],
+  "other_bytes": {
+    "retained_weight_copies": null,
+    "runtime_repacks": null,
+    "persistent_buffers": null,
+    "graph_pools": null,
+    "scratch_peak": null,
+    "prefill_peak_increment": null,
+    "runtime_and_display": null
+  }
+}

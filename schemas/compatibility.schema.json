@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "checkpoint_revision": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "environment_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "kind": {
+      "const": "compatibility",
+      "type": "string"
+    },
+    "paths": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_reference": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feature": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "notes": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "source_reference": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "unverified",
+              "supported",
+              "unsupported"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "feature",
+          "status",
+          "source_reference",
+          "evidence_reference",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": false
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "checkpoint_revision",
+    "environment_sha256",
+    "paths"
+  ],
+  "title": "megartx compatibility v1",
+  "type": "object"
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "experiment",
+  "status": "proposed",
+  "owner_approval_reference": null,
+  "hardware": {
+    "gpu_name": "RTX 5090",
+    "gpu_count": 1,
+    "sm_target": 120
+  },
+  "checkpoint": {
+    "repository": "nvidia/Gemma-4-26B-A4B-NVFP4",
+    "revision": null,
+    "tokenizer_sha256": null,
+    "chat_template_sha256": null
+  },
+  "numerical_lane": "nvfp4_w4a4",
+  "workload": {
+    "text_only": true,
+    "concurrency": 1,
+    "dynamic_batching": false,
+    "context_probes_tokens": [
+      2048,
+      8192
+    ],
+    "conditional_context_tokens": [
+      32768
+    ],
+    "primary_context_tokens": 8192,
+    "output_capacity_tokens": 256,
+    "kv_dtype": "bfloat16",
+    "sampling_policy": "pending_owner_freeze",
+    "eos_policy": "pending_owner_freeze",
+    "prompt_set_sha256": null
+  },
+  "acceptance": {
+    "status": "proposed",
+    "min_paired_requests": 30,
+    "median_itl_reduction_fraction": 0.15,
+    "stretch_reduction_fraction": 0.2,
+    "max_p95_regression_fraction": 0.05,
+    "max_ttft_regression_fraction": 0.05,
+    "max_total_response_regression_fraction": 0.05,
+    "max_relative_perplexity_increase": 0.01,
+    "max_task_score_loss_percentage_points": 1.0,
+    "memory_reserve_bytes": 2147483648
+  }
+}
