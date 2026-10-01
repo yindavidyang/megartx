@@ -6,12 +6,11 @@
   "producer": "compiled CUDA kernels run on RTX 5090; captures checked by independent CPU oracle on target and local host",
   "source_sha256": {
     "kernels/m1_maps_expand.cuh": "e9baa650809915f4de6b7d9f32ade2718a5fa91bef7e18c69b866d4cf394c47b",
-    "benchmarks/m1_maps_expand.cu": "d16b5107d0da190f356875b9cb8f59130d93bc92747949db7817b9b452799010",
+    "benchmarks/m1_maps_expand.cu": "433b0433e7e5dce2b5d63c7b04b368b200cf2b9ece71ffd4cd2510f1a9275639",
     "numerical_reference/m1_kernel_fixture.py": "da33e8742a9b17ab51120a463eef27f4be518b82c34ea3f5d16b415f56eb642a",
-    "numerical_reference/m1_preparation_reference.py": "1444ee9a8617b9571039cd148b1ee04634538ac914495395484e9d9f280dc893",
-    "numerical_reference/test_m1_benchmark_stream_order.py": "2d86c26de011e9945826e5ae59b8bc7ee49d0e91571642febce0663a53f366b3"
+    "numerical_reference/m1_preparation_reference.py": "1444ee9a8617b9571039cd148b1ee04634538ac914495395484e9d9f280dc893"
   },
-  "binary_sha256": "2d1c06ecdf05a63d56123655c88046a081bb79f3ff7b5f0beb881b54ce9308e4",
+  "binary_sha256": "1d2dd7b8aac31139f814da419edbaee96be868727787c044769c70e752109900",
   "installed_identity": {
     "flashinfer_commit": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
     "cutlass_commit": "b46b16d003484063bca4ed365e44095c4c6ed633",
@@ -55,12 +54,12 @@
       "m1_maps_expand"
     ],
     "returncode": 0,
-    "wall_seconds": 1.9112472929991782,
-    "peak_group_plus_wrapper_rss_bytes": 214310912,
-    "minimum_host_available_bytes": 63074406400,
+    "wall_seconds": 2.0600060390133876,
+    "peak_group_plus_wrapper_rss_bytes": 213733376,
+    "minimum_host_available_bytes": 63000965120,
     "minimum_sampled_gpu_free_bytes": 33660338176,
     "limit_reason": null,
-    "log_sha256": "1c48a650ae9a418bdcd764c27cb1f6c0fd86ac605d7445880023e568bff5b920"
+    "log_sha256": "bba82707ce72a1649b1bb4b0eb236125c9d33739d008a6d315c63eb37ca8fc07"
   },
   "resource_bounds": {
     "group_plus_wrapper_rss_limit_bytes": 2147483648,
@@ -68,8 +67,8 @@
     "gpu_phase_limit_seconds": 60,
     "minimum_host_available_bytes": 8589934592,
     "minimum_gpu_free_bytes": 2147483648,
-    "minimum_observed_host_available_bytes": 62234845184,
-    "minimum_sampled_gpu_free_bytes": 33624686592
+    "minimum_observed_host_available_bytes": 62168231936,
+    "minimum_sampled_gpu_free_bytes": 33119272960
   },
   "kernel": {
     "fused_threads": 256,
@@ -143,9 +142,9 @@
   "validation_phases": {
     "correctness": {
       "returncode": 0,
-      "wall_seconds": 0.5862499359936919,
-      "peak_group_plus_wrapper_rss_bytes": 78909440,
-      "minimum_host_available_bytes": 63097266176,
+      "wall_seconds": 0.5956196899933275,
+      "peak_group_plus_wrapper_rss_bytes": 139866112,
+      "minimum_host_available_bytes": 63020531712,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null,
       "harness": {
@@ -167,16 +166,15 @@
         "candidate_selectable": false,
         "full_model_qualified": false
       },
-      "harness_stdout_sha256": "88ccd161014a1900653ea52a9afdc19c837b470132e948718e1db2473191a114",
       "sanitizer_summary": null,
       "sanitizer_log_sha256": null
     },
     "memcheck": {
       "returncode": 0,
-      "wall_seconds": 0.49433810100890696,
-      "peak_group_plus_wrapper_rss_bytes": 205758464,
-      "minimum_host_available_bytes": 63090118656,
-      "minimum_sampled_gpu_free_bytes": 33658241024,
+      "wall_seconds": 2.0696357440028805,
+      "peak_group_plus_wrapper_rss_bytes": 182358016,
+      "minimum_host_available_bytes": 63151517696,
+      "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null,
       "harness": {
         "scope": "isolated M1 maps/AQ/SF; development control",
@@ -197,16 +195,15 @@
         "candidate_selectable": false,
         "full_model_qualified": false
       },
-      "harness_stdout_sha256": "88ccd161014a1900653ea52a9afdc19c837b470132e948718e1db2473191a114",
       "sanitizer_summary": "========= ERROR SUMMARY: 0 errors",
       "sanitizer_log_sha256": "a9d061cee538182f762e132abeea7bac7bddb844338f25751bbbb043f242c425"
     },
     "initcheck": {
       "returncode": 0,
-      "wall_seconds": 0.4013336269999854,
-      "peak_group_plus_wrapper_rss_bytes": 61079552,
-      "minimum_host_available_bytes": 63179677696,
-      "minimum_sampled_gpu_free_bytes": 33640415232,
+      "wall_seconds": 0.39577509902301244,
+      "peak_group_plus_wrapper_rss_bytes": 59326464,
+      "minimum_host_available_bytes": 63013552128,
+      "minimum_sampled_gpu_free_bytes": 33642512384,
       "limit_reason": null,
       "harness": {
         "scope": "isolated M1 maps/AQ/SF; development control",
@@ -227,15 +224,14 @@
         "candidate_selectable": false,
         "full_model_qualified": false
       },
-      "harness_stdout_sha256": "88ccd161014a1900653ea52a9afdc19c837b470132e948718e1db2473191a114",
       "sanitizer_summary": "========= ERROR SUMMARY: 0 errors",
       "sanitizer_log_sha256": "a9d061cee538182f762e132abeea7bac7bddb844338f25751bbbb043f242c425"
     },
     "racecheck": {
       "returncode": 0,
-      "wall_seconds": 0.7753378539928235,
-      "peak_group_plus_wrapper_rss_bytes": 1080401920,
-      "minimum_host_available_bytes": 62234845184,
+      "wall_seconds": 0.7781627609801944,
+      "peak_group_plus_wrapper_rss_bytes": 1081278464,
+      "minimum_host_available_bytes": 62168231936,
       "minimum_sampled_gpu_free_bytes": 33640415232,
       "limit_reason": null,
       "harness": {
@@ -257,15 +253,14 @@
         "candidate_selectable": false,
         "full_model_qualified": false
       },
-      "harness_stdout_sha256": "88ccd161014a1900653ea52a9afdc19c837b470132e948718e1db2473191a114",
       "sanitizer_summary": "========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)",
       "sanitizer_log_sha256": "91dbb142f8feb8786cd6fde6ac035e816b67db14e4b7b400a01386ec106b75c4"
     },
     "synccheck": {
       "returncode": 0,
-      "wall_seconds": 0.4096000730060041,
-      "peak_group_plus_wrapper_rss_bytes": 61210624,
-      "minimum_host_available_bytes": 63081639936,
+      "wall_seconds": 0.3997468809830025,
+      "peak_group_plus_wrapper_rss_bytes": 59899904,
+      "minimum_host_available_bytes": 63134236672,
       "minimum_sampled_gpu_free_bytes": 33640415232,
       "limit_reason": null,
       "harness": {
@@ -287,7 +282,6 @@
         "candidate_selectable": false,
         "full_model_qualified": false
       },
-      "harness_stdout_sha256": "88ccd161014a1900653ea52a9afdc19c837b470132e948718e1db2473191a114",
       "sanitizer_summary": "========= ERROR SUMMARY: 0 errors",
       "sanitizer_log_sha256": "a9d061cee538182f762e132abeea7bac7bddb844338f25751bbbb043f242c425"
     }
@@ -326,10 +320,10 @@
   },
   "timing": {
     "returncode": 0,
-    "wall_seconds": 0.2648605660069734,
-    "peak_group_plus_wrapper_rss_bytes": 79392768,
-    "minimum_host_available_bytes": 63079866368,
-    "minimum_sampled_gpu_free_bytes": 33624686592,
+    "wall_seconds": 0.28458039701217785,
+    "peak_group_plus_wrapper_rss_bytes": 129110016,
+    "minimum_host_available_bytes": 63169900544,
+    "minimum_sampled_gpu_free_bytes": 33119272960,
     "limit_reason": null,
     "method": "CUDA event interval over 512 consecutive host-submitted invocations; setup/H2D/CPU oracle excluded, submission gaps may be included; hot buffers; no CUDA graphs",
     "rounds": 9,
@@ -338,35 +332,34 @@
     "warmups_per_batch": 32,
     "iterations_per_batch": 512,
     "fused_us": [
-      2.17894,
-      2.17919,
-      2.17919,
-      2.17906,
-      2.17919,
-      2.17919,
-      2.17919,
-      2.17888,
-      2.17875
+      2.30694,
+      2.308,
+      2.30719,
+      2.307,
+      3.58656,
+      2.30725,
+      2.30719,
+      2.307,
+      2.30719
     ],
     "two_launch_control_us": [
-      3.17312,
-      3.17119,
-      3.17063,
-      3.17081,
-      3.17119,
-      3.17087,
-      3.17075,
-      3.17069,
-      3.17081
+      3.41494,
+      3.41512,
+      3.416,
+      3.415,
+      3.41519,
+      3.415,
+      3.41525,
+      3.41912,
+      3.416
     ],
-    "fused_median_us": 2.17919,
-    "two_launch_control_median_us": 3.17081,
+    "fused_median_us": 2.30719,
+    "two_launch_control_median_us": 3.41519,
     "all_samples_retained": true,
-    "oracle_equal_before_and_after": true,
-    "harness_stdout_sha256": "e9a402299c55b4068be121a1dc1151a1ae9b57c7414422a4ecd0d31f6ad4c1d7"
+    "oracle_equal_before_and_after": true
   },
   "cpu_checks": {
-    "reference_tests": 389,
+    "reference_tests": 387,
     "scaffold_tests": 38,
     "valid_configs": 8,
     "finite_q_sf_products": 4064,
@@ -389,37 +382,5 @@
     "full_model_qualified": false,
     "installed_incumbent_timing_comparison": false,
     "project_gate_claim": false
-  },
-  "status": "current",
-  "revision": 2,
-  "rerun_parent_head": "04ad9167e6165aeecadbb1582d331507ecb6e64b",
-  "supersedes": {
-    "path": "docs/evidence/m1-maps-expand-standalone-04ad916-superseded.json",
-    "sha256": "88ceed188e7381ac8c5bbc24ea6ba4041af48ccf189fe4d2ab14d170241744d9",
-    "head": "04ad9167e6165aeecadbb1582d331507ecb6e64b",
-    "status": "superseded",
-    "reason": "Previous harness used default-stream initialization/uploads with nonblocking-stream kernels and no explicit preceding dependency. Old raw records are retained; their observed passes do not establish upload ordering."
-  },
-  "stream_ordering": {
-    "buffer_initialization": "cudaMemsetAsync on the owned nonblocking kernel stream",
-    "H2D": "cudaMemcpyAsync on that same stream",
-    "pageable_input_lifetime": "checked cudaStreamSynchronize after all four uploads before Inputs::upload returns",
-    "D2H": "cudaMemcpyAsync on the same stream plus checked completion before host inspection",
-    "setup_fences_inside_timing_interval": false,
-    "kernel_changed": false
-  },
-  "source_guard": {
-    "returncode": 0,
-    "wall_seconds": 0.071547322004335,
-    "peak_group_plus_wrapper_rss_bytes": 0,
-    "minimum_host_available_bytes": 63279579136,
-    "minimum_sampled_gpu_free_bytes": 33660338176,
-    "limit_reason": null,
-    "tests": 2,
-    "target_log_sha256": "d12cea29312bf516f1c8b9b63286a29570df4d0ba1047a4489a90477f2a879b6",
-    "local_pass": true,
-    "previous_04ad916_harness_rejected": true,
-    "ordering_or_lifetime_mutations_rejected": 5,
-    "scope": "CPU source guard only; actual GPU byte/sanitizer results are separate"
   }
 }

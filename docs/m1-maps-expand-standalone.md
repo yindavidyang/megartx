@@ -8,6 +8,15 @@ The [measured receipt](evidence/m1-maps-expand-standalone.json) records source,
 binary and capture hashes, resource limits, checks and every timing sample.
 This experiment starts from main `54557e2e537f56f32ad0b604aaba9361a655b634`.
 
+The active receipt is the rerun after correcting the benchmark's stream ordering.
+The initial head `04ad9167e6165aeecadbb1582d331507ecb6e64b` used default-stream
+uploads with nonblocking-stream kernels without a preceding dependency. Its
+[original receipt](evidence/m1-maps-expand-standalone-04ad916-superseded.json)
+is preserved byte-for-byte as **superseded**, along with its private raw captures
+and logs. Those observed passes did not prove the missing dependency. The kernel
+and layouts are unchanged; correctness, sanitizers and timing were rerun against
+the corrected harness's exact source and newly compiled binary.
+
 The scope ends at ordinary byte buffers. It prepares no opaque TMA/CuTe
 descriptors, calls no incumbent entrypoint, and executes no quantization, expert
 GEMM, GELU, reduction or model operation. The existing
@@ -25,6 +34,14 @@ allocations of at least these extents, on the device/context of the supplied
 stream. The raw launcher checks geometry, nonnull pointers and alignment; it
 cannot discover allocation extents or aliases. The benchmark owns and verifies
 every allocation. This pointer interface is not a runtime capability receipt.
+
+All buffer initialization, H2D uploads, kernels and D2H snapshots use the same
+owned nonblocking stream. A checked completion fence after all four uploads
+keeps pageable host-source storage alive until DMA finishes. Each D2H snapshot
+also completes before inspecting its host bytes. Initialization precedes kernels
+by stream order; setup fences stay outside the timing event interval. A CPU
+[source guard](../numerical_reference/test_m1_benchmark_stream_order.py) rejects
+the old harness and five ordering/lifetime mutations; it runs on the target too.
 
 | Buffer | Extent in bytes | Required pointer alignment |
 | --- | ---: | ---: |
@@ -76,7 +93,7 @@ output are rejected. The five new CPU tests check corrupt outputs, poisoned
 padding/guards, altered expectations, invalid fixture values and truncated or
 symlinked captures. CPU capture verification alone does not attest its producer.
 
-All 387 numerical-reference and 38 scaffold tests pass; eight configs validate,
+All 389 numerical-reference and 38 scaffold tests pass; eight configs validate,
 Python compilation passes, and all 4064 finite FP4-times-SF products remain exact
 in the existing BF16 representation self-check. These are CPU checks; the
 separate captured runs above establish the narrower GPU byte result.
@@ -91,15 +108,17 @@ checked before and after timing.
 
 | Implementation | Median microseconds/invocation | Range |
 | --- | ---: | ---: |
-| One-CTA fused kernel | 2.30719 | 2.30694–3.58656 |
-| Our two-launch development control | 3.41519 | 3.41494–3.41912 |
+| One-CTA fused kernel | 2.17919 | 2.17875–2.17919 |
+| Our two-launch development control | 3.17081 | 3.17063–3.17312 |
 
 The control uses one 32-thread map CTA followed by eight 256-thread expansion
 CTAs for the same output contract. It is our standalone control, not installed
-FlashInfer. The fused outlier is retained in the receipt. These timings establish
-neither an incumbent improvement nor an end-to-end/project performance gate.
+FlashInfer. All fresh samples are retained. The control also differs in CTA
+arrangement and validity/global-map work, so the comparison does not isolate
+only launch overhead. These timings establish neither an incumbent improvement
+nor an end-to-end/project performance gate.
 
-One lean NVCC build took 2.060 seconds and 213733376 bytes of sampled aggregate
+One lean NVCC build took 1.911 seconds and 214310912 bytes of sampled aggregate
 compiler-group plus wrapper RSS under a 2 GiB / 300-second cap. The fused kernel
 uses 36 registers/thread, 33 shared bytes and zero local bytes/spills. The
 executable's guarded device allocations total 5816976 bytes, below 8 MiB.

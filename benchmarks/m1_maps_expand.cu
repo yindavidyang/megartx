@@ -35,7 +35,8 @@ std::size_t scratch = 0;
 struct Buffer {
   unsigned char* storage = nullptr;
   std::size_t size;
-  explicit Buffer(std::size_t n) : size(n) {
+  cudaStream_t const stream;
+  Buffer(std::size_t n, cudaStream_t s) : size(n), stream(s) {
     check(cudaMalloc(&storage, n + 64));
     scratch += n + 64;
     reset();
@@ -44,14 +45,17 @@ struct Buffer {
   Buffer(Buffer const&) = delete;
   unsigned char* data() const { return storage + 32; }
   void reset() {
-    check(cudaMemset(storage, 0xA7, 32));
-    check(cudaMemset(data(), 0xD3, size));
-    check(cudaMemset(data() + size, 0xB6, 32));
+    check(cudaMemsetAsync(storage, 0xA7, 32, stream));
+    check(cudaMemsetAsync(data(), 0xD3, size, stream));
+    check(cudaMemsetAsync(data() + size, 0xB6, 32, stream));
   }
-  void upload(unsigned char const* bytes) { check(cudaMemcpy(data(), bytes, size, cudaMemcpyHostToDevice)); }
+  void upload(unsigned char const* bytes) {
+    check(cudaMemcpyAsync(data(), bytes, size, cudaMemcpyHostToDevice, stream));
+  }
   Bytes snapshot(bool guards = false) const {
     Bytes raw(size + 64);
-    check(cudaMemcpy(raw.data(), storage, raw.size(), cudaMemcpyDeviceToHost));
+    check(cudaMemcpyAsync(raw.data(), storage, raw.size(), cudaMemcpyDeviceToHost, stream));
+    check(cudaStreamSynchronize(stream));  // Finish D2H before reading pageable host storage.
     if (!std::all_of(raw.begin(), raw.begin() + 32, [](auto x) { return x == 0xA7; }) ||
         !std::all_of(raw.end() - 32, raw.end(), [](auto x) { return x == 0xB6; }))
       throw std::runtime_error("buffer guard corrupted");
@@ -60,10 +64,14 @@ struct Buffer {
   }
 };
 struct Inputs {
-  Buffer ids{32}, weights{32}, aq{kAQBytes}, sf{128 * kSFBlocks};
+  Buffer ids, weights, aq, sf;
+  explicit Inputs(cudaStream_t stream)
+      : ids(32, stream), weights(32, stream), aq(kAQBytes, stream), sf(128 * kSFBlocks, stream) {}
   void upload(Bytes const& raw) {
     ids.upload(raw.data()); weights.upload(raw.data() + 32);
     aq.upload(raw.data() + 64); sf.upload(raw.data() + 64 + kAQBytes);
+    // Same-stream order protects consumers; completion also protects raw's lifetime.
+    check(cudaStreamSynchronize(ids.stream));
   }
   Bytes snapshot() const {
     Bytes out;
@@ -74,7 +82,10 @@ struct Inputs {
   }
 };
 struct Outputs {
-  Buffer rank{32}, sorted{32}, offsets{129 * 8}, aq{8 * kAQBytes}, weights{32}, sf{kSFBytes};
+  Buffer rank, sorted, offsets, aq, weights, sf;
+  explicit Outputs(cudaStream_t stream)
+      : rank(32, stream), sorted(32, stream), offsets(129 * 8, stream),
+        aq(8 * kAQBytes, stream), weights(32, stream), sf(kSFBytes, stream) {}
   M1Buffers bind(Inputs const& i) {
     return {reinterpret_cast<int const*>(i.ids.data()),
       reinterpret_cast<std::uint32_t const*>(i.weights.data()), i.aq.data(), i.sf.data(),
@@ -172,8 +183,8 @@ int run(int argc, char** argv) {
   cudaStream_t stream;
   check(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
   try {
-    Inputs input;
-    Outputs fused, control;
+    Inputs input{stream};
+    Outputs fused{stream}, control{stream};
     headroom();
     if (scratch > (8 << 20)) throw std::runtime_error("scratch budget exceeded");
     constexpr std::size_t input_bytes = 24000, output_bytes = 2896040;
