@@ -1,0 +1,176 @@
+{
+  "schema": 1,
+  "checkpoint_revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+  "runtime": {
+    "torch": "2.13.0+cu130",
+    "cuda_build": "13.0",
+    "vllm": "0.30.0",
+    "flashinfer": "0.6.18.post1",
+    "gpu_arch": "sm120"
+  },
+  "installed_files": {
+    "vllm/_version.py": {
+      "sha256": "c8b934f984aeeb61bbe5f0bdfe0fa80783e39d18369cbf47d63f7ff7581ac8f9",
+      "bytes": 530
+    },
+    "vllm/model_executor/models/gemma4.py": {
+      "sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "bytes": 69524
+    },
+    "vllm/model_executor/layers/layernorm.py": {
+      "sha256": "4126258bf85aa3af54c78cfbf2a0f32000491e42be37661f2d1ac9f0beea00f3",
+      "bytes": 11691
+    },
+    "vllm/model_executor/layers/rotary_embedding/base.py": {
+      "sha256": "c81804498f08f072356a26b41967f211475df2694dabf5da9f488c074d1fdef5",
+      "bytes": 10964
+    },
+    "vllm/kernels/vllm_c.py": {
+      "sha256": "ef37e71736807026f0b8ad187155b63f147984c03d287a78790ef8f8ed642ec1",
+      "bytes": 3320
+    },
+    "vllm/v1/attention/backends/flashinfer.py": {
+      "sha256": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f",
+      "bytes": 117007
+    },
+    "flashinfer/prefill.py": {
+      "sha256": "2ad12a8387b3f6bff192e5945769b68d90cfcab00b9eb2a8a524af8dd71a29de",
+      "bytes": 268368
+    },
+    "flashinfer/decode.py": {
+      "sha256": "d82d107a644596a9349780b839b34e690c50169ea4cea3d0ee02b78e9dc88c1a",
+      "bytes": 165958
+    },
+    "flashinfer/data/include/flashinfer/attention/prefill.cuh": {
+      "sha256": "f93cbea96e3a723254c15f5a52d6dd4c13e3892e88eb9b9fed1c0c0048c7d710",
+      "bytes": 231175
+    },
+    "flashinfer/data/include/flashinfer/attention/decode.cuh": {
+      "sha256": "bd699c64cff0af922305e532de587ff4db8bc377c198bd653db1d48aa74c2942",
+      "bytes": 52677
+    },
+    "flashinfer/data/include/flashinfer/attention/variants.cuh": {
+      "sha256": "90a228dd71b3ce8030d663e2b16f67f840fe4a3e99912f8b47774d3fd905a080",
+      "bytes": 3223
+    },
+    "flashinfer/data/include/flashinfer/attention/state.cuh": {
+      "sha256": "b2f59c104c2857e7e69f1837faf577525a292da98b375d5fb24dbcfc15d78159",
+      "bytes": 2554
+    },
+    "flashinfer/data/include/flashinfer/math.cuh": {
+      "sha256": "ad9461ba66273bf7e227af1e285a136b4e53f899fa60b3a41f08627ad738f2ed",
+      "bytes": 8141
+    },
+    "flashinfer/data/include/flashinfer/vec_dtypes.cuh": {
+      "sha256": "3e292b05f261f29287cb18871fe62f6a9a59cf1f47e885bee45524776a984f2c",
+      "bytes": 77917
+    },
+    "flashinfer/data/include/flashinfer/mma.cuh": {
+      "sha256": "f6df5d6475bf2fc33932399b7063894a2a4ed27cfabe45ae7cd239a1c61943e9",
+      "bytes": 26618
+    },
+    "vllm/_C_stable_libtorch.abi3.so": {
+      "sha256": "7a283666e16f66348351ed0e877425016b09e1986a2a1086b0aaad08dbadd101",
+      "bytes": 78014032,
+      "source_copy": false
+    },
+    "flashinfer/xqa.py": {
+      "bytes": 24480,
+      "sha256": "6a3f7330980b976201cff0fcdf51e2958e454c4c5951ad2b30c1f2aa13722d33"
+    },
+    "flashinfer/jit/xqa.py": {
+      "bytes": 9348,
+      "sha256": "b47625e738bcef4324e874a20fa4c3aee91c477dafd72b24480e3d235c3d20cc"
+    },
+    "flashinfer/data/csrc/flashinfer_xqa_binding.cu": {
+      "bytes": 2167,
+      "sha256": "a4b4af8bab93ce363d67bed76ed7ee7f5d5ee27146345fcb39863142931fe80b"
+    },
+    "flashinfer/data/csrc/xqa/mha.cu": {
+      "bytes": 137685,
+      "sha256": "fac9c9a116be125b800257c455ee3abe2a2a620b2816a3c254792d3a5033ace4"
+    },
+    "flashinfer/data/csrc/xqa/mhaUtils.cuh": {
+      "bytes": 19177,
+      "sha256": "9a62daf9bc47e03d68eb4ea8e650d4f72b29ad50538a07404f3a0793d5a1ade8"
+    },
+    "flashinfer/data/csrc/xqa/xqa_wrapper.cu": {
+      "bytes": 7741,
+      "sha256": "31fbba7d0e912091b9aa16a1fd28338372be56b4543edcf556e21e33924a34aa"
+    },
+    "flashinfer/data/csrc/xqa/mha.h": {
+      "bytes": 11032,
+      "sha256": "e23d3741868ec09c3aa2cb08ffea298db21737362b7ba89bb9d6f9c6533746fa"
+    },
+    "flashinfer/data/csrc/xqa/mma.cuh": {
+      "bytes": 3413,
+      "sha256": "a4a8ffbd9ecb0329864f21943916640d805e92137387b7f23e0fbc06c6dfe4d2"
+    },
+    "flashinfer/data/csrc/xqa/defines.h": {
+      "bytes": 5815,
+      "sha256": "722dd1cba129d23ba532bdab69c15c7255d6870af52d0d3e1d5667734e752973"
+    }
+  },
+  "upstream_vllm_commit": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+  "upstream_association_basis": "Installed vllm._version __commit_id__ gced6857af; exact-commit upstream sources inspected",
+  "upstream_sources": {
+    "csrc/libtorch_stable/layernorm_kernels.cu": {
+      "bytes": 16275,
+      "sha256": "2041b5da8fa2e2868c1ef6133a46d4ae85ffdbc599a8a5da0c5e66cb91c573f6",
+      "url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/csrc/libtorch_stable/layernorm_kernels.cu"
+    },
+    "csrc/libtorch_stable/pos_encoding_kernels.cu": {
+      "bytes": 9042,
+      "sha256": "baed8e314eef6b1c9e8e8c4fa72428dc6c0fc4c885d021025250c101ae192f7b",
+      "url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/csrc/libtorch_stable/pos_encoding_kernels.cu"
+    }
+  },
+  "binary_build_equivalence_attested": false,
+  "original_norm_provenance": {
+    "input_norm": {
+      "bytes": 5632,
+      "sha256": "218744f656a797cef91f0f985f9f034c3e9e06c40d3dad26502edd12a811f068",
+      "loaded_original_bits_equal": true
+    },
+    "q_norm": {
+      "bytes": 512,
+      "sha256": "a80f3176d8c4e9c8d113aee90863711847acaf9bc112dc49f85690fd355c7866",
+      "loaded_original_bits_equal": true
+    },
+    "k_norm": {
+      "bytes": 512,
+      "sha256": "82dbd230fa6158cdafdf769a7ed09db864b9b957b379d356408db8c75496b1b4",
+      "loaded_original_bits_equal": true
+    },
+    "post_attention_norm": {
+      "bytes": 5632,
+      "sha256": "3b7c7fff8d5d5c07ddbd6588c6ce7433cf3852017b7ee9eebcd91d4a45d0f1ab",
+      "loaded_original_bits_equal": true
+    },
+    "pre_ff2_norm": {
+      "bytes": 5632,
+      "sha256": "2e70831425408d1cb6c980c48d1132e10b72ff3ed2a81dccb2265efd1d036f1b",
+      "loaded_original_bits_equal": true
+    }
+  },
+  "declared_source_parameters": {
+    "ordinary_rms_epsilon": 1e-06,
+    "head_width": 256,
+    "decoder_norm_width": 2816,
+    "v_norm_has_learned_weight": false,
+    "rope_cache_dtype": "BF16",
+    "rope_neox_style": true,
+    "attention_scale": 1.0,
+    "q_heads": 16,
+    "kv_heads": 8,
+    "attention_window_tokens": 1024,
+    "xqa_table_capacity_tokens": 8448,
+    "fa2_kv_tile_tokens": 16,
+    "xqa_kv_tile_tokens": 256
+  },
+  "native_mma_rounding_qualified": false,
+  "source_evidence_archive_sha256": "8cb6b4ae392d183073150a80c27dd9ff41fa6a5db840cc8bff69112725300583",
+  "xqa_source_archive_sha256": "160176fac26c8448248b61488633013bc2da5b9d8d61c2c83b7bf7f0b960b82b",
+  "executed_probe_source_archive_sha256": "4000ac9539f88dbcfcb4dc94473b46586c736ac6c13b1e127aa1077f121b5aa8",
+  "cuda_error_reference": "https://docs.nvidia.com/cuda/archive/13.0.0/cuda-c-programming-guide/index.html#mathematical-functions-appendix"
+}
