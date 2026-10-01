@@ -44,15 +44,32 @@ def activation(directory):
     return {'forced_all_six_executed': True, 'native_dense_sm120_launches': dense_sm120, 'adapter_gelu_launches': gelu, 'guarded_model_dispatch': True, 'forced_adapter_spans': {k: spans[k] for k in ('megartx::corrected_expert_native', 'megartx::corrected_expert_reference')}, 'forced_trace_sha256': proof['forced_trace_sha256']}
 
 
+def _require_natural_scope(record):
+    # Older immutable natural records omit these fields. Explicit scope on a
+    # newer record must agree; controlled events never become natural evidence
+    # merely because their six counters are positive.
+    if (('route_origin' in record and record['route_origin'] != 'natural')
+            or ('scope' in record and record['scope'] != 'natural')
+            or record.get('routing_intervention', False) is not False
+            or ('routing_unchanged' in record and record['routing_unchanged'] is not True)):
+        raise RuntimeError('Controlled or unknown routing scope cannot qualify natural correction coverage')
+
+
 def natural_coverage(directory, mode):
     directory = Path(directory)
     if (directory / 'QUALIFICATION-INVALIDATED.json').exists():
         raise RuntimeError('Integration evidence was explicitly invalidated')
+    if (directory / 'CONTROLLED-ROUTING.json').exists():
+        raise RuntimeError('Controlled routing artifacts cannot qualify natural correction coverage')
     if mode not in ('native', 'reference'):
         raise RuntimeError('Natural correction coverage requires an active correction mode')
     requests = json.loads((directory / 'quality-requests.json').read_text())
+    for request in requests:
+        _require_natural_scope(request)
     prefixes = {r['id']: r['prompt_sha256'] for r in requests}
     manifests = [json.loads(line) for line in (directory / 'adapter-manifest.jsonl').read_text().splitlines()]
+    for manifest in manifests:
+        _require_natural_scope(manifest)
     if not manifests or any(m['mode'] != mode or not m['correction_active'] for m in manifests):
         raise RuntimeError('Natural manifest has inactive or unmatched correction mode')
     expected = {(m['loader_ordinal'], e['expert']): m['layer'] for m in manifests for e in m['affected_experts']}
@@ -61,6 +78,7 @@ def natural_coverage(directory, mode):
     totals = {key: {'routed_rows': 0, 'nonzero_route_weights': 0, 'cases': set()} for key in expected}
     for line in (directory / 'route-hits.jsonl').read_text().splitlines():
         hit = json.loads(line)
+        _require_natural_scope(hit)
         key = hit['loader_ordinal'], hit['expert']
         if key not in totals or hit['layer_name'] != expected[key] or hit['mode'] != mode or prefixes.get(hit['case_id']) != hit['prompt_sha256']:
             raise RuntimeError('Natural route audit differs from the actual loaded experts/client prefix')

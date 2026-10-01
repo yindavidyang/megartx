@@ -1,0 +1,118 @@
+{
+  "schema": "megartx-controlled-preparation-v1",
+  "status": "cpu_preparation_only",
+  "route_origin": "controlled",
+  "routing_intervention": true,
+  "routing_unchanged": false,
+  "minimal_case": {
+    "input_tokens": 33,
+    "cached_prompt_tokens": 32,
+    "output_cap": 2,
+    "model_layers": 30,
+    "top_k": 8,
+    "ordinary_expert_ids": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8
+    ],
+    "uniform_f32_weight": 0.125,
+    "planned_interventions": [
+      {
+        "layer": 0,
+        "expert": 42,
+        "input_position": 31,
+        "slot": 7
+      },
+      {
+        "layer": 0,
+        "expert": 82,
+        "input_position": 32,
+        "slot": 7
+      },
+      {
+        "layer": 1,
+        "expert": 126,
+        "input_position": 32,
+        "slot": 7
+      },
+      {
+        "layer": 2,
+        "expert": 89,
+        "input_position": 32,
+        "slot": 7
+      },
+      {
+        "layer": 3,
+        "expert": 7,
+        "input_position": 32,
+        "slot": 7
+      },
+      {
+        "layer": 5,
+        "expert": 12,
+        "input_position": 32,
+        "slot": 7
+      }
+    ]
+  },
+  "source_sha256": {
+    "numerical_reference/controlled_reference.py": "4a91b032566e9c9a7d6b6a0fa4c5f34d79142d5ec71ffbbb1bf0cfdd4da897a5",
+    "numerical_reference/test_controlled_reference.py": "2e1036fec401c204266968adde89be1478f693a34e22b83b894987d1ac4525f6",
+    "src/megartx/nvfp4_qualification.py": "0c91561b0a084eaec26cf491feaf91902e7315e97cf04ced1d176f2489132aa6",
+    "numerical_reference/test_nvfp4_qualification.py": "1fbf1639282c2b16ba22315857ba1f0c371731e44b41047c1cfce66483837cb5"
+  },
+  "independent_review": {
+    "scope": "static CPU helper, tests, natural-coverage guards and sanitized design",
+    "passed": true,
+    "reviewer_reran_tests": false
+  },
+  "local_validation": {
+    "python": "3.12.8",
+    "numpy": "2.4.4",
+    "controlled_fixture_tests": 52,
+    "artifact_guard_tests": 56,
+    "complete_reference_and_guard_tests": 206,
+    "scaffold_tests": 32,
+    "total": 238,
+    "passed": true,
+    "commands": [
+      "python3 -m unittest discover -s numerical_reference -v",
+      "PYTHONPATH=src python3 -m unittest discover -s tests -v",
+      "PYTHONPATH=src python3 -m megartx validate configs",
+      "git diff --check"
+    ],
+    "original_weight_test_payloads": "Synthetic safetensors only; original checkpoint weights not read in this continuation"
+  },
+  "ci_contract": {
+    "workflow": ".github/workflows/numerical-reference.yml",
+    "python": "3.12",
+    "numpy": "2.3.5",
+    "result_source": "Exact commit GitHub check run, independently of this local CPU report"
+  },
+  "nominal_cache_config": {
+    "checkpoint_revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+    "config_sha256": "4e379cc809c617a49179a49140f553a2d6a5ec538ed480832b0c54f6ace43d98",
+    "live_owner_layout_verified": false
+  },
+  "live_controlled_model_runs": 0,
+  "live_controlled_expert_coverage_verified": false,
+  "live_logits_or_kv_collected": false,
+  "gpu_runtime_plugin_modified": false,
+  "original_checkpoint_modified": false,
+  "natural_coverage_or_quality_passed": false,
+  "corrected_baseline_qualified": false,
+  "timing_gate_opened": false,
+  "remaining_prerequisites": [
+    "Installed completion whitelist/sampler and registered runner verification",
+    "Fail-closed live controlled collector and shared-activation paired/wrong-up modes",
+    "Independent proof, trace and operator-stage verification",
+    "Live KV owner/layout/slot mapping confirmation",
+    "Matched full-model logits and cache-path probes after operator gates pass"
+  ],
+  "private_evidence_policy": "Original weights, route/input arrays, private environment records, raw logits and large traces remain outside the public repository"
+}

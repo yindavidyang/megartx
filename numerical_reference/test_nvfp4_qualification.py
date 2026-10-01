@@ -407,6 +407,48 @@ class QualificationTests(unittest.TestCase):
         self.requests = []
         self.assert_natural_rejected("six frozen experts and a client corpus")
 
+    def test_controlled_directory_cannot_qualify_positive_natural_counters(self):
+        self.write_json("CONTROLLED-ROUTING.json", {"route_origin": "controlled"})
+        self.assert_natural_rejected("Controlled routing artifacts")
+        self.assertFalse((self.directory / "natural-coverage.json").exists())
+
+    def test_controlled_request_cannot_qualify_positive_natural_counters(self):
+        self.requests[0]["route_origin"] = "controlled"
+        self.assert_natural_rejected("routing scope cannot qualify natural")
+        self.assertFalse((self.directory / "natural-coverage.json").exists())
+
+    def test_controlled_manifest_cannot_qualify_positive_natural_counters(self):
+        self.manifests[0]["routing_intervention"] = True
+        self.assert_natural_rejected("routing scope cannot qualify natural")
+        self.assertFalse((self.directory / "natural-coverage.json").exists())
+
+    def test_controlled_hit_cannot_qualify_positive_natural_counters(self):
+        self.hits[0]["scope"] = "controlled"
+        self.assert_natural_rejected("routing scope cannot qualify natural")
+        self.assertFalse((self.directory / "natural-coverage.json").exists())
+
+    def test_unchanged_routing_flag_cannot_disguise_an_intervention(self):
+        self.requests[0].update(route_origin="natural", routing_unchanged=False)
+        self.assert_natural_rejected("routing scope cannot qualify natural")
+
+    def test_unknown_or_ambiguous_explicit_scope_fails_closed(self):
+        for field, value in (("route_origin", None), ("route_origin", "forced"),
+                             ("scope", "unknown"), ("routing_intervention", "false"),
+                             ("routing_intervention", 0), ("routing_unchanged", 1)):
+            with self.subTest(field=field, value=value):
+                original = dict(self.requests[0])
+                self.requests[0][field] = value
+                self.assert_natural_rejected("routing scope cannot qualify natural")
+                self.requests[0] = original
+
+    def test_explicit_natural_scope_preserves_legacy_natural_qualification(self):
+        for row in self.requests + self.manifests + self.hits:
+            row.update(route_origin="natural", scope="natural",
+                       routing_intervention=False, routing_unchanged=True)
+        self.write_natural_inputs()
+        report = helper.natural_coverage(self.directory, "native")
+        self.assertTrue(report["all_six_naturally_exercised"])
+
 
 if __name__ == "__main__":
     unittest.main()

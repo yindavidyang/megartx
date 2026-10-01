@@ -112,6 +112,19 @@ python numerical_reference/check_router_capture.py \
 
 The lifecycle runner records exact flags, phases and telemetry, bounds compilation/request lifetime, reserves 2 GiB free GPU memory and 8 GiB host RAM, and cleans up only its own server process group. Do not run the oracle while another compute job is present. CPU checks require the pinned NumPy dependency in `numerical_reference/requirements-cpu.txt`. Large raw logits, weights, traces and private environment manifests stay outside the public repository.
 
+## Controlled integration preparation
+
+The next bounded diagnostic deliberately fixes every layer's route table and
+places all six affected experts on predeclared full-model inputs. The
+[reviewed 33-input design](controlled-scale-integration.md) distinguishes
+positive controlled coverage from natural selection, uses a shared-activation
+paired GEMM reference and a same-path wrong-up-global negative control, and
+gates downstream raw logits and direct KV snapshots on operator evidence.
+CPU replay/identity helpers and synthetic tests are prepared; no live
+intervention or new full-model/cache result has been recorded. Natural coverage
+rejects explicitly controlled artifacts even when their six counters are
+positive. Timing and G0/G1 acceptance remain blocked.
+
 ## Source evidence
 
 - [Pinned MoE runner](https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/model_executor/layers/fused_moe/runner/moe_runner.py) and [forward context](https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/forward_context.py): actual registered runner lookup and routed-layer dispatch.

@@ -13,6 +13,7 @@ Updated 1 October 2026. Stable IDs follow the [master plan](master-plan.md). Pro
 | D07 | Proposed | 15% median 8K ITL improvement (20% stretch), p95/TTFT guards, quality margins and 2 GiB initial reserve; owner freeze and evidence required |
 | D08 | Authorized | Isolated target-host setup, compatible stack/model download and compatibility/baseline tests; investigate/fix six gate/up scale mismatches, implement a minimal scale-preserving adapter, independent numerical checks, rerun baseline when qualified, and publish a sanitized draft PR. Training, wider custom megakernels, merge and deployment remain outside scope |
 | D09 | Observed, separately qualified | Pinned FlashInfer uses layerwide activation calibration maxima, distinct from the checkpoint per-expert quantizer. Original-scale weight preservation does not establish full quantizer/quality equivalence; deterministic eager correction is a separate lane |
+| D10 | Authorized diagnostic; CPU preparation | Bounded deterministic full-model routing intervention to exercise all six original-scale corrections, with a matched reference/negative control and subsequent logit/KV checks. The minimal case has 33 input tokens with fixed routes at all 30 layers. Live intervention and cache evidence are pending; controlled coverage cannot satisfy natural quality or performance gates. See [controlled integration design](controlled-scale-integration.md) |
 
 ## Current gate state
 

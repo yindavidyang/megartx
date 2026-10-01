@@ -31,8 +31,9 @@ CPU tests for BF16 rounding/products, signed-bit top-eight ordering, bounded
 FP64 projection diagnostics, score/weight profiles and original-payload
 provenance. Fifteen additional observer guard tests reject changed prefixes,
 request/row bounds and missing per-forward layers using small tensor API stubs.
-The complete independent/guard suite has 147 tests; the scaffold has 32 more.
-These counts are CPU checks, not CUDA qualification.
+The initial router/reference guard suite had 147 tests; the scaffold has 32
+more. The controlled preparation below adds separate CPU checks. These counts
+are CPU checks, not CUDA qualification.
 
 Given the private output from the explicitly bounded score client, run:
 
@@ -51,6 +52,24 @@ preferences keep the FP32 dot envelope conditional. No observed error is used
 to fit a tolerance. Raw NPZ files contain weights/inputs and stay private. See
 [the one-prefix evidence](../docs/evidence/nvfp4-router-scores.json) and the
 [qualification limits](../docs/nvfp4-scale-correction.md#one-unchanged-prefix-router-score-diagnostic).
+
+## Controlled integration preparation
+
+`controlled_reference.py` prepares a fixed 33-input, all-30-layer route table
+and verifies complete actual ID/F32-weight correspondence by absolute position.
+Its captured-operand replay uses original bounded checkpoint projections and
+the independent NumPy format/GEMM oracle. It compares raw full-vocabulary
+logits and selected logical BF16 K/V with explicit token/table/row provenance.
+Synthetic tests reject missing decode rows, altered ordinary routes, duplicate
+positions, wrong alpha and incomplete execution records. These are preparation
+and artifact checks; there is no new controlled GPU, full-model or cache result.
+
+Natural coverage additionally rejects a `CONTROLLED-ROUTING.json` marker or
+explicit non-natural request, manifest or hit scope before report creation.
+Positive artificial counters cannot satisfy the natural gate. Existing timing
+refusals and numerical acceptance limits remain intact. The reviewed minimal
+experiment, paired-reference limitations and direct-KV prerequisites are in
+the [controlled integration design](../docs/controlled-scale-integration.md).
 
 ## Keep three numerical contracts distinct
 
