@@ -5,9 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "megartx"
 version = "0.0.1"
-description = "CPU-only WP0/WP1 experiment contracts for a single-GPU decode investigation"
+description = "WP0/WP1 contracts and opt-in NVFP4 scale-fidelity experiments for single-GPU decode"
 requires-python = ">=3.10"
 dependencies = []
+
+[project.entry-points."vllm.general_plugins"]
+megartx_scale_adapter = "megartx.vllm_scale_plugin:install"
 
 [project.scripts]
 megartx = "megartx.cli:main"

@@ -1,0 +1,273 @@
+{
+  "status": "BLOCKED_NATURAL_CORRECTION_COVERAGE",
+  "eligible_as_corrected_baseline": false,
+  "g0_g1_accepted": false,
+  "performance_improvement_claimed": false,
+  "checkpoint": {
+    "repository": "nvidia/Gemma-4-26B-A4B-NVFP4",
+    "revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+    "weights_requantized": false,
+    "affected_layer_expert_pairs": [
+      [
+        0,
+        42
+      ],
+      [
+        0,
+        82
+      ],
+      [
+        1,
+        126
+      ],
+      [
+        2,
+        89
+      ],
+      [
+        3,
+        7
+      ],
+      [
+        5,
+        12
+      ]
+    ],
+    "original_shard_hashes_equal_after_runs": true
+  },
+  "runtime": {
+    "device": "RTX 5090",
+    "compute_capability": "12.0",
+    "vllm": "0.30.0",
+    "flashinfer_python": "0.6.18.post1",
+    "torch": "2.13.0+cu130",
+    "transformers": "5.18.0",
+    "triton": "3.7.1",
+    "numpy_target": "2.3.5",
+    "python_target": "3.12.3",
+    "kv_dtype": "bfloat16",
+    "expert_backend": "FlashInfer CUTLASS",
+    "eager": true,
+    "fused_finalize": false,
+    "concurrency": 1,
+    "speculation": false
+  },
+  "operator": {
+    "artifact_sha256": "47de27283e48239ae206b4333509f251233587d08bda8ddc1914c81d38e548e2",
+    "cases": 28,
+    "experts": 7,
+    "projections": 84,
+    "observed_max_bf16_value_difference": 0.0,
+    "observed_max_expert_relative_l2": 0.0,
+    "packing_decode_and_layout_exact": true,
+    "independent_numpy_max_absolute_difference": 0.0,
+    "wrong_gate_global_negative_control_max_expert_relative_l2": 0.31400224270798577,
+    "intermediate_payload_different_cases": 7,
+    "intermediate_effective_values_equal": true,
+    "max_allocated_bytes": 139920896,
+    "max_reserved_bytes": 153092096,
+    "qualification": "Bounded selected-runtime fixtures; observed BF16 value equality does not assert signed-zero bit equality or universal native-MMA correctness",
+    "independent_mathematical_activation": {
+      "cases": 28,
+      "exact_value_cases": 16,
+      "different_value_cases": 12,
+      "max_absolute_difference": 0.015625,
+      "max_relative_l2": 5.6336343418847685e-05,
+      "qualification": "Separate mathematical GELU semantic comparison; all-projection GEMM equality does not imply mathematical activation equality"
+    }
+  },
+  "boundaries": {
+    "artifact_sha256": "bc68a4db1eb4e95c85df34506b28deddc76e216981e73b27c9f1b53e19b3cb11",
+    "quantizer_fixture_count": 5,
+    "quantizer_profiles_effective_values_equal": true,
+    "mathematical_gelu_comparison": {
+      "elements": 5632,
+      "max_abs": 0.0001220703125,
+      "relative_l2": 1.2470981743168908e-07,
+      "equal_fraction": 0.859375,
+      "finite": true,
+      "scope": "Independent mathematical GELU reference; source-matched fast-tanh implementation is not declared bit-exact to libtanh"
+    },
+    "compiled_ptx_sha256": "34257543f0b94e8af8020ee66a7bd6079b9baf132db277e6b319bba7fa499671",
+    "compiled_operation_sequence_verified": true,
+    "qualification": "Fast approximate tanh differs from mathematical libtanh; no frozen-quantizer or bit-exact GELU equivalence claim"
+  },
+  "forced_registered_runner": {
+    "proof_sha256": "2fae7fe97d6a1d08a8743e7183fa10b8eca08b337231cd2385a0faa6daa9b330",
+    "registered_layer_count": 30,
+    "registered_runner": "vllm.model_executor.layers.fused_moe.runner.moe_runner.MoERunner",
+    "actual_quant_method": "vllm.model_executor.layers.quantization.modelopt.ModelOptNvFp4FusedMoE",
+    "experts_impl": "vllm.model_executor.layers.fused_moe.experts.flashinfer_cutlass_moe.FlashInferExperts",
+    "original_captures_byte_equal": 54,
+    "fixtures": [
+      {
+        "layer": 0,
+        "expert": 42,
+        "native_reference_bf16_value_equal": true,
+        "nonzero_output_elements": 2816,
+        "forced_correction_rows": 2
+      },
+      {
+        "layer": 0,
+        "expert": 82,
+        "native_reference_bf16_value_equal": true,
+        "nonzero_output_elements": 2816,
+        "forced_correction_rows": 2
+      },
+      {
+        "layer": 1,
+        "expert": 126,
+        "native_reference_bf16_value_equal": true,
+        "nonzero_output_elements": 2816,
+        "forced_correction_rows": 2
+      },
+      {
+        "layer": 2,
+        "expert": 89,
+        "native_reference_bf16_value_equal": true,
+        "nonzero_output_elements": 2816,
+        "forced_correction_rows": 2
+      },
+      {
+        "layer": 3,
+        "expert": 7,
+        "native_reference_bf16_value_equal": true,
+        "nonzero_output_elements": 2816,
+        "forced_correction_rows": 2
+      },
+      {
+        "layer": 5,
+        "expert": 12,
+        "native_reference_bf16_value_equal": true,
+        "nonzero_output_elements": 2816,
+        "forced_correction_rows": 2
+      }
+    ],
+    "forced_all_six_executed": true,
+    "native_dense_sm120_launches": 18,
+    "adapter_gelu_launches": 6,
+    "guarded_model_dispatch": true,
+    "forced_adapter_spans": {
+      "megartx::corrected_expert_native": 6,
+      "megartx::corrected_expert_reference": 6
+    },
+    "forced_trace_sha256": "6c70273a97ce6c3f7d72b6e774b3c140bbd1d1250d4dd326a550ea75c29c9077",
+    "qualification": "Sparse one-row input and original router factor 1; forced routing is distinct from natural client routing and mixed-route reduction"
+  },
+  "natural_client_routing": {
+    "client_requests": 20,
+    "prompt_tokens": 2227,
+    "output_tokens": 85,
+    "request_histograms": 455,
+    "layers": [
+      {
+        "layer": 0,
+        "guarded_client_calls": 91,
+        "input_rows": 2294,
+        "positive_experts": 120,
+        "zero_count_expert_ids": [
+          30,
+          40,
+          42,
+          65,
+          66,
+          82,
+          97,
+          98
+        ],
+        "selected_nonzero_slots": 18352
+      },
+      {
+        "layer": 1,
+        "guarded_client_calls": 91,
+        "input_rows": 2294,
+        "positive_experts": 119,
+        "zero_count_expert_ids": [
+          17,
+          19,
+          32,
+          43,
+          48,
+          58,
+          63,
+          75,
+          126
+        ],
+        "selected_nonzero_slots": 18352
+      },
+      {
+        "layer": 2,
+        "guarded_client_calls": 91,
+        "input_rows": 2294,
+        "positive_experts": 123,
+        "zero_count_expert_ids": [
+          22,
+          30,
+          89,
+          94,
+          101
+        ],
+        "selected_nonzero_slots": 18352
+      },
+      {
+        "layer": 3,
+        "guarded_client_calls": 91,
+        "input_rows": 2294,
+        "positive_experts": 121,
+        "zero_count_expert_ids": [
+          7,
+          32,
+          41,
+          55,
+          106,
+          122,
+          124
+        ],
+        "selected_nonzero_slots": 18352
+      },
+      {
+        "layer": 5,
+        "guarded_client_calls": 91,
+        "input_rows": 2294,
+        "positive_experts": 124,
+        "zero_count_expert_ids": [
+          12,
+          67,
+          91,
+          103
+        ],
+        "selected_nonzero_slots": 18352
+      }
+    ],
+    "natural_correction_coverage": false
+  },
+  "invalidated_previous_integration": {
+    "reason": "Earlier runs lacked verified hook identity and positive correction coverage; zero-hit self-equal logits/timing cannot qualify integration or diagnose bypass",
+    "raw_artifacts_preserved": true,
+    "markers": "QUALIFICATION-INVALIDATED.json and private aggregate provenance",
+    "older_timing_values_omitted": true
+  },
+  "remaining_blockers": [
+    "Positive request-bound natural routing of all six corrections",
+    "Independent combined-route reduction and active full-model teacher-forced comparison",
+    "Original per-expert versus runtime layer-maximum activation-quantizer fidelity",
+    "Independent untouched model/attention/cache semantics and frozen held-out quality margins"
+  ],
+  "source_sha256": {
+    "src/megartx/nvfp4_runtime.py": "b3dde389467ce1408b3d2937cd3b5df7c5d06fb13714a6ecfd4c9deab9fb3e8e",
+    "src/megartx/nvfp4_activation.py": "61960de988385e09e4772060ea8338983139ca4b12afd1c4a735eff691e5eb97",
+    "src/megartx/vllm_scale_plugin.py": "e62bc91c8a9f4caf8e995c795e0754a641ef882417872e8193212df44b8d6d96",
+    "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
+    "src/megartx/nvfp4_qualification.py": "659e4fcebfde51cf74fdaeb6c3229eab7d0cfea96faa5cd1ab0636ac3627601e"
+  },
+  "cpu_validation": {
+    "scaffold_tests_passed": 32,
+    "independent_format_tests_passed": 25,
+    "binding_guard_tests_passed": 17,
+    "artifact_guard_tests_passed": 49,
+    "local_numpy": "2.4.4",
+    "target_numpy": "2.3.5",
+    "target_final_suite_pending": false,
+    "both_timing_entry_points_rejected_before_launch": true
+  }
+}
