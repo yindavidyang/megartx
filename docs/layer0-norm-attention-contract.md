@@ -23,10 +23,12 @@ passed. The original checkpoint, pinned runtime, forced route, 33-input sequence
 and previous evidence stay unchanged. Source records and original norm hashes
 are in [source pins](evidence/layer0-norm-attention-source-pins.json); new scalar
 results are in [live evidence](evidence/layer0-norm-attention-live.json).
-The final publication tree passes 376 independent reference tests (16 new),
-38 scaffold tests, contract validation, the exhaustive format self-check and
-Python compilation. The earlier [QKV diagnosis](layer0-arithmetic-diagnosis.md)
-retains its separate conditional accumulation assumptions.
+The final publication tree incorporates merged main
+`54557e2e537f56f32ad0b604aaba9361a655b634` and passes 398 independent reference
+tests (16 added by this diagnosis), 38 scaffold tests, contract validation,
+the exhaustive format self-check and Python compilation. The earlier
+[QKV diagnosis](layer0-arithmetic-diagnosis.md) retains its separate conditional
+accumulation assumptions.
 
 Gemma4 uses ordinary RMSNorm with direct learned weights, epsilon `1e-6`,
 256-wide Q/K/V heads and 2816-wide decoder norms. V has no learned weight.

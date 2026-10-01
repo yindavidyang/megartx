@@ -530,12 +530,13 @@
     "timing_qualified": false
   },
   "publication_validation": {
-    "independent_cpu_reference_tests": 376,
+    "independent_cpu_reference_tests": 398,
     "new_norm_attention_tests": 16,
     "cpu_scaffold_tests": 38,
     "contract_validation_pass": true,
     "exhaustive_format_self_check_pass": true,
     "python_compile_pass": true,
     "publication_turn_gpu_experiments": 0
-  }
+  },
+  "publication_main_commit": "54557e2e537f56f32ad0b604aaba9361a655b634"
 }
