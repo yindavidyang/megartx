@@ -7,7 +7,7 @@ correction propagation through the model. It cannot establish natural expert
 coverage, held-out quality, frozen-checkpoint quantizer equivalence or a timing
 baseline. The existing quality and timing gates stay closed.
 
-Five live GPU requests now exercise the frozen 33-input fixture: full-prefill
+Five original live GPU requests exercise the frozen 33-input fixture: full-prefill
 native, paired reference and gate-only negative control; cached-decode native
 and paired reference. Both positive paths match their independent original-weight
 projection replays and each other's captured stages, raw head-call rows and
@@ -15,7 +15,11 @@ selected K/V rows. Full-versus-cached handoff equivalence fails earlier than the
 scale correction. GPU expansion stopped there; no negative cached, chunked or
 2K/8K timing request was added. The
 [sanitized live evidence](evidence/nvfp4-controlled-live.json) records the bounded
-results and closed gates.
+results and closed gates. The subsequent
+[layer-0 arithmetic diagnosis](layer0-arithmetic-diagnosis.md) localizes the
+first final-row difference to raw QKV after identical input RMS, reproduces
+the M1/M33 outputs in an isolated operator probe, and verifies the entire common
+32-row layer-0 cache prefix. Native arithmetic and whole-model gates remain closed.
 
 The [CPU preparation evidence](evidence/nvfp4-controlled-preparation.json)
 records 52 new controlled-fixture tests and seven new artifact-boundary

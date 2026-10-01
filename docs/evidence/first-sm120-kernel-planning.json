@@ -1,0 +1,289 @@
+{
+  "schema": "megartx-cpu-profile-audit-v1",
+  "qualification": "Exploratory old loader; NOT a corrected, qualified timing baseline",
+  "repo_snapshot": "fd088a32ef1314acd9143e8e247111fc01e35969",
+  "source_trace_sha256": "a391060e363f6bb1d443baa9423b03d175611d11311f973d866d79d6b99a40cc",
+  "source_dispatch_sha256": "890a70b172c836204e0bb3b1813a5c10c0bec958b301f18818c18f9a482c3f69",
+  "profile_scope": "One 2048-prompt / 32-output request, eight 256-row prefill annotations plus 31 decode annotations",
+  "decode_annotations": 31,
+  "prefill_annotations": 8,
+  "graph_ids_observed": [
+    188
+  ],
+  "whole_decode_kernel_sum_mean_us": 5653.994290322581,
+  "head_mean_us": 933.2118709677419,
+  "prep_mean_us": 227.909,
+  "prep_fraction_of_whole_decode_kernel_sum": 0.04030937922772415,
+  "ideal_elimination_speedup_on_kernel_sum": 1.0420024728336792,
+  "kernel_overlap_sum_minus_union_mean_us": 82.09197807459672,
+  "limitations": [
+    "Profiler kernel durations do not measure end-to-end ITL or recoverable critical-path time",
+    "Only one exploratory 2K request; no matched corrected 8K graph trace",
+    "BF16 roles inferred from order, geometry, and saved model source; runtime shapes were not recorded",
+    "Head and sampling suffix included; prefill events excluded",
+    "No new GPU, network-to-target, package, or shared-checkout operation"
+  ],
+  "ledger": [
+    {
+      "stage": "bf16_qkv_inferred",
+      "events": 930,
+      "sum_us": 31141.128,
+      "mean_us_per_decode": 1004.5525161290323,
+      "fraction_of_whole_decode_kernel_sum": 0.17767130006629683
+    },
+    {
+      "stage": "vocabulary_head_inferred",
+      "events": 31,
+      "sum_us": 28929.568,
+      "mean_us_per_decode": 933.2118709677419,
+      "fraction_of_whole_decode_kernel_sum": 0.1650535573700586
+    },
+    {
+      "stage": "bf16_o_inferred",
+      "events": 930,
+      "sum_us": 17997.291,
+      "mean_us_per_decode": 580.5577741935484,
+      "fraction_of_whole_decode_kernel_sum": 0.10268099760681319
+    },
+    {
+      "stage": "bf16_shared_fc1_inferred",
+      "events": 930,
+      "sum_us": 17365.933999999997,
+      "mean_us_per_decode": 560.1914193548387,
+      "fraction_of_whole_decode_kernel_sum": 0.09907887956548993
+    },
+    {
+      "stage": "expert_fc1",
+      "events": 930,
+      "sum_us": 15443.869,
+      "mean_us_per_decode": 498.1893225806452,
+      "fraction_of_whole_decode_kernel_sum": 0.08811280963501321
+    },
+    {
+      "stage": "local_attention",
+      "events": 775,
+      "sum_us": 12781.883,
+      "mean_us_per_decode": 412.3188064516129,
+      "fraction_of_whole_decode_kernel_sum": 0.07292522512046763
+    },
+    {
+      "stage": "expert_fc2",
+      "events": 930,
+      "sum_us": 10876.53,
+      "mean_us_per_decode": 350.8558064516129,
+      "fraction_of_whole_decode_kernel_sum": 0.0620545031416357
+    },
+    {
+      "stage": "bf16_shared_down_inferred",
+      "events": 930,
+      "sum_us": 9716.032000000001,
+      "mean_us_per_decode": 313.4203870967742,
+      "fraction_of_whole_decode_kernel_sum": 0.055433445985827556
+    },
+    {
+      "stage": "triton_red_fused_add_mul_rms_norm_2",
+      "events": 930,
+      "sum_us": 3386.577,
+      "mean_us_per_decode": 109.24441935483871,
+      "fraction_of_whole_decode_kernel_sum": 0.0193216359524491
+    },
+    {
+      "stage": "router_gemv",
+      "events": 930,
+      "sum_us": 3330.023,
+      "mean_us_per_decode": 107.42009677419355,
+      "fraction_of_whole_decode_kernel_sum": 0.018998975106510912
+    },
+    {
+      "stage": "prep_expand",
+      "events": 930,
+      "sum_us": 2862.549,
+      "mean_us_per_decode": 92.34029032258064,
+      "fraction_of_whole_decode_kernel_sum": 0.016331868336094887
+    },
+    {
+      "stage": "expert_activation_quant",
+      "events": 930,
+      "sum_us": 2779.812,
+      "mean_us_per_decode": 89.67135483870968,
+      "fraction_of_whole_decode_kernel_sum": 0.015859824087935823
+    },
+    {
+      "stage": "triton_red_fused_add_moe_forward_mul_rms_norm_0",
+      "events": 930,
+      "sum_us": 2437.655,
+      "mean_us_per_decode": 78.63403225806452,
+      "fraction_of_whole_decode_kernel_sum": 0.01390769573160962
+    },
+    {
+      "stage": "global_attention",
+      "events": 155,
+      "sum_us": 2416.208,
+      "mean_us_per_decode": 77.9421935483871,
+      "fraction_of_whole_decode_kernel_sum": 0.01378533290735605
+    },
+    {
+      "stage": "prep_maps",
+      "events": 930,
+      "sum_us": 2117.778,
+      "mean_us_per_decode": 68.31541935483871,
+      "fraction_of_whole_decode_kernel_sum": 0.012082682763187061
+    },
+    {
+      "stage": "prep_descriptors",
+      "events": 930,
+      "sum_us": 2084.8520000000003,
+      "mean_us_per_decode": 67.25329032258065,
+      "fraction_of_whole_decode_kernel_sum": 0.011894828128442204
+    },
+    {
+      "stage": "cache_write",
+      "events": 930,
+      "sum_us": 1775.933,
+      "mean_us_per_decode": 57.28816129032258,
+      "fraction_of_whole_decode_kernel_sum": 0.01013233447872019
+    },
+    {
+      "stage": "triton_per_fused_3",
+      "events": 899,
+      "sum_us": 1623.148,
+      "mean_us_per_decode": 52.3596129032258,
+      "fraction_of_whole_decode_kernel_sum": 0.00926064127670679
+    },
+    {
+      "stage": "router_select",
+      "events": 930,
+      "sum_us": 1602.962,
+      "mean_us_per_decode": 51.708451612903225,
+      "fraction_of_whole_decode_kernel_sum": 0.00914547290955136
+    },
+    {
+      "stage": "input_quant",
+      "events": 930,
+      "sum_us": 1270.85,
+      "mean_us_per_decode": 40.99516129032258,
+      "fraction_of_whole_decode_kernel_sum": 0.007250654879593742
+    },
+    {
+      "stage": "suffix_other",
+      "events": 372,
+      "sum_us": 958.46,
+      "mean_us_per_decode": 30.918064516129032,
+      "fraction_of_whole_decode_kernel_sum": 0.005468357930436651
+    },
+    {
+      "stage": "triton_poi_fused_gelu_mul_slice_1",
+      "events": 930,
+      "sum_us": 763.917,
+      "mean_us_per_decode": 24.642483870967745,
+      "fraction_of_whole_decode_kernel_sum": 0.004358420367198815
+    },
+    {
+      "stage": "memset32",
+      "events": 930,
+      "sum_us": 643.345,
+      "mean_us_per_decode": 20.753064516129033,
+      "fraction_of_whole_decode_kernel_sum": 0.0036705138793030148
+    },
+    {
+      "stage": "global_attention_merge",
+      "events": 155,
+      "sum_us": 434.49699999999996,
+      "mean_us_per_decode": 14.016032258064515,
+      "fraction_of_whole_decode_kernel_sum": 0.002478961162386467
+    },
+    {
+      "stage": "triton_red_fused__to_copy_embedding_mul_rms_norm_0",
+      "events": 31,
+      "sum_us": 98.91,
+      "mean_us_per_decode": 3.1906451612903224,
+      "fraction_of_whole_decode_kernel_sum": 0.0005643170115596782
+    },
+    {
+      "stage": "_gather_block_tables_kernel",
+      "events": 31,
+      "sum_us": 86.112,
+      "mean_us_per_decode": 2.777806451612903,
+      "fraction_of_whole_decode_kernel_sum": 0.0004912998331758873
+    },
+    {
+      "stage": "triton_per_fused_1",
+      "events": 31,
+      "sum_us": 63.071,
+      "mean_us_per_decode": 2.034548387096774,
+      "fraction_of_whole_decode_kernel_sum": 0.0003598426674358555
+    },
+    {
+      "stage": "_combine_sampled_and_draft_tokens_kernel",
+      "events": 31,
+      "sum_us": 60.513,
+      "mean_us_per_decode": 1.952032258064516,
+      "fraction_of_whole_decode_kernel_sum": 0.0003452483603327349
+    },
+    {
+      "stage": "_compute_slot_mappings_kernel",
+      "events": 31,
+      "sum_us": 59.745,
+      "mean_us_per_decode": 1.927258064516129,
+      "fraction_of_whole_decode_kernel_sum": 0.0003408666449866846
+    },
+    {
+      "stage": "_copy_page_indices_kernel",
+      "events": 31,
+      "sum_us": 36.928,
+      "mean_us_per_decode": 1.1912258064516128,
+      "fraction_of_whole_decode_kernel_sum": 0.00021068747955591745
+    },
+    {
+      "stage": "_prepare_pos_seq_lens_kernel",
+      "events": 31,
+      "sum_us": 29.889,
+      "mean_us_per_decode": 0.9641612903225806,
+      "fraction_of_whole_decode_kernel_sum": 0.00017052746090898008
+    },
+    {
+      "stage": "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<bool>, std::array<char*, 1ul> >",
+      "events": 31,
+      "sum_us": 23.841,
+      "mean_us_per_decode": 0.7690645161290323,
+      "fraction_of_whole_decode_kernel_sum": 0.0001360214525588342
+    },
+    {
+      "stage": "void at::native::vectorized_elementwise_kernel<4, at::native::FillFunctor<int>, std::array<char*, 1ul> >",
+      "events": 31,
+      "sum_us": 23.519000000000002,
+      "mean_us_per_decode": 0.7586774193548388,
+      "fraction_of_whole_decode_kernel_sum": 0.00013418432711426623
+    },
+    {
+      "stage": "void ",
+      "events": 31,
+      "sum_us": 22.687,
+      "mean_us_per_decode": 0.7318387096774194,
+      "fraction_of_whole_decode_kernel_sum": 0.00012943746882271176
+    },
+    {
+      "stage": "memcpy32_post",
+      "events": 31,
+      "sum_us": 22.111,
+      "mean_us_per_decode": 0.713258064516129,
+      "fraction_of_whole_decode_kernel_sum": 0.00012615118231317404
+    },
+    {
+      "stage": "_apply_write_kernel",
+      "events": 2,
+      "sum_us": 5.696,
+      "mean_us_per_decode": 0.18374193548387097,
+      "fraction_of_whole_decode_kernel_sum": 3.2497722149872884e-05
+    }
+  ],
+  "source_plan_sha256": "558644183c3fc7ed0340dff6555f9185fe30a2cd27ca7c6155ce2d9be468b572",
+  "source_cpu_audit_sha256": "0cfb21435a8b96b72141e68325deecffb7e6f2c5ea704855e95cd585f67e4a9f",
+  "upstream_flashinfer_reference_commit": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+  "installed_cpp_source_and_binary_abi_qualified": false,
+  "corrected_graph_path_qualified": false,
+  "kernel_implemented": false,
+  "numerical_baseline_qualified": false,
+  "timing_qualified": false,
+  "implementation_authorized_by_this_report": false
+}
