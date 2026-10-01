@@ -1,0 +1,360 @@
+{
+  "schema_version": 1,
+  "checkpoint": {
+    "repository": "nvidia/Gemma-4-26B-A4B-NVFP4",
+    "revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6"
+  },
+  "installed_vllm_version": "0.30.0",
+  "source_sha256": {
+    "model_executor/models/gemma4.py": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+    "model_executor/layers/fused_moe/routed_experts.py": "68c48e5df0ea4a7cc1f04436b7b9153eb53802ecd9bb55d38db8738508daac6d",
+    "model_executor/layers/fused_moe/runner/moe_runner.py": "05893188402fe37229bf72d75088d66193c417d5d502daafd3a55e1bfedaa60c",
+    "forward_context.py": "cc1473477dcc7b762c3901b25cc7bf35c06a2c42f193136fed553abf6fe33f0e"
+  },
+  "method": "Read-only safetensors header lookup and bounded CPU-only decoding of original router/scalar tensors. BF16 values decode by shifting unsigned 16-bit codes into binary32. Controls have equal gate/up global scales in the original scale audit. No GPU workload or checkpoint mutation.",
+  "layers": [
+    {
+      "layer": 0,
+      "per_expert_scale_shape": [
+        128
+      ],
+      "per_expert_scale_dtype": "BF16",
+      "per_expert_scale_range": [
+        0.98046875,
+        1.0234375
+      ],
+      "per_expert_scale_zero_count": 0,
+      "per_expert_scale_nonfinite_count": 0,
+      "router_dimension_scale_shape": [
+        2816
+      ],
+      "router_dimension_scale_nonzero_count": 2816,
+      "router_dimension_scale_nonfinite_count": 0,
+      "router_projection_shape": [
+        128,
+        2816
+      ],
+      "router_projection_dtype": "BF16",
+      "router_bias_tensor_available": false,
+      "sampled_rows": [
+        {
+          "expert": 42,
+          "affected": true,
+          "per_expert_scale": 1.015625,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9979038725746423,
+          "row_max_absolute_value": 0.06982421875
+        },
+        {
+          "expert": 82,
+          "affected": true,
+          "per_expert_scale": 1.0078125,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9983689268522169,
+          "row_max_absolute_value": 0.06689453125
+        },
+        {
+          "expert": 0,
+          "affected": false,
+          "per_expert_scale": 0.984375,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9984600501721416,
+          "row_max_absolute_value": 0.1123046875
+        },
+        {
+          "expert": 41,
+          "affected": false,
+          "per_expert_scale": 1,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9984893452272977,
+          "row_max_absolute_value": 0.103515625
+        },
+        {
+          "expert": 43,
+          "affected": false,
+          "per_expert_scale": 1.0078125,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9999061371116329,
+          "row_max_absolute_value": 0.1240234375
+        },
+        {
+          "expert": 81,
+          "affected": false,
+          "per_expert_scale": 1.015625,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9986999365380608,
+          "row_max_absolute_value": 0.1123046875
+        },
+        {
+          "expert": 83,
+          "affected": false,
+          "per_expert_scale": 0.98828125,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9987611490013321,
+          "row_max_absolute_value": 0.1220703125
+        }
+      ]
+    },
+    {
+      "layer": 1,
+      "per_expert_scale_shape": [
+        128
+      ],
+      "per_expert_scale_dtype": "BF16",
+      "per_expert_scale_range": [
+        0.98046875,
+        1.0234375
+      ],
+      "per_expert_scale_zero_count": 0,
+      "per_expert_scale_nonfinite_count": 0,
+      "router_dimension_scale_shape": [
+        2816
+      ],
+      "router_dimension_scale_nonzero_count": 2816,
+      "router_dimension_scale_nonfinite_count": 0,
+      "router_projection_shape": [
+        128,
+        2816
+      ],
+      "router_projection_dtype": "BF16",
+      "router_bias_tensor_available": false,
+      "sampled_rows": [
+        {
+          "expert": 126,
+          "affected": true,
+          "per_expert_scale": 1,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 1.0000585779204907,
+          "row_max_absolute_value": 0.06640625
+        },
+        {
+          "expert": 0,
+          "affected": false,
+          "per_expert_scale": 0.984375,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 1.0005173605765358,
+          "row_max_absolute_value": 0.087890625
+        },
+        {
+          "expert": 125,
+          "affected": false,
+          "per_expert_scale": 0.98828125,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 1.0008724992737488,
+          "row_max_absolute_value": 0.0947265625
+        },
+        {
+          "expert": 127,
+          "affected": false,
+          "per_expert_scale": 1,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 1.001018873304927,
+          "row_max_absolute_value": 0.09619140625
+        }
+      ]
+    },
+    {
+      "layer": 2,
+      "per_expert_scale_shape": [
+        128
+      ],
+      "per_expert_scale_dtype": "BF16",
+      "per_expert_scale_range": [
+        0.98046875,
+        1.0234375
+      ],
+      "per_expert_scale_zero_count": 0,
+      "per_expert_scale_nonfinite_count": 0,
+      "router_dimension_scale_shape": [
+        2816
+      ],
+      "router_dimension_scale_nonzero_count": 2816,
+      "router_dimension_scale_nonfinite_count": 0,
+      "router_projection_shape": [
+        128,
+        2816
+      ],
+      "router_projection_dtype": "BF16",
+      "router_bias_tensor_available": false,
+      "sampled_rows": [
+        {
+          "expert": 89,
+          "affected": true,
+          "per_expert_scale": 1.0078125,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9994256961755813,
+          "row_max_absolute_value": 0.07763671875
+        },
+        {
+          "expert": 0,
+          "affected": false,
+          "per_expert_scale": 1.0078125,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9990988675676168,
+          "row_max_absolute_value": 0.09765625
+        },
+        {
+          "expert": 88,
+          "affected": false,
+          "per_expert_scale": 1.015625,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 1.0002367538761192,
+          "row_max_absolute_value": 0.07958984375
+        },
+        {
+          "expert": 90,
+          "affected": false,
+          "per_expert_scale": 0.98046875,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 1.0000200309331246,
+          "row_max_absolute_value": 0.076171875
+        }
+      ]
+    },
+    {
+      "layer": 3,
+      "per_expert_scale_shape": [
+        128
+      ],
+      "per_expert_scale_dtype": "BF16",
+      "per_expert_scale_range": [
+        0.98046875,
+        1.0234375
+      ],
+      "per_expert_scale_zero_count": 0,
+      "per_expert_scale_nonfinite_count": 0,
+      "router_dimension_scale_shape": [
+        2816
+      ],
+      "router_dimension_scale_nonzero_count": 2816,
+      "router_dimension_scale_nonfinite_count": 0,
+      "router_projection_shape": [
+        128,
+        2816
+      ],
+      "router_projection_dtype": "BF16",
+      "router_bias_tensor_available": false,
+      "sampled_rows": [
+        {
+          "expert": 7,
+          "affected": true,
+          "per_expert_scale": 1,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9981245328211313,
+          "row_max_absolute_value": 0.07373046875
+        },
+        {
+          "expert": 0,
+          "affected": false,
+          "per_expert_scale": 0.99609375,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9987923631577278,
+          "row_max_absolute_value": 0.09716796875
+        },
+        {
+          "expert": 6,
+          "affected": false,
+          "per_expert_scale": 1.015625,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9993126087683122,
+          "row_max_absolute_value": 0.12890625
+        },
+        {
+          "expert": 8,
+          "affected": false,
+          "per_expert_scale": 0.9921875,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9972854042112032,
+          "row_max_absolute_value": 0.09375
+        }
+      ]
+    },
+    {
+      "layer": 5,
+      "per_expert_scale_shape": [
+        128
+      ],
+      "per_expert_scale_dtype": "BF16",
+      "per_expert_scale_range": [
+        0.98046875,
+        1.0234375
+      ],
+      "per_expert_scale_zero_count": 0,
+      "per_expert_scale_nonfinite_count": 0,
+      "router_dimension_scale_shape": [
+        2816
+      ],
+      "router_dimension_scale_nonzero_count": 2816,
+      "router_dimension_scale_nonfinite_count": 0,
+      "router_projection_shape": [
+        128,
+        2816
+      ],
+      "router_projection_dtype": "BF16",
+      "router_bias_tensor_available": false,
+      "sampled_rows": [
+        {
+          "expert": 12,
+          "affected": true,
+          "per_expert_scale": 0.98828125,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 1.0008551105968948,
+          "row_max_absolute_value": 0.0751953125
+        },
+        {
+          "expert": 0,
+          "affected": false,
+          "per_expert_scale": 0.98046875,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.999035159874186,
+          "row_max_absolute_value": 0.08251953125
+        },
+        {
+          "expert": 11,
+          "affected": false,
+          "per_expert_scale": 0.98828125,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9999519850803694,
+          "row_max_absolute_value": 0.08935546875
+        },
+        {
+          "expert": 13,
+          "affected": false,
+          "per_expert_scale": 0.9921875,
+          "row_nonzero_elements": 2816,
+          "row_nonfinite_elements": 0,
+          "row_l2_norm": 0.9996091641599297,
+          "row_max_absolute_value": 0.0634765625
+        }
+      ]
+    }
+  ],
+  "routing_source_contract": {
+    "selection": "Top eight raw router logits among all 128 experts; per-expert scales multiply route weights after ID selection.",
+    "expert_disable_mask": "No six-expert disable mask exists in the inspected routing path; only the E-boundary mask.",
+    "bias": "Router GateLinear uses bias=False."
+  },
+  "conclusion": "The six affected router rows and output factors are finite and nonzero, comparable to equal-scale controls. This audit found no explicit zero-factor, zero-row or router-bias disable evidence. It does not establish permanent activity or inactivity, calibration history, or natural correction coverage."
+}

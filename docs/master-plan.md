@@ -19,17 +19,17 @@ The [SM120 execution design](design/megakernel-design.md) expands the numerical 
 | D01 | Confirmed | Start on the owned RTX 5090 SM120; four RTX PRO 6000 GPUs remain future work |
 | D02 | Confirmed | One active user request; no dynamic request batching |
 | D03 | Confirmed | Aim to outperform FlashInfer on the RTX 5090 |
-| D04 | Proposed | Gemma 4 26B A4B instruction model; NVIDIA NVFP4 checkpoint revision to freeze |
-| D05 | Proposed | Text only; 8K initial cached context target; BF16 KV; output capacity reserved separately |
+| D04 | Selected for execution | NVIDIA Gemma-4-26B-A4B-NVFP4 revision `a19cfe00be84568a6867111c9a68c9c44fdcffe6`; original expert-only W4A4 weights preserved |
+| D05 | Selected for execution | Text-only 2048/8192 prompt tokens, 256 output capacity, greedy nonspeculative requests, BF16 KV; cache and quality gates pending |
 | D06 | Proposed | Native expert NVFP4 W4A4 candidate; W4A16 is a separate numerical lane |
 | D07 | Proposed | 15% median ITL improvement, 20% stretch, quality/tail guards and 2 GiB initial reserve |
-| D08 | Partially authorized | Repository initialization in Markdown and a draft WP0–WP1 compatibility/benchmark scaffold are authorized; target RTX host access and hardware execution remain pending |
+| D08 | Authorized | Isolated target setup/model download, compatibility/baseline tests, six gate/up scale corrections, bounded independent numerical checks and a sanitized draft PR; training, merge and deployment excluded |
 
-D04 through D07 are planning defaults, not user mandates. The model candidate and native FP4 direction motivate this investigation; the exact checkpoint, numerical path, context and acceptance margins still require a documented freeze.
+D04 and D05 select the authorized execution probes; they do not pass technical gates. D06 and D07 remain planning defaults. The selected runtime numerical path and proposed acceptance margins require qualification and a documented freeze.
 
 ### Scope and authority
 
-The authorized initial scope is repository initialization with this master plan, the action plans and README, followed by a draft PR for the WP0–WP1 compatibility and FlashInfer benchmark scaffold. This authorization does not freeze D04–D07, authorize GPU experiments or custom kernels, or imply any gate has passed. Host setup and target-hardware execution remain pending. Proceed through evidence gates, retain a correct fallback and stop at the smallest design that meets the goal. No hardware performance result has yet been established. See the [decision ledger](decision_ledger.md) for the current scope.
+The owner has authorized isolated target-host setup, compatible stack/model download, target-only compatibility and baseline tests, correction of six mismatched gate/up globals with a minimal scale-preserving adapter, independent numerical checks and a sanitized draft PR. This does not imply a gate pass or authorize training, wider custom megakernels, merge or deployment. The selected checkpoint and BF16 execution probes are recorded in the [decision ledger](decision_ledger.md); proposed acceptance margins remain unfrozen. Preserve the distinction between original quantized weights, checkpoint activation calibration and the selected runtime quantizer. See the [scale-correction design](nvfp4-scale-correction.md).
 
 ## Requirements and research hypotheses
 
@@ -240,7 +240,7 @@ Roles describe responsibilities, not assigned people. The project owner settles 
 
 ### Decisions required before execution
 
-Resolve D04–D08: exact checkpoint revision and quantization coverage; workload, response lengths, context and KV dtype; primary numerical lane; proposed performance, quality and memory margins; host/repository access and initial execution authorization. Choose the implementation stack after WP1 identifies the bottleneck and needed SM120 primitives. Do not lock into a kernel language for novelty.
+D04, D05 and D08 record the selected immutable checkpoint, BF16 workload and execution authorization. Resolve the primary numerical lane and proposed performance, quality and memory margins before any gate or performance claim. Choose the implementation stack after WP1 identifies the bottleneck and needed SM120 primitives. Do not lock into a kernel language for novelty.
 
 ### Change control and handoff
 
