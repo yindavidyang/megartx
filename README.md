@@ -14,6 +14,7 @@ The goal is lower end-to-end decode latency than a tuned, compatible FlashInfer-
 - [Decision ledger](docs/decision_ledger.md): confirmed scope and proposed defaults
 - [Measurement protocol](docs/protocols/measurement.md): fairness, correctness catalog and paired timing
 - [Review protocol](docs/protocols/review.md): first sprint, gate packets and rebaseline triggers
+- [Installed M1 preparation compatibility](docs/m1-installed-compatibility.md): typed bridge, exact bytes and explicit native opt-in boundary; model hookup remains gated
 - [Decision and result templates](docs/templates/records.md)
 
 ## Scope and status
