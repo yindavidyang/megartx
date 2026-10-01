@@ -1,0 +1,386 @@
+{
+  "schema": "megartx.m1_maps_expand.standalone.v1",
+  "date_utc": "2026-10-01",
+  "base_main": "54557e2e537f56f32ad0b604aaba9361a655b634",
+  "scope": "standalone M1 H2816 E128 top8 expert maps, packed AQ and activation SF expansion",
+  "producer": "compiled CUDA kernels run on RTX 5090; captures checked by independent CPU oracle on target and local host",
+  "source_sha256": {
+    "kernels/m1_maps_expand.cuh": "e9baa650809915f4de6b7d9f32ade2718a5fa91bef7e18c69b866d4cf394c47b",
+    "benchmarks/m1_maps_expand.cu": "433b0433e7e5dce2b5d63c7b04b368b200cf2b9ece71ffd4cd2510f1a9275639",
+    "numerical_reference/m1_kernel_fixture.py": "da33e8742a9b17ab51120a463eef27f4be518b82c34ea3f5d16b415f56eb642a",
+    "numerical_reference/m1_preparation_reference.py": "1444ee9a8617b9571039cd148b1ee04634538ac914495395484e9d9f280dc893"
+  },
+  "binary_sha256": "1d2dd7b8aac31139f814da419edbaee96be868727787c044769c70e752109900",
+  "installed_identity": {
+    "flashinfer_commit": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+    "cutlass_commit": "b46b16d003484063bca4ed365e44095c4c6ed633",
+    "sha256": {
+      "data/csrc/fused_moe/cutlass_backend/cutlass_fused_moe_kernels.cuh": "fd9e2e976496ab318bda6d133d2b68f45b3451a6482978f452acd7a86e029841",
+      "data/csrc/nv_internal/tensorrt_llm/kernels/cutlass_kernels/include/moe_gemm_kernels.h": "eca60a5a7f30b70b7a4f426fb833085ee2ae320445fb217fdd8642c9480b23ab",
+      "data/csrc/nv_internal/tensorrt_llm/kernels/quantization_utils.cuh": "c2a860da4407f70c281c84981db796ec111520d141a3753d77fe66c6c11f3928",
+      "data/cutlass/include/cutlass/detail/sm100_blockscaled_layout.hpp": "598e054bef21edf94b1fd6bb1447cfa9cfcf5a5907ab370128102448dbb6d530",
+      "cached_ops/fused_moe_120/fused_moe_120.so": "dc26a85431c946b0f636ddd2e08aa676f6340fd085361b21e8b0fe00617d28f9",
+      "cached_ops/fused_moe_120/build.ninja": "8e01f5b25d3cd211874278a7756f6694e2fa5bb38c6e8a148610cf16aaa3de6f"
+    },
+    "unchanged_after_run": true,
+    "source_match_only": true,
+    "native_descriptor_abi_verified": false,
+    "incumbent_entrypoints_called": false
+  },
+  "toolchain": {
+    "nvcc": "13.3.33",
+    "gxx": "13.3.0",
+    "compute_sanitizer": "2026.2.0.0",
+    "python": "3.12.3",
+    "installed_packages": {
+      "flashinfer-python": "0.6.18.post1",
+      "vllm": "0.30.0",
+      "torch": "2.13.0",
+      "numpy": "2.3.5"
+    }
+  },
+  "compile": {
+    "attempts": 1,
+    "argv": [
+      "/usr/local/cuda/bin/nvcc",
+      "-std=c++17",
+      "-O3",
+      "--threads=1",
+      "-lineinfo",
+      "-Xptxas=-v",
+      "-gencode=arch=compute_120f,code=sm_120f",
+      "benchmarks/m1_maps_expand.cu",
+      "-o",
+      "m1_maps_expand"
+    ],
+    "returncode": 0,
+    "wall_seconds": 2.0600060390133876,
+    "peak_group_plus_wrapper_rss_bytes": 213733376,
+    "minimum_host_available_bytes": 63000965120,
+    "minimum_sampled_gpu_free_bytes": 33660338176,
+    "limit_reason": null,
+    "log_sha256": "bba82707ce72a1649b1bb4b0eb236125c9d33739d008a6d315c63eb37ca8fc07"
+  },
+  "resource_bounds": {
+    "group_plus_wrapper_rss_limit_bytes": 2147483648,
+    "compile_limit_seconds": 300,
+    "gpu_phase_limit_seconds": 60,
+    "minimum_host_available_bytes": 8589934592,
+    "minimum_gpu_free_bytes": 2147483648,
+    "minimum_observed_host_available_bytes": 62168231936,
+    "minimum_sampled_gpu_free_bytes": 33119272960
+  },
+  "kernel": {
+    "fused_threads": 256,
+    "fused_registers_per_thread": 36,
+    "fused_static_shared_bytes": 33,
+    "fused_local_bytes_per_thread": 0,
+    "binary_version": 120,
+    "scratch_bytes": 5816976
+  },
+  "fixture_inputs": [
+    {
+      "case": 0,
+      "input_bytes": 24000,
+      "input_sha256": "33502852578114578959e62a418563a48bc1426da0c1a523f228171bc39618e5",
+      "expected_bytes": 2896040,
+      "expected_sha256": "509b0e4e5ff8cf64600126f761d63f31c8fbbf2b1bfe81f2b51a71ab4d327f47"
+    },
+    {
+      "case": 1,
+      "input_bytes": 24000,
+      "input_sha256": "3f77806751bebcec8b2b7b06d6b6ef29788eb38a0eb51c3ea84a08d5b5dfdec2",
+      "expected_bytes": 2896040,
+      "expected_sha256": "293b411e81eed713e1a13045af002f5bf96a1d40080739b14d6a1aff46c05cd0"
+    },
+    {
+      "case": 2,
+      "input_bytes": 24000,
+      "input_sha256": "73eacc0f6abe501ba19d3e2a919c572211aaf5a84cff075115d503444bb0cd90",
+      "expected_bytes": 2896040,
+      "expected_sha256": "8a340602672c64b7247cc52988491ed04945072e30c38b12566e634d29b2e4b0"
+    }
+  ],
+  "correctness": {
+    "cases": 3,
+    "backends": [
+      "fused",
+      "two_launch_development_control"
+    ],
+    "byte_equal": true,
+    "guards_and_all_sf_padding_preserved": true,
+    "inputs_unchanged": true,
+    "invalid_route_no_op_cases": [
+      "negative_id",
+      "id_128",
+      "duplicate_id"
+    ],
+    "host_rejections": [
+      "M2",
+      "M4",
+      "M8",
+      "H2815",
+      "E127",
+      "top7",
+      "AQ_unaligned",
+      "null_expanded_SF"
+    ],
+    "target_oracle_recheck": {
+      "scope": "independent CPU verification of captured bytes",
+      "cases": 3,
+      "backends": [
+        "fused",
+        "two_launch_development_control"
+      ],
+      "byte_equal": true,
+      "producer_identity_verified": false,
+      "full_native_descriptor_abi_verified": false,
+      "candidate_selectable": false
+    },
+    "local_oracle_recheck": true
+  },
+  "validation_phases": {
+    "correctness": {
+      "returncode": 0,
+      "wall_seconds": 0.5956196899933275,
+      "peak_group_plus_wrapper_rss_bytes": 139866112,
+      "minimum_host_available_bytes": 63020531712,
+      "minimum_sampled_gpu_free_bytes": 33660338176,
+      "limit_reason": null,
+      "harness": {
+        "scope": "isolated M1 maps/AQ/SF; development control",
+        "oracle_match": true,
+        "cases": 3,
+        "scratch_bytes": 5816976,
+        "fused_threads": 256,
+        "fused_registers_per_thread": 36,
+        "fused_static_shared_bytes": 33,
+        "fused_local_bytes_per_thread": 0,
+        "binary_version": 120,
+        "negative_routes": 3,
+        "unsupported_shapes_rejected": true,
+        "iterations_per_batch": 512,
+        "warmups_per_batch": 32,
+        "fused_us": [],
+        "two_launch_control_us": [],
+        "candidate_selectable": false,
+        "full_model_qualified": false
+      },
+      "sanitizer_summary": null,
+      "sanitizer_log_sha256": null
+    },
+    "memcheck": {
+      "returncode": 0,
+      "wall_seconds": 2.0696357440028805,
+      "peak_group_plus_wrapper_rss_bytes": 182358016,
+      "minimum_host_available_bytes": 63151517696,
+      "minimum_sampled_gpu_free_bytes": 33660338176,
+      "limit_reason": null,
+      "harness": {
+        "scope": "isolated M1 maps/AQ/SF; development control",
+        "oracle_match": true,
+        "cases": 3,
+        "scratch_bytes": 5816976,
+        "fused_threads": 256,
+        "fused_registers_per_thread": 36,
+        "fused_static_shared_bytes": 33,
+        "fused_local_bytes_per_thread": 0,
+        "binary_version": 120,
+        "negative_routes": 3,
+        "unsupported_shapes_rejected": true,
+        "iterations_per_batch": 512,
+        "warmups_per_batch": 32,
+        "fused_us": [],
+        "two_launch_control_us": [],
+        "candidate_selectable": false,
+        "full_model_qualified": false
+      },
+      "sanitizer_summary": "========= ERROR SUMMARY: 0 errors",
+      "sanitizer_log_sha256": "a9d061cee538182f762e132abeea7bac7bddb844338f25751bbbb043f242c425"
+    },
+    "initcheck": {
+      "returncode": 0,
+      "wall_seconds": 0.39577509902301244,
+      "peak_group_plus_wrapper_rss_bytes": 59326464,
+      "minimum_host_available_bytes": 63013552128,
+      "minimum_sampled_gpu_free_bytes": 33642512384,
+      "limit_reason": null,
+      "harness": {
+        "scope": "isolated M1 maps/AQ/SF; development control",
+        "oracle_match": true,
+        "cases": 3,
+        "scratch_bytes": 5816976,
+        "fused_threads": 256,
+        "fused_registers_per_thread": 36,
+        "fused_static_shared_bytes": 33,
+        "fused_local_bytes_per_thread": 0,
+        "binary_version": 120,
+        "negative_routes": 3,
+        "unsupported_shapes_rejected": true,
+        "iterations_per_batch": 512,
+        "warmups_per_batch": 32,
+        "fused_us": [],
+        "two_launch_control_us": [],
+        "candidate_selectable": false,
+        "full_model_qualified": false
+      },
+      "sanitizer_summary": "========= ERROR SUMMARY: 0 errors",
+      "sanitizer_log_sha256": "a9d061cee538182f762e132abeea7bac7bddb844338f25751bbbb043f242c425"
+    },
+    "racecheck": {
+      "returncode": 0,
+      "wall_seconds": 0.7781627609801944,
+      "peak_group_plus_wrapper_rss_bytes": 1081278464,
+      "minimum_host_available_bytes": 62168231936,
+      "minimum_sampled_gpu_free_bytes": 33640415232,
+      "limit_reason": null,
+      "harness": {
+        "scope": "isolated M1 maps/AQ/SF; development control",
+        "oracle_match": true,
+        "cases": 3,
+        "scratch_bytes": 5816976,
+        "fused_threads": 256,
+        "fused_registers_per_thread": 36,
+        "fused_static_shared_bytes": 33,
+        "fused_local_bytes_per_thread": 0,
+        "binary_version": 120,
+        "negative_routes": 3,
+        "unsupported_shapes_rejected": true,
+        "iterations_per_batch": 512,
+        "warmups_per_batch": 32,
+        "fused_us": [],
+        "two_launch_control_us": [],
+        "candidate_selectable": false,
+        "full_model_qualified": false
+      },
+      "sanitizer_summary": "========= RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)",
+      "sanitizer_log_sha256": "91dbb142f8feb8786cd6fde6ac035e816b67db14e4b7b400a01386ec106b75c4"
+    },
+    "synccheck": {
+      "returncode": 0,
+      "wall_seconds": 0.3997468809830025,
+      "peak_group_plus_wrapper_rss_bytes": 59899904,
+      "minimum_host_available_bytes": 63134236672,
+      "minimum_sampled_gpu_free_bytes": 33640415232,
+      "limit_reason": null,
+      "harness": {
+        "scope": "isolated M1 maps/AQ/SF; development control",
+        "oracle_match": true,
+        "cases": 3,
+        "scratch_bytes": 5816976,
+        "fused_threads": 256,
+        "fused_registers_per_thread": 36,
+        "fused_static_shared_bytes": 33,
+        "fused_local_bytes_per_thread": 0,
+        "binary_version": 120,
+        "negative_routes": 3,
+        "unsupported_shapes_rejected": true,
+        "iterations_per_batch": 512,
+        "warmups_per_batch": 32,
+        "fused_us": [],
+        "two_launch_control_us": [],
+        "candidate_selectable": false,
+        "full_model_qualified": false
+      },
+      "sanitizer_summary": "========= ERROR SUMMARY: 0 errors",
+      "sanitizer_log_sha256": "a9d061cee538182f762e132abeea7bac7bddb844338f25751bbbb043f242c425"
+    }
+  },
+  "capture_sha256": {
+    "correctness/case0.control": "558a33eb6175df6096904e0c58027ebb77c0b1db620c93def63e86f3dbdf0e80",
+    "correctness/case0.fused": "558a33eb6175df6096904e0c58027ebb77c0b1db620c93def63e86f3dbdf0e80",
+    "correctness/case1.control": "0ebd4180326e86f0c57288dcc6d6e30ce91690a04f742cd1807e04268017695c",
+    "correctness/case1.fused": "0ebd4180326e86f0c57288dcc6d6e30ce91690a04f742cd1807e04268017695c",
+    "correctness/case2.control": "42dc966dd038eeaa7725f0b4c199485e3fc6af741be359622b6a079a867e7853",
+    "correctness/case2.fused": "42dc966dd038eeaa7725f0b4c199485e3fc6af741be359622b6a079a867e7853",
+    "memcheck/case0.control": "558a33eb6175df6096904e0c58027ebb77c0b1db620c93def63e86f3dbdf0e80",
+    "memcheck/case0.fused": "558a33eb6175df6096904e0c58027ebb77c0b1db620c93def63e86f3dbdf0e80",
+    "memcheck/case1.control": "0ebd4180326e86f0c57288dcc6d6e30ce91690a04f742cd1807e04268017695c",
+    "memcheck/case1.fused": "0ebd4180326e86f0c57288dcc6d6e30ce91690a04f742cd1807e04268017695c",
+    "memcheck/case2.control": "42dc966dd038eeaa7725f0b4c199485e3fc6af741be359622b6a079a867e7853",
+    "memcheck/case2.fused": "42dc966dd038eeaa7725f0b4c199485e3fc6af741be359622b6a079a867e7853",
+    "initcheck/case0.control": "558a33eb6175df6096904e0c58027ebb77c0b1db620c93def63e86f3dbdf0e80",
+    "initcheck/case0.fused": "558a33eb6175df6096904e0c58027ebb77c0b1db620c93def63e86f3dbdf0e80",
+    "initcheck/case1.control": "0ebd4180326e86f0c57288dcc6d6e30ce91690a04f742cd1807e04268017695c",
+    "initcheck/case1.fused": "0ebd4180326e86f0c57288dcc6d6e30ce91690a04f742cd1807e04268017695c",
+    "initcheck/case2.control": "42dc966dd038eeaa7725f0b4c199485e3fc6af741be359622b6a079a867e7853",
+    "initcheck/case2.fused": "42dc966dd038eeaa7725f0b4c199485e3fc6af741be359622b6a079a867e7853",
+    "racecheck/case0.control": "558a33eb6175df6096904e0c58027ebb77c0b1db620c93def63e86f3dbdf0e80",
+    "racecheck/case0.fused": "558a33eb6175df6096904e0c58027ebb77c0b1db620c93def63e86f3dbdf0e80",
+    "racecheck/case1.control": "0ebd4180326e86f0c57288dcc6d6e30ce91690a04f742cd1807e04268017695c",
+    "racecheck/case1.fused": "0ebd4180326e86f0c57288dcc6d6e30ce91690a04f742cd1807e04268017695c",
+    "racecheck/case2.control": "42dc966dd038eeaa7725f0b4c199485e3fc6af741be359622b6a079a867e7853",
+    "racecheck/case2.fused": "42dc966dd038eeaa7725f0b4c199485e3fc6af741be359622b6a079a867e7853",
+    "synccheck/case0.control": "558a33eb6175df6096904e0c58027ebb77c0b1db620c93def63e86f3dbdf0e80",
+    "synccheck/case0.fused": "558a33eb6175df6096904e0c58027ebb77c0b1db620c93def63e86f3dbdf0e80",
+    "synccheck/case1.control": "0ebd4180326e86f0c57288dcc6d6e30ce91690a04f742cd1807e04268017695c",
+    "synccheck/case1.fused": "0ebd4180326e86f0c57288dcc6d6e30ce91690a04f742cd1807e04268017695c",
+    "synccheck/case2.control": "42dc966dd038eeaa7725f0b4c199485e3fc6af741be359622b6a079a867e7853",
+    "synccheck/case2.fused": "42dc966dd038eeaa7725f0b4c199485e3fc6af741be359622b6a079a867e7853"
+  },
+  "timing": {
+    "returncode": 0,
+    "wall_seconds": 0.28458039701217785,
+    "peak_group_plus_wrapper_rss_bytes": 129110016,
+    "minimum_host_available_bytes": 63169900544,
+    "minimum_sampled_gpu_free_bytes": 33119272960,
+    "limit_reason": null,
+    "method": "CUDA event interval over 512 consecutive host-submitted invocations; setup/H2D/CPU oracle excluded, submission gaps may be included; hot buffers; no CUDA graphs",
+    "rounds": 9,
+    "order": "fused first in even rounds; control first in odd rounds",
+    "baseline": "our two-launch development control; not installed FlashInfer",
+    "warmups_per_batch": 32,
+    "iterations_per_batch": 512,
+    "fused_us": [
+      2.30694,
+      2.308,
+      2.30719,
+      2.307,
+      3.58656,
+      2.30725,
+      2.30719,
+      2.307,
+      2.30719
+    ],
+    "two_launch_control_us": [
+      3.41494,
+      3.41512,
+      3.416,
+      3.415,
+      3.41519,
+      3.415,
+      3.41525,
+      3.41912,
+      3.416
+    ],
+    "fused_median_us": 2.30719,
+    "two_launch_control_median_us": 3.41519,
+    "all_samples_retained": true,
+    "oracle_equal_before_and_after": true
+  },
+  "cpu_checks": {
+    "reference_tests": 387,
+    "scaffold_tests": 38,
+    "valid_configs": 8,
+    "finite_q_sf_products": 4064,
+    "products_not_exact_in_bf16": 0,
+    "compileall": true
+  },
+  "cleanup": {
+    "owned_remote_directory_removed": true,
+    "compute_processes": [],
+    "gpu_used_mib_after": 41,
+    "gpu_free_mib_after": 32101,
+    "shared_checkout_modified": false,
+    "runtime_or_packages_changed": false,
+    "checkpoint_read": false
+  },
+  "gates": {
+    "candidate_selectable": false,
+    "native_descriptor_abi_verified": false,
+    "graph_enabled": false,
+    "full_model_qualified": false,
+    "installed_incumbent_timing_comparison": false,
+    "project_gate_claim": false
+  }
+}
