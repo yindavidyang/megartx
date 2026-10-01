@@ -6,6 +6,9 @@ bounded artifact intake, and independent validation using the merged
 [M1 byte oracle](m1-nvfp4-preparation-contract.md). No target connection, native
 probe build, GPU execution, runtime modification or candidate selection occurred.
 
+The subsequent installed-host attempt and its measured resource stop are
+recorded in the [installed probe result](m1-installed-probe-result.md).
+
 ## Tools and evidence boundaries
 
 [`capture_m1_preparation.py`](../scripts/capture_m1_preparation.py) invokes the

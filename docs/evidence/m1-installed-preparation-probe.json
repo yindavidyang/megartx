@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "scope": "Installed source/build inventory and resource-stopped typed host probe; no GPU preparation capture",
+  "base_commit": "54557e2e537f56f32ad0b604aaba9361a655b634",
+  "post_merge_ci": [
+    "https://github.com/yindavidyang/megartx/actions/runs/36889033625",
+    "https://github.com/yindavidyang/megartx/actions/runs/36889033585"
+  ],
+  "stack": {
+    "python": "3.12.3",
+    "flashinfer": "0.6.18.post1",
+    "vllm": "0.30.0",
+    "torch_distribution": "2.13.0",
+    "numpy": "2.3.5",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "driver": "610.43.02",
+    "nvcc": "13.3.33",
+    "host_cxx": "GNU 13.3.0"
+  },
+  "installed_sources": [
+    {
+      "name": "cutlass_fused_moe_kernels.cuh",
+      "bytes": 281058,
+      "sha256": "fd9e2e976496ab318bda6d133d2b68f45b3451a6482978f452acd7a86e029841",
+      "matches_reference": true
+    },
+    {
+      "name": "moe_gemm_kernels.h",
+      "bytes": 15028,
+      "sha256": "eca60a5a7f30b70b7a4f426fb833085ee2ae320445fb217fdd8642c9480b23ab",
+      "matches_reference": true
+    },
+    {
+      "name": "quantization_utils.cuh",
+      "bytes": 50170,
+      "sha256": "c2a860da4407f70c281c84981db796ec111520d141a3753d77fe66c6c11f3928",
+      "matches_reference": true
+    },
+    {
+      "name": "sm100_blockscaled_layout.hpp",
+      "bytes": 12295,
+      "sha256": "598e054bef21edf94b1fd6bb1447cfa9cfcf5a5907ab370128102448dbb6d530",
+      "matches_reference": true
+    }
+  ],
+  "installed_jit_source": {
+    "path": "flashinfer/jit/fused_moe.py",
+    "bytes": 14826,
+    "sha256": "b41f213cba1be67d7367e0f01b5612992f38ca06e29de1d9e97c8194fa9bc58d",
+    "matches_reference": true
+  },
+  "cached_module": {
+    "name": "fused_moe_120.so",
+    "bytes": 61836776,
+    "sha256": "dc26a85431c946b0f636ddd2e08aa676f6340fd085361b21e8b0fe00617d28f9",
+    "build_manifest_sha256": "8e01f5b25d3cd211874278a7756f6694e2fa5bb38c6e8a148610cf16aaa3de6f",
+    "loaded_in_probe": false,
+    "preparation_launcher_exports_observed": [
+      "fusedBuildExpertMapsSortFirstToken",
+      "expandInputRowsKernelLauncher<__nv_fp4_e2m1,__nv_fp4_e2m1>"
+    ],
+    "rebuild_equivalence_proven": false
+  },
+  "typed_probe_attempt": {
+    "flag_profile": "cached module cuda_cflags; no substituted headers or flags",
+    "command_sha256": "196b8420e17a5b22dd9ce03f3bfc8cc39f79f214a551a70bf6cdcee105fe8eeb",
+    "source_sha256": {
+      "m1_host_abi_probe.cpp": "66c8f66fbf7367fe2263810191ecf69ad348ec47b7a07a36e2efcba447bd884a",
+      "m1_probe_wire.hpp": "16991a575e7cd7f939de221810a50b1d029427a66317f86432edb6229a77889e"
+    },
+    "attempts": 1,
+    "returncode": 255,
+    "wall_seconds": 1.495932374993572,
+    "sampled_peak_group_plus_wrapper_rss_bytes": 554164224,
+    "host_rss_limit_bytes": 536870912,
+    "compile_limit_seconds": 300,
+    "stop_reason": "host_rss_limit",
+    "compiled": false,
+    "executed": false,
+    "field_offsets_and_widths": null,
+    "typed_sf_coordinate_comparison": null
+  },
+  "gpu_activity": {
+    "preparation_captures": 0,
+    "kernel_launches": 0,
+    "before": {
+      "used_mib": 41,
+      "free_mib": 32101,
+      "utilization_percent": 0,
+      "compute_pids": []
+    },
+    "after": {
+      "used_mib": 41,
+      "free_mib": 32101,
+      "utilization_percent": 0,
+      "compute_pids": []
+    },
+    "peak_gpu_memory_measured": false
+  },
+  "cleanup": {
+    "owned_directory_removed": true,
+    "owned_compile_processes": [],
+    "installed_build_and_module_unchanged": true,
+    "checkpoint_payloads_accessed": false,
+    "runtime_or_package_changes": false
+  },
+  "qualification": {
+    "installed_header_profile_verified": true,
+    "native_struct_abi_verified": false,
+    "native_preparation_bytes_verified": false,
+    "compiled_candidate": false,
+    "candidate_selectable": false,
+    "graph_enabled": false,
+    "performance_claim": false
+  },
+  "next_kernel_boundary": "Standalone M1 expert maps plus common packed-AQ/SF expansion; opaque TMA descriptors remain incumbent/pending"
+}
