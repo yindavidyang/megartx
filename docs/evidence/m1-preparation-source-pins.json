@@ -1,0 +1,122 @@
+{
+  "scope": "CPU synthetic reference-source semantics only; no installed binary ABI receipt",
+  "base_commit": "8b81aa2c65ec971159b8e19e8a23b2eacf7a74e8",
+  "reference_semantic_abi": "flashinfer-8bc3b578-nvfp4-128x4-semantic-v1",
+  "candidate_available": false,
+  "installed_binary_abi_verified": false,
+  "planner_inputs": [
+    {
+      "name": "SM120-first-kernel-plan.md",
+      "sha256": "558644183c3fc7ed0340dff6555f9185fe30a2cd27ca7c6155ce2d9be468b572"
+    },
+    {
+      "name": "RECOMMENDATION.md",
+      "sha256": "5ded2e53bf58b19b929e3c2070b509a0ed839bc269cb0bf5f96fb0b4e7969b3e"
+    },
+    {
+      "name": "evidence/input-provenance.json",
+      "sha256": "37f988f578c99e15aaa8cc55c91abbcb3b20b21bdf285f7c33d72d7340c8b359"
+    }
+  ],
+  "committed_inputs": [
+    {
+      "path": "docs/evidence/nvfp4-controlled-live.json",
+      "sha256": "654187c82784e43f2541f27dca2c86aeec72f4d38341920afd55d1405baddb20"
+    },
+    {
+      "path": "docs/evidence/nvfp4-router-audit.json",
+      "sha256": "fe37aa18162a7a6932a3beb96b541789ac30906470a169287b5abb703e6e39b0"
+    },
+    {
+      "path": "src/megartx/nvfp4_runtime.py",
+      "sha256": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962"
+    },
+    {
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "sha256": "507f2b4bac64dc6ae4de65955a561fe8c6c547994115d9b3d29648506f16d289"
+    },
+    {
+      "path": "numerical_reference/nvfp4_reference.py",
+      "sha256": "7860dc578243b815d3faaf6ec75d0c32750c201523a2f74d94fa3700bfeb1062"
+    },
+    {
+      "path": "numerical_reference/controlled_reference.py",
+      "sha256": "4a91b032566e9c9a7d6b6a0fa4c5f34d79142d5ec71ffbbb1bf0cfdd4da897a5"
+    }
+  ],
+  "saved_installed_source_evidence": {
+    "vllm_version": "0.30.0",
+    "flashinfer_python_version": "0.6.18.post1",
+    "vllm_cutlass_experts_source": {
+      "path": "vllm/model_executor/layers/fused_moe/experts/flashinfer_cutlass_moe.py",
+      "sha256": "52887cec5fe628e0a4e7793deb546b40f6c29f7362b3b436c10ca36934ab9826",
+      "scope": "Read-only saved installed Python source, hash rechecked locally; not the C++ ABI"
+    },
+    "observed_preparation_kernels": [
+      "fusedBuildExpertMapsSortFirstTokenKernel<32,8,8>",
+      "expandInputRowsKernel<__nv_fp4_e2m1,__nv_fp4_e2m1,NVFP4,...>",
+      "computeStridesTmaWarpSpecializedKernel<__nv_fp4_e2m1,__nv_fp4_e2m1,__nv_bfloat16,__nv_bfloat16>"
+    ],
+    "trace_sha256": "a391060e363f6bb1d443baa9423b03d175611d11311f973d866d79d6b99a40cc",
+    "trace_scope": "Historical exploratory trace; kernel family observation does not freeze tactic or ABI"
+  },
+  "reference_sources": [
+    {
+      "path": "csrc/fused_moe/cutlass_backend/cutlass_fused_moe_kernels.cuh",
+      "commit": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+      "url": "https://github.com/flashinfer-ai/flashinfer/blob/8bc3b578027791336c6ae87db5c9d76f82cef8bc/csrc/fused_moe/cutlass_backend/cutlass_fused_moe_kernels.cuh",
+      "sha256": "fd9e2e976496ab318bda6d133d2b68f45b3451a6482978f452acd7a86e029841",
+      "identity": "public upstream source, not proven installed"
+    },
+    {
+      "path": "csrc/nv_internal/tensorrt_llm/kernels/cutlass_kernels/include/moe_gemm_kernels.h",
+      "commit": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+      "url": "https://github.com/flashinfer-ai/flashinfer/blob/8bc3b578027791336c6ae87db5c9d76f82cef8bc/csrc/nv_internal/tensorrt_llm/kernels/cutlass_kernels/include/moe_gemm_kernels.h",
+      "sha256": "eca60a5a7f30b70b7a4f426fb833085ee2ae320445fb217fdd8642c9480b23ab",
+      "identity": "public upstream source, not proven installed"
+    },
+    {
+      "path": "csrc/nv_internal/tensorrt_llm/kernels/quantization_utils.cuh",
+      "commit": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+      "url": "https://github.com/flashinfer-ai/flashinfer/blob/8bc3b578027791336c6ae87db5c9d76f82cef8bc/csrc/nv_internal/tensorrt_llm/kernels/quantization_utils.cuh",
+      "sha256": "c2a860da4407f70c281c84981db796ec111520d141a3753d77fe66c6c11f3928",
+      "identity": "public upstream source, not proven installed"
+    }
+  ],
+  "unresolved_installed_fields": {
+    "flashinfer_cxx_source_sha256": null,
+    "cutlass_revision": null,
+    "generated_source_sha256": null,
+    "compiler_and_flags": null,
+    "loaded_module_sha256": null,
+    "fc1_tactic_id": null,
+    "fc2_tactic_id": null,
+    "fc1_swap_ab": null,
+    "fc2_swap_ab": null,
+    "epilogue_modes_and_biases": null,
+    "descriptor_size_align_and_field_offsets": null,
+    "cute_layout_serialization": null,
+    "consumer_read_and_write_masks": null,
+    "workspace_owners_extents_and_aliases": null,
+    "allocation_alignment_and_lifetimes": null,
+    "corrected_runner_preparation_fixture": null,
+    "repeated_graph_address_identity": null
+  },
+  "qualification": {
+    "cpu_tests_are_synthetic": true,
+    "installed_abi_supported": false,
+    "gpu_preparation_byte_equality": false,
+    "sanitizers": false,
+    "corrected_numerical_baseline": false,
+    "corrected_graph_path": false,
+    "g0_g1_accepted": false,
+    "performance_claim": false
+  },
+  "scope_exclusions": [
+    "CUDA implementation or compilation",
+    "GPU or SSH activity",
+    "package or runtime changes",
+    "graph enablement",
+    "model weights or private arrays"
+  ]
+}
