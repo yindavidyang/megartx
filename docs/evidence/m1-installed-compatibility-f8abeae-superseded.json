@@ -1,7 +1,7 @@
 {
   "schema": "megartx.m1-installed-compatibility.v1",
   "date_utc": "2026-10-01",
-  "base_head": "f8abeaeb87af688b859a3d202faccae043dde4a9",
+  "base_head": "86b17fa9958b72b58757c886d138d7b300728394",
   "scope": "Installed typed maps/packed-AQ/SF bridge and explicit native preparation adapter; synthetic buffers only",
   "qualification": {
     "installed_preparation_bytes_verified": true,
@@ -42,16 +42,14 @@
     "probes/m1_host_abi_probe.cpp": "6129f4abe58212c49819fb99e13033c2c11e2e68294e47f30aec426181449c46",
     "probes/m1_probe_wire.hpp": "16991a575e7cd7f939de221810a50b1d029427a66317f86432edb6229a77889e",
     "kernels/m1_maps_expand.cuh": "e9baa650809915f4de6b7d9f32ade2718a5fa91bef7e18c69b866d4cf394c47b",
-    "kernels/m1_installed_preparation.cuh": "5c001617323da1f4ecee9f9d6d88f9326349a74806d6627d2cd004ce57b45c47",
-    "probes/m1_preparation_flow_test.cpp": "e5355cd2b12f49e08dab6af3557fc88c67b6a7cc820ad46f8b59d41dbe6a3c8b",
-    "numerical_reference/test_m1_preparation_control_flow.py": "85bfa2a4be72ae637ea10f8fea5c62f0a9f59badd0a3f5b48111690fd09d2837",
+    "kernels/m1_installed_preparation.cuh": "5df7bc431e9327f3f7205cc8ff81e3b2ccee802661fd92bd472ac9b1076b4c9e",
     "numerical_reference/m1_kernel_fixture.py": "da33e8742a9b17ab51120a463eef27f4be518b82c34ea3f5d16b415f56eb642a",
     "numerical_reference/m1_preparation_reference.py": "1444ee9a8617b9571039cd148b1ee04634538ac914495395484e9d9f280dc893",
     "numerical_reference/m1_installed_compare.py": "61e321651906ffb60df6e56840fc0806476aade9ee0990aec4a39530375a99fd",
     "numerical_reference/m1_abi_probe.py": "9efad04551fd74b45b29f39d80c11168fd6a12af0647929980887ecbfd721883"
   },
-  "coordinator_sha256": "3030023263cbdb7a1ec44c28938cf059f8547a34295f1cdc4f8e468a6e9f08d3",
-  "compiled_binary_sha256": "de7c15ba3e1748a99e6475eada1874d96876c0139d2898f43b5e0e9557414aa7",
+  "coordinator_sha256": "51fa77ee00bd86ce33a402bdc7b76762d3742914334ad84cd3129d82dc6d5c80",
+  "compiled_binary_sha256": "4ab24e3878d10d4c30a36904b5d16f07e0ef6cee9d9279074d7c586dfb4442e9",
   "compile_command": [
     "/usr/local/cuda/bin/nvcc",
     "-DPy_LIMITED_API=0x03090000",
@@ -130,7 +128,7 @@
   ],
   "dependency_manifest": {
     "file": "m1-installed-typed-dependencies.json",
-    "sha256": "c220b8fb60aca93edd190d6f2aa80240321496253ed90e9466336dd87fd76b61",
+    "sha256": "1a5daf75da01fdde2eac4fbc87bfc5b60b55cf4481b7741b3169fce12142f4f0",
     "count": 832
   },
   "typed_quantparams": {
@@ -639,121 +637,113 @@
   "phases": {
     "torch_version": {
       "returncode": 0,
-      "wall_seconds": 1.256531841994729,
-      "peak_group_plus_wrapper_rss_bytes": 568156160,
-      "minimum_host_available_bytes": 63021223936,
+      "wall_seconds": 1.0562716590065975,
+      "peak_group_plus_wrapper_rss_bytes": 592752640,
+      "minimum_host_available_bytes": 63027625984,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     },
     "fixtures": {
       "returncode": 0,
-      "wall_seconds": 0.18959539500065148,
-      "peak_group_plus_wrapper_rss_bytes": 38612992,
-      "minimum_host_available_bytes": 62972575744,
-      "minimum_sampled_gpu_free_bytes": 33660338176,
-      "limit_reason": null
-    },
-    "prepare_control_flow": {
-      "returncode": 0,
-      "wall_seconds": 0.9256877759762574,
-      "peak_group_plus_wrapper_rss_bytes": 155795456,
-      "minimum_host_available_bytes": 62984851456,
+      "wall_seconds": 0.1906812030065339,
+      "peak_group_plus_wrapper_rss_bytes": 37937152,
+      "minimum_host_available_bytes": 63012241408,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     },
     "compile": {
       "returncode": 0,
-      "wall_seconds": 6.039879786025267,
-      "peak_group_plus_wrapper_rss_bytes": 708329472,
-      "minimum_host_available_bytes": 62542536704,
+      "wall_seconds": 5.950831323978491,
+      "peak_group_plus_wrapper_rss_bytes": 708653056,
+      "minimum_host_available_bytes": 62288453632,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     },
     "host_abi": {
       "returncode": 0,
-      "wall_seconds": 0.29334723498323,
-      "peak_group_plus_wrapper_rss_bytes": 24903680,
-      "minimum_host_available_bytes": 62589476864,
+      "wall_seconds": 0.2904591280093882,
+      "peak_group_plus_wrapper_rss_bytes": 24977408,
+      "minimum_host_available_bytes": 62785617920,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     },
     "capture": {
       "returncode": 0,
-      "wall_seconds": 0.4275695429823827,
-      "peak_group_plus_wrapper_rss_bytes": 236597248,
-      "minimum_host_available_bytes": 62590459904,
+      "wall_seconds": 0.5382383649994154,
+      "peak_group_plus_wrapper_rss_bytes": 227868672,
+      "minimum_host_available_bytes": 62739533824,
       "minimum_sampled_gpu_free_bytes": 33658241024,
       "limit_reason": null
     },
     "compare": {
       "returncode": 0,
-      "wall_seconds": 0.16588465397944674,
-      "peak_group_plus_wrapper_rss_bytes": 41177088,
-      "minimum_host_available_bytes": 63005962240,
+      "wall_seconds": 0.16267667899955995,
+      "peak_group_plus_wrapper_rss_bytes": 45309952,
+      "minimum_host_available_bytes": 62940741632,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     },
     "memcheck": {
       "returncode": 0,
-      "wall_seconds": 0.5942520649987273,
-      "peak_group_plus_wrapper_rss_bytes": 386949120,
-      "minimum_host_available_bytes": 62845902848,
+      "wall_seconds": 0.5955090830102563,
+      "peak_group_plus_wrapper_rss_bytes": 387174400,
+      "minimum_host_available_bytes": 62882869248,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     },
     "memcheck_compare": {
       "returncode": 0,
-      "wall_seconds": 0.16634417400928214,
-      "peak_group_plus_wrapper_rss_bytes": 41230336,
-      "minimum_host_available_bytes": 63092867072,
+      "wall_seconds": 0.1651142219780013,
+      "peak_group_plus_wrapper_rss_bytes": 41263104,
+      "minimum_host_available_bytes": 63084490752,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     },
     "initcheck": {
       "returncode": 0,
-      "wall_seconds": 0.5799684099911246,
-      "peak_group_plus_wrapper_rss_bytes": 447205376,
-      "minimum_host_available_bytes": 62774558720,
-      "minimum_sampled_gpu_free_bytes": 33660338176,
+      "wall_seconds": 0.6025010250159539,
+      "peak_group_plus_wrapper_rss_bytes": 346341376,
+      "minimum_host_available_bytes": 62831939584,
+      "minimum_sampled_gpu_free_bytes": 33658241024,
       "limit_reason": null
     },
     "initcheck_compare": {
       "returncode": 0,
-      "wall_seconds": 0.16867852199357003,
-      "peak_group_plus_wrapper_rss_bytes": 45322240,
-      "minimum_host_available_bytes": 63079673856,
+      "wall_seconds": 0.16514361498411745,
+      "peak_group_plus_wrapper_rss_bytes": 41824256,
+      "minimum_host_available_bytes": 63126802432,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     },
     "racecheck": {
       "returncode": 0,
-      "wall_seconds": 0.853206481988309,
-      "peak_group_plus_wrapper_rss_bytes": 1302564864,
-      "minimum_host_available_bytes": 61935874048,
-      "minimum_sampled_gpu_free_bytes": 33658241024,
+      "wall_seconds": 0.8310998719825875,
+      "peak_group_plus_wrapper_rss_bytes": 1275510784,
+      "minimum_host_available_bytes": 62043439104,
+      "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     },
     "racecheck_compare": {
       "returncode": 0,
-      "wall_seconds": 0.16316896697389893,
-      "peak_group_plus_wrapper_rss_bytes": 41259008,
-      "minimum_host_available_bytes": 63052369920,
+      "wall_seconds": 0.1666972280072514,
+      "peak_group_plus_wrapper_rss_bytes": 41353216,
+      "minimum_host_available_bytes": 63216881664,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     },
     "synccheck": {
       "returncode": 0,
-      "wall_seconds": 0.6067388399969786,
-      "peak_group_plus_wrapper_rss_bytes": 431362048,
-      "minimum_host_available_bytes": 62827311104,
+      "wall_seconds": 0.5917771079984959,
+      "peak_group_plus_wrapper_rss_bytes": 429506560,
+      "minimum_host_available_bytes": 62925029376,
       "minimum_sampled_gpu_free_bytes": 33658241024,
       "limit_reason": null
     },
     "synccheck_compare": {
       "returncode": 0,
-      "wall_seconds": 0.1631533970066812,
-      "peak_group_plus_wrapper_rss_bytes": 41345024,
-      "minimum_host_available_bytes": 63028981760,
+      "wall_seconds": 0.16932725900551304,
+      "peak_group_plus_wrapper_rss_bytes": 45776896,
+      "minimum_host_available_bytes": 63145852928,
       "minimum_sampled_gpu_free_bytes": 33660338176,
       "limit_reason": null
     }
@@ -765,10 +755,6 @@
     "synccheck": "========= COMPUTE-SANITIZER\n========= ERROR SUMMARY: 0 errors"
   },
   "raw_artifact_hashes": {
-    "prepare_control_flow.stderr": {
-      "bytes": 1036,
-      "sha256": "90946d89b74d0088c9bfbe299cb1fd76ed76c640068c25a2199381c63dba6ae5"
-    },
     "racecheck.sanitizer.log": {
       "bytes": 100,
       "sha256": "91dbb142f8feb8786cd6fde6ac035e816b67db14e4b7b400a01386ec106b75c4"
@@ -776,10 +762,6 @@
     "synccheck.sanitizer.log": {
       "bytes": 62,
       "sha256": "a9d061cee538182f762e132abeea7bac7bddb844338f25751bbbb043f242c425"
-    },
-    "prepare_control_flow.stdout": {
-      "bytes": 0,
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "initcheck.sanitizer.log": {
       "bytes": 62,
@@ -1046,24 +1028,10 @@
     },
     "dependency_recording_stop": "Successful binary retained; relative dependency paths fixed; unchanged successful compile resumed for ABI and three captures",
     "initial_three_case_bytes_equal": true,
-    "raw_receipts_preserved": true,
-    "preflight_error_handling_revision": {
-      "superseded_head": "f8abeaeb87af688b859a3d202faccae043dde4a9",
-      "reason": "Preflight query API errors could be treated as ineligible and enter incumbent fallback; positive byte captures did not exercise this prepare-level control flow.",
-      "original_receipt": {
-        "file": "m1-installed-compatibility-f8abeae-superseded.json",
-        "sha256": "e761ee93d07c3b98dc2b637aeba77626250cd9dcdb4a02c7a790e597a240b21c"
-      },
-      "original_dependency_manifest": {
-        "file": "m1-installed-typed-dependencies-f8abeae-superseded.json",
-        "sha256": "1a5daf75da01fdde2eac4fbc87bfc5b60b55cf4481b7741b3169fce12142f4f0"
-      },
-      "archive_note": "Both archived files are byte-identical to the original commit. Original receipt dependency filename resolves within that original commit.",
-      "raw_receipts_preserved": true
-    }
+    "raw_receipts_preserved": true
   },
   "local_validation": {
-    "reference_tests": 420,
+    "reference_tests": 415,
     "scaffold_tests": 38,
     "configs": 8,
     "finite_products_exact_in_bf16": 4064,
@@ -1083,50 +1051,5 @@
     "raw_artifacts_preserved_locally": true,
     "owned_remote_directory_removed": true,
     "post_cleanup_gpu_metadata": "41, 32101, 0"
-  },
-  "prepare_error_control_flow": {
-    "scope": "CPU prepare control flow with mocked CUDA APIs and byte-identical adapter header; does not inject real GPU failures or attest installed ABI",
-    "target_unit_test_methods_passed": 5,
-    "prepare_cases_passed": 40,
-    "preflight_api_error_cases": 29,
-    "candidate_submission_error_cases": 1,
-    "successful_or_unsupported_control_cases": 10,
-    "error_codes": [
-      719,
-      1
-    ],
-    "preflight_error_apis": [
-      "cudaStreamIsCapturing",
-      "cuCtxGetCurrent",
-      "cuStreamGetCtx",
-      "cudaGetDevice",
-      "cudaPointerGetAttributes",
-      "cuMemGetAddressRange",
-      "cudaMemcpyAsync",
-      "cudaStreamSynchronize"
-    ],
-    "pointer_and_range_query_positions_exercised": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8,
-      9,
-      10
-    ],
-    "preflight_errors_throw_without_incumbent_or_candidate_or_output_mutation": true,
-    "candidate_submission_error_throws_without_fallback": true,
-    "primary_driver_error_preserved_if_diagnostic_lookup_fails": true,
-    "regression_against_original_header": {
-      "original_header_sha256": "5df7bc431e9327f3f7205cc8ff81e3b2ccee802661fd92bd472ac9b1076b4c9e",
-      "fixed_header_sha256": "5c001617323da1f4ecee9f9d6d88f9326349a74806d6627d2cd004ce57b45c47",
-      "original_fault_test_returncode": 1,
-      "original_failure": "failure invoked fallback or changed preflight output",
-      "fixed_fault_test_returncode": 0,
-      "scope": "CPU prepare control flow with mocked CUDA APIs; unchanged adapter header bytes"
-    }
   }
 }

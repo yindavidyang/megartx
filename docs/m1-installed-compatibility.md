@@ -5,6 +5,9 @@ compiled typed bridge. Their three reused-scratch captures agree byte-for-byte
 with the standalone fused kernel and the independent CPU oracle. The explicit
 [native adapter](../kernels/m1_installed_preparation.cuh) also passed that comparison,
 stock fallback checks, 22 rejection checks and four Compute Sanitizer tools.
+After review, 40 `prepare()` control-flow cases also verify that CUDA query errors
+propagate before output mutation or fallback. Fresh captures and sanitizer runs
+bind the repaired adapter.
 The [sanitized receipt](evidence/m1-installed-compatibility.json) binds the actual
 tested source, binary, installed module, flags, dependencies and raw captures.
 
@@ -58,6 +61,18 @@ are preserved. The successful typed build then stopped while recording relative
 dependency paths. Its unchanged, digest-verified binary was resumed after fixing
 that bookkeeping. No resource limit was widened. The final native adapter was
 compiled separately after the original three-case installed comparison passed.
+
+Review of `f8abeaeb87af688b859a3d202faccae043dde4a9` found that failed CUDA
+preflight queries were treated as unsupported inputs, allowing `prepare()` to
+invoke the incumbent callback. Those query APIs can report earlier asynchronous
+errors. The adapter now propagates every non-success runtime/driver query result;
+only successful queries that report unsupported metadata select fallback.
+The [original receipt](evidence/m1-installed-compatibility-f8abeae-superseded.json)
+and [original dependency manifest](evidence/m1-installed-typed-dependencies-f8abeae-superseded.json)
+are preserved byte-for-byte. The original receipt's dependency filename refers to
+the manifest in [that original commit](https://github.com/yindavidyang/megartx/blob/f8abeaeb87af688b859a3d202faccae043dde4a9/docs/evidence/m1-installed-typed-dependencies.json).
+Its positive byte comparison remains evidence for those sources; its error-path
+coverage is superseded by the repaired source-bound receipt and control-flow tests.
 
 ## Exact bytes, padding, ownership and consumer coverage
 
@@ -129,8 +144,12 @@ stream and synchronized **before any output mutation**; this host fence is part
 of the adapter's current execution cost. No latency improvement is claimed.
 
 Unsupported requests invoke the caller's complete incumbent callback, preserving
-its own modes and three-step fallback. Launch/runtime failures after candidate
-submission raise; they do not attempt fallback over partially published output.
+its own modes and three-step fallback. Failed capture, context, device, pointer or
+allocation queries raise before invoking either backend. Failed ID copy or stream
+synchronization also raises before any output mutation. Driver diagnostic lookup
+failure preserves the primary operation and error code. Launch/runtime failures
+after candidate submission raise; they do not attempt fallback over partially
+published output.
 Tests observe the default-disabled callback, an unsupported correction context,
 and actual stock PDL fallback, plus 22 rejected geometry/lane/pointer/route cases
 with unchanged outputs. Fixture correction flags exercise selection logic; they
@@ -152,20 +171,33 @@ zero errors and zero race hazards/warnings. Each sanitizer's stock/fused raw
 captures pass an independent target recheck and another recheck after download.
 All tested native source digests still match the published tree.
 
-The final build took **5.950831 seconds**, with sampled compiler-group plus wrapper
-RSS of **708,653,056 bytes**, under 2 GiB / 300 seconds. Racecheck's sampled aggregate
-RSS was 1,275,510,784 bytes. The smallest sampled host availability was
-62,043,439,104 bytes; smallest sampled GPU free memory was 33,658,241,024 bytes.
+The fresh repaired build took **6.039880 seconds**, with sampled compiler-group plus
+wrapper RSS of **708,329,472 bytes**, under 2 GiB / 300 seconds. Racecheck's sampled
+aggregate RSS was 1,302,564,864 bytes. The smallest sampled host availability was
+61,935,874,048 bytes; smallest sampled GPU free memory was 33,658,241,024 bytes.
 The executable also checks CUDA/host headroom before and after allocation. These
 periodic GPU samples are not a subsecond peak-memory measurement. All capture
 and sanitizer slots were below one second and retained the 60-second slot cap.
 
-CPU checks pass **415 numerical-reference tests**, **38 scaffold tests**, all eight
+CPU checks pass **420 numerical-reference tests**, **38 scaffold tests**, all eight
 configs, Python compilation and the existing 4,064-product BF16 format self-check.
 New CPU corruption tests reject changed stock/candidate data, SF continuity,
 typed nested bounds, owner extents, links, truncation, duplicate JSON keys and
 invented qualification fields. Synthetic CPU agreement never attests its producer
 or unlocks model dispatch.
+
+Five new CPU test methods compile a byte-identical adapter header with mocked
+CUDA APIs and execute `prepare()` itself in 40 cases: 29 preflight API failures,
+one submission failure and ten supported/unsupported/callback controls. Launch
+failure codes are injected at each query, including all ten pointer and allocation
+query positions; invalid-value results also propagate. Every preflight error
+throws with zero incumbent calls, zero candidate launches and unchanged output.
+Successful unsupported states call the incumbent exactly once; submission errors
+never fall back. The test also checks failed diagnostic lookup and incumbent
+exception propagation. The original header reproduces the review failure and the
+repaired header passes the same case. These are CPU control-flow observations,
+not real GPU fault injection or installed ABI evidence. The bounded coordinator
+runs them before native compilation and hashes both test sources in its receipt.
 
 Reproduce only in the existing pinned environment, in a new output directory:
 

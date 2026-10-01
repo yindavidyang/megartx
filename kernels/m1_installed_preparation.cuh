@@ -5,6 +5,8 @@
 #include <cuda.h>
 #include <array>
 #include <cstring>
+#include <stdexcept>
+#include <string>
 
 namespace megartx::experimental {
 struct InstalledPreparationCall {
@@ -20,6 +22,20 @@ struct InstalledPreparationCall {
 };
 enum class PreparationBackend { Stock, Fused };
 
+inline void require_cuda_success(cudaError_t result, char const* operation) {
+  if(result!=cudaSuccess)
+    throw std::runtime_error(std::string(operation)+": "+cudaGetErrorString(result));
+}
+inline void require_driver_success(CUresult result, char const* operation) {
+  if(result!=CUDA_SUCCESS) {
+    char const* message=nullptr;
+    // Preserve the original failure even if its diagnostic lookup also fails.
+    auto diagnostic=cuGetErrorString(result,&message);
+    throw std::runtime_error(std::string(operation)+": "+
+      (diagnostic==CUDA_SUCCESS && message ? std::string(message) : std::to_string(int(result))));
+  }
+}
+
 inline bool device_views_valid(M1Buffers b) {
   // Read actual allocation extents; a declared capacity is never a receipt.
   std::array<void const*,10> ptrs{b.ids,b.weight_bits,b.aq,b.sf,b.slot_to_sorted,
@@ -27,16 +43,16 @@ inline bool device_views_valid(M1Buffers b) {
   constexpr std::array<std::size_t,10> sizes{32,32,kAQBytes,128*kSFBlocks,32,32,
     129*8,kTopK*kAQBytes,32,kSFBytes};
   constexpr std::array<int,10> alignments{4,4,16,4,4,4,8,16,4,4};
-  int device; if(cudaGetDevice(&device)!=cudaSuccess)return false;
+  int device; require_cuda_success(cudaGetDevice(&device),"cudaGetDevice");
   for(std::size_t i=0;i<ptrs.size();++i) {
     if(!aligned(ptrs[i],alignments[i]))return false;
     cudaPointerAttributes attr{};
-    if(cudaPointerGetAttributes(&attr,ptrs[i])!=cudaSuccess ||
-       attr.type!=cudaMemoryTypeDevice || attr.device!=device)return false;
+    require_cuda_success(cudaPointerGetAttributes(&attr,ptrs[i]),"cudaPointerGetAttributes");
+    if(attr.type!=cudaMemoryTypeDevice || attr.device!=device)return false;
     CUdeviceptr base=0;std::size_t extent=0;
     auto p=reinterpret_cast<CUdeviceptr>(ptrs[i]);
-    if(cuMemGetAddressRange(&base,&extent,p)!=CUDA_SUCCESS || p<base ||
-       p-base>extent || sizes[i]>extent-(p-base))return false;
+    require_driver_success(cuMemGetAddressRange(&base,&extent,p),"cuMemGetAddressRange");
+    if(p<base || p-base>extent || sizes[i]>extent-(p-base))return false;
     for(std::size_t j=0;j<i;++j) {
       auto q=reinterpret_cast<CUdeviceptr>(ptrs[j]);
       if(p<q+sizes[j] && q<p+sizes[i])return false;
@@ -54,18 +70,20 @@ inline bool candidate_eligible(InstalledPreparationCall const& c, bool opt_in) {
      c.quant.fp4.fc1.use_per_expert_act_scale || !c.quant.fp4.fc1.weight_block_scale)
     return false;
   cudaStreamCaptureStatus capture;
-  if(cudaStreamIsCapturing(c.stream,&capture)!=cudaSuccess || capture!=cudaStreamCaptureStatusNone)
+  require_cuda_success(cudaStreamIsCapturing(c.stream,&capture),"cudaStreamIsCapturing");
+  if(capture!=cudaStreamCaptureStatusNone)
     return false;  // No graph qualification, no D2H or synchronization during capture.
   CUcontext current=nullptr,stream_context=nullptr;
-  if(!c.stream || cuCtxGetCurrent(&current)!=CUDA_SUCCESS ||
-     cuStreamGetCtx(reinterpret_cast<CUstream>(c.stream),&stream_context)!=CUDA_SUCCESS ||
-     !current || current!=stream_context)return false;
+  if(!c.stream)return false;
+  require_driver_success(cuCtxGetCurrent(&current),"cuCtxGetCurrent");
+  require_driver_success(cuStreamGetCtx(reinterpret_cast<CUstream>(c.stream),&stream_context),"cuStreamGetCtx");
+  if(!current || current!=stream_context)return false;
   if(!device_views_valid(c.buffers))return false;
   std::array<int,8> ids;
   auto error=cudaMemcpyAsync(ids.data(),c.buffers.ids,32,cudaMemcpyDeviceToHost,c.stream);
-  if(error!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(error));
+  require_cuda_success(error,"cudaMemcpyAsync");
   error=cudaStreamSynchronize(c.stream);
-  if(error!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(error));
+  require_cuda_success(error,"cudaStreamSynchronize");
   for(int i=0;i<8;++i) {
     if(ids[i]<0 || ids[i]>=128)return false;
     for(int j=0;j<i;++j)if(ids[i]==ids[j])return false;
@@ -81,7 +99,7 @@ inline PreparationBackend prepare(InstalledPreparationCall const& c, Incumbent&&
     auto error=launch(b,c.stream,true);
     // A launch/runtime error is not an unsupported lane. Do not overwrite partially
     // published output by attempting fallback after a candidate launch.
-    if(error!=cudaSuccess)throw std::runtime_error(cudaGetErrorString(error));
+    require_cuda_success(error,"candidate launch");
     return PreparationBackend::Fused;
   }
   incumbent();  // Preserve the caller's complete stock branch, including its own fallback.

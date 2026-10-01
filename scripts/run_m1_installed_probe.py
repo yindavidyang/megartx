@@ -30,6 +30,7 @@ SOURCE_FILES = (
     "probes/m1_installed_capture.cu", "probes/m1_installed_bridge.cuh",
     "probes/m1_host_abi_probe.cpp", "probes/m1_probe_wire.hpp", "kernels/m1_maps_expand.cuh",
     "kernels/m1_installed_preparation.cuh",
+    "probes/m1_preparation_flow_test.cpp", "numerical_reference/test_m1_preparation_control_flow.py",
     "numerical_reference/m1_kernel_fixture.py", "numerical_reference/m1_preparation_reference.py",
     "numerical_reference/m1_installed_compare.py", "numerical_reference/m1_abi_probe.py",
 )
@@ -210,6 +211,8 @@ def run(args):
             raise RuntimeError("Torch CUDA runtime version changed")
         if not prior:
             bounded([sys.executable, "-B", "numerical_reference/m1_kernel_fixture.py", "create", "fixtures"], "fixtures", 30)
+            bounded([sys.executable, "-B", "-m", "unittest", "discover", "-s", "numerical_reference",
+                     "-p", "test_m1_preparation_control_flow.py", "-v"], "prepare_control_flow", 30)
             bounded(compile_command, "compile", 300)
         elif prior["phases"]["compile"]["command"] != compile_command:
             raise ValueError("compiled resume command changed")
