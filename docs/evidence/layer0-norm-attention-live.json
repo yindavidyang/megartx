@@ -1,0 +1,544 @@
+{
+  "checkpoint_revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+  "base_commit": "52b69ea10566e78ef514a7959f3f986ed117f0c3",
+  "route_origin": "controlled",
+  "routing_intervention": true,
+  "routing_unchanged": false,
+  "scope": "Frozen layer-0 selected boundaries with exact provenance; declared source arithmetic only",
+  "frozen_inputs": 33,
+  "cached_prefill_inputs": 32,
+  "selected_positions": [
+    31,
+    32
+  ],
+  "unchanged_prior_evidence": true,
+  "observational_results_not_timing_evidence": true,
+  "successful_replay": "operator-replay-v3",
+  "replay_counts": {
+    "selected_rms_outputs_per_repeat": 66560,
+    "selected_rope_outputs_per_repeat": 24576,
+    "original_attention_outputs_per_repeat": 16384
+  },
+  "replay_exit_code": 0,
+  "model_loaded": false,
+  "server_started": false,
+  "post_replay_cleanup": {
+    "compute_processes": 0,
+    "port_18000_listener": false,
+    "gpu_memory_used_mib": 41,
+    "source": "Final-run cleanup read; no GPU recheck during publication"
+  },
+  "cpu_report_reproduced_from_retained_artifacts": true,
+  "raw_operands_weights_tokens_traces_kept_private": true,
+  "schema": 1,
+  "full": {
+    "31": {
+      "norms": {
+        "input_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.21991092140339674,
+          "maximum_interval_width_before_final_cast": 0.013319106287781324,
+          "native_arithmetic_qualified": false
+        },
+        "q_norm": {
+          "outputs": 4096,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.030463975793528775,
+          "maximum_interval_width_before_final_cast": 0.00022070660500972394,
+          "native_arithmetic_qualified": false
+        },
+        "k_norm": {
+          "outputs": 2048,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.0019378876582565319,
+          "maximum_interval_width_before_final_cast": 1.6295496820584177e-05,
+          "native_arithmetic_qualified": false
+        },
+        "v_norm": {
+          "outputs": 2048,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.031052567487448002,
+          "maximum_interval_width_before_final_cast": 0.00018776007875231926,
+          "native_arithmetic_qualified": false
+        },
+        "post_attention_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.7756347141477136,
+          "maximum_interval_width_before_final_cast": 0.08271166529806351,
+          "native_arithmetic_qualified": false
+        },
+        "pre_ff2_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.0018984639940174963,
+          "maximum_interval_width_before_final_cast": 0.00016898864569114824,
+          "native_arithmetic_qualified": false
+        }
+      },
+      "rope": {
+        "q": {
+          "raw_bits_equal": true,
+          "different_elements": 0,
+          "elements": 4096,
+          "max_absolute_difference": 0.0,
+          "signed_zero_differences": 0
+        },
+        "k": {
+          "raw_bits_equal": true,
+          "different_elements": 0,
+          "elements": 2048,
+          "max_absolute_difference": 0.0,
+          "signed_zero_differences": 0
+        }
+      },
+      "attention": {
+        "outputs": 4096,
+        "outside_conditional_interval": 0,
+        "conditional_interval_pass": true,
+        "ideal_then_f32_bf16_different": 926,
+        "maximum_error_from_ideal": 0.029134978577713966,
+        "maximum_interval_width_before_final_cast": 0.36009005753426315,
+        "native_arithmetic_qualified": false,
+        "provider": "fa2",
+        "score_error_max": 0.0015296451849365978,
+        "weight_bf16_casts": 1,
+        "partial_output_bf16_casts": 0
+      }
+    },
+    "32": {
+      "norms": {
+        "input_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.24247023621461494,
+          "maximum_interval_width_before_final_cast": 0.03436156380789157,
+          "native_arithmetic_qualified": false
+        },
+        "q_norm": {
+          "outputs": 4096,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.03050133190203752,
+          "maximum_interval_width_before_final_cast": 0.00023067417469846418,
+          "native_arithmetic_qualified": false
+        },
+        "k_norm": {
+          "outputs": 2048,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.003237045070335842,
+          "maximum_interval_width_before_final_cast": 2.6218997709381853e-05,
+          "native_arithmetic_qualified": false
+        },
+        "v_norm": {
+          "outputs": 2048,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.028302126196649624,
+          "maximum_interval_width_before_final_cast": 0.0002467549289892901,
+          "native_arithmetic_qualified": false
+        },
+        "post_attention_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.4811825760208137,
+          "maximum_interval_width_before_final_cast": 0.03541634443323005,
+          "native_arithmetic_qualified": false
+        },
+        "pre_ff2_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.0038261075100227693,
+          "maximum_interval_width_before_final_cast": 0.00025292648582775357,
+          "native_arithmetic_qualified": false
+        }
+      },
+      "rope": {
+        "q": {
+          "raw_bits_equal": true,
+          "different_elements": 0,
+          "elements": 4096,
+          "max_absolute_difference": 0.0,
+          "signed_zero_differences": 0
+        },
+        "k": {
+          "raw_bits_equal": true,
+          "different_elements": 0,
+          "elements": 2048,
+          "max_absolute_difference": 0.0,
+          "signed_zero_differences": 0
+        }
+      },
+      "attention": {
+        "outputs": 4096,
+        "outside_conditional_interval": 0,
+        "conditional_interval_pass": true,
+        "ideal_then_f32_bf16_different": 981,
+        "maximum_error_from_ideal": 0.0298565915419875,
+        "maximum_interval_width_before_final_cast": 0.38680829142941064,
+        "native_arithmetic_qualified": false,
+        "provider": "fa2",
+        "score_error_max": 0.0015158373175598147,
+        "weight_bf16_casts": 1,
+        "partial_output_bf16_casts": 0
+      }
+    }
+  },
+  "cached": {
+    "31": {
+      "norms": {
+        "input_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.21991092140339674,
+          "maximum_interval_width_before_final_cast": 0.013319106287781324,
+          "native_arithmetic_qualified": false
+        },
+        "q_norm": {
+          "outputs": 4096,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.030463975793528775,
+          "maximum_interval_width_before_final_cast": 0.00022070660500972394,
+          "native_arithmetic_qualified": false
+        },
+        "k_norm": {
+          "outputs": 2048,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.0019378876582565319,
+          "maximum_interval_width_before_final_cast": 1.6295496820584177e-05,
+          "native_arithmetic_qualified": false
+        },
+        "v_norm": {
+          "outputs": 2048,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.031052567487448002,
+          "maximum_interval_width_before_final_cast": 0.00018776007875231926,
+          "native_arithmetic_qualified": false
+        },
+        "post_attention_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.7756347141477136,
+          "maximum_interval_width_before_final_cast": 0.08271166529806351,
+          "native_arithmetic_qualified": false
+        },
+        "pre_ff2_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.0018984639940174963,
+          "maximum_interval_width_before_final_cast": 0.00016898864569114824,
+          "native_arithmetic_qualified": false
+        }
+      },
+      "rope": {
+        "q": {
+          "raw_bits_equal": true,
+          "different_elements": 0,
+          "elements": 4096,
+          "max_absolute_difference": 0.0,
+          "signed_zero_differences": 0
+        },
+        "k": {
+          "raw_bits_equal": true,
+          "different_elements": 0,
+          "elements": 2048,
+          "max_absolute_difference": 0.0,
+          "signed_zero_differences": 0
+        }
+      },
+      "attention": {
+        "outputs": 4096,
+        "outside_conditional_interval": 0,
+        "conditional_interval_pass": true,
+        "ideal_then_f32_bf16_different": 926,
+        "maximum_error_from_ideal": 0.029134978577713966,
+        "maximum_interval_width_before_final_cast": 0.36009005753426315,
+        "native_arithmetic_qualified": false,
+        "provider": "fa2",
+        "score_error_max": 0.0015296451849365978,
+        "weight_bf16_casts": 1,
+        "partial_output_bf16_casts": 0
+      }
+    },
+    "32": {
+      "norms": {
+        "input_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.24247023621461494,
+          "maximum_interval_width_before_final_cast": 0.03436156380789157,
+          "native_arithmetic_qualified": false
+        },
+        "q_norm": {
+          "outputs": 4096,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.030494860421903525,
+          "maximum_interval_width_before_final_cast": 0.0002311435453563604,
+          "native_arithmetic_qualified": false
+        },
+        "k_norm": {
+          "outputs": 2048,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.003237045070335842,
+          "maximum_interval_width_before_final_cast": 2.6218981554748666e-05,
+          "native_arithmetic_qualified": false
+        },
+        "v_norm": {
+          "outputs": 2048,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.028302126196649624,
+          "maximum_interval_width_before_final_cast": 0.0002467549289892901,
+          "native_arithmetic_qualified": false
+        },
+        "post_attention_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.48178018734930106,
+          "maximum_interval_width_before_final_cast": 0.03541644546950806,
+          "native_arithmetic_qualified": false
+        },
+        "pre_ff2_norm": {
+          "outputs": 2816,
+          "outside_conditional_interval": 0,
+          "conditional_interval_pass": true,
+          "ideal_then_f32_bf16_different": 0,
+          "maximum_error_from_ideal": 0.0038346559789301793,
+          "maximum_interval_width_before_final_cast": 0.00025292793109144007,
+          "native_arithmetic_qualified": false
+        }
+      },
+      "rope": {
+        "q": {
+          "raw_bits_equal": true,
+          "different_elements": 0,
+          "elements": 4096,
+          "max_absolute_difference": 0.0,
+          "signed_zero_differences": 0
+        },
+        "k": {
+          "raw_bits_equal": true,
+          "different_elements": 0,
+          "elements": 2048,
+          "max_absolute_difference": 0.0,
+          "signed_zero_differences": 0
+        }
+      },
+      "attention": {
+        "outputs": 4096,
+        "outside_conditional_interval": 0,
+        "conditional_interval_pass": true,
+        "ideal_then_f32_bf16_different": 974,
+        "maximum_error_from_ideal": 0.0298565915419875,
+        "maximum_interval_width_before_final_cast": 0.4997324456885277,
+        "native_arithmetic_qualified": false,
+        "provider": "xqa",
+        "score_error_max": 0.0015158373175598147,
+        "weight_bf16_casts": 1,
+        "partial_output_bf16_casts": 1
+      }
+    }
+  },
+  "pair": {
+    "31": {
+      "maximum_ideal_input_sensitivity": 0.0,
+      "maximum_observed_attention_difference": 0.0,
+      "outside_combined_conditional_difference_interval": 0
+    },
+    "32": {
+      "maximum_ideal_input_sensitivity": 0.00471020212273876,
+      "maximum_observed_attention_difference": 0.0078125,
+      "outside_combined_conditional_difference_interval": 0
+    }
+  },
+  "negative_controls_rejected_outputs": {
+    "full_wrong_scale_1_over_sqrt_d": 4045,
+    "full_wrong_gqa_head": 4061,
+    "full_v_only_row_permutation": 4047,
+    "cached_wrong_scale_1_over_sqrt_d": 4035,
+    "cached_wrong_gqa_head": 4055,
+    "cached_v_only_row_permutation": 4040
+  },
+  "conditional_selected_norm_attention_compatible": true,
+  "native_mma_or_transcendental_qualified": false,
+  "whole_layer_accepted": false,
+  "whole_model_accepted": false,
+  "natural_routing_quality_accepted": false,
+  "timing_qualified": false,
+  "assumptions": [
+    "Faithful F32 QK/PV and row-sum arithmetic; full BF16 products; no reduced-precision partials",
+    "Source-declared BF16 exponent weights, ordinary RMS, NeoX RoPE, scale 1, contiguous GQA grouping",
+    "CUDA documented transcendental error allowances; normal guarded F32 lane",
+    "XQA <=33 keys in one nonempty 256-key CTA; FA2 causal 16-key online tiles"
+  ],
+  "retained_dispatch": {
+    "full": {
+      "trace_sha256": "08dfabe01c578413ba0198a18adb20bb2905c08f6fef7c41d217d98a8cb81206",
+      "launches": [
+        {
+          "provider": "fa2",
+          "grid": [
+            2,
+            1,
+            8
+          ],
+          "block": [
+            32,
+            4,
+            1
+          ],
+          "kernel_name_sha256": "84bf6f91c2d0905d9624abb541758917d1a7d92a6adf74434d4770c537199fa6"
+        }
+      ]
+    },
+    "cached": {
+      "trace_sha256": "d38ff36b820fe1f3847fb1ff73e9174b2400668377986f00e3325032b5610ee9",
+      "launches": [
+        {
+          "provider": "fa2",
+          "grid": [
+            1,
+            1,
+            8
+          ],
+          "block": [
+            32,
+            4,
+            1
+          ],
+          "kernel_name_sha256": "84bf6f91c2d0905d9624abb541758917d1a7d92a6adf74434d4770c537199fa6"
+        },
+        {
+          "provider": "xqa",
+          "grid": [
+            21,
+            8,
+            1
+          ],
+          "block": [
+            128,
+            1,
+            2
+          ],
+          "kernel_name_sha256": "4a051cb6d2d2d54d7c8f2b33104939b92e016426a6520729cb8c48937b2be322"
+        }
+      ]
+    }
+  },
+  "operator_replay": {
+    "repeats": 3,
+    "raw_boundary_reproduction": true,
+    "constant_controls_pass": true,
+    "attention_launches_bound": 21,
+    "crossed_conditional_checks": {
+      "cached_inputs_fa2": {
+        "outputs": 4096,
+        "outside_conditional_interval": 0,
+        "conditional_interval_pass": true,
+        "ideal_then_f32_bf16_different": 971,
+        "maximum_error_from_ideal": 0.0298565915419875,
+        "maximum_interval_width_before_final_cast": 0.38680595513398686,
+        "native_arithmetic_qualified": false
+      },
+      "full_inputs_xqa": {
+        "outputs": 4096,
+        "outside_conditional_interval": 0,
+        "conditional_interval_pass": true,
+        "ideal_then_f32_bf16_different": 997,
+        "maximum_error_from_ideal": 0.0298565915419875,
+        "maximum_interval_width_before_final_cast": 0.4997345286665169,
+        "native_arithmetic_qualified": false
+      }
+    },
+    "comparisons": {
+      "same_full_inputs_provider_difference": {
+        "raw_bits_equal": false,
+        "different_elements": 247,
+        "elements": 4096,
+        "max_absolute_difference": 0.0078125,
+        "signed_zero_differences": 0
+      },
+      "same_cached_inputs_provider_difference": {
+        "raw_bits_equal": false,
+        "different_elements": 246,
+        "elements": 4096,
+        "max_absolute_difference": 0.00390625,
+        "signed_zero_differences": 0
+      },
+      "fa2_input_sensitivity": {
+        "raw_bits_equal": false,
+        "different_elements": 191,
+        "elements": 4096,
+        "max_absolute_difference": 0.0078125,
+        "signed_zero_differences": 0
+      },
+      "xqa_input_sensitivity": {
+        "raw_bits_equal": false,
+        "different_elements": 246,
+        "elements": 4096,
+        "max_absolute_difference": 0.0078125,
+        "signed_zero_differences": 0
+      }
+    },
+    "results_sha256": "701555e8468fd2970eb268d517d9d58badffe9e16dfa4dfe97253c526a35917c",
+    "trace_sha256": "3956cada2c72d60312478bd9e560ba7e69feb1b034ad164917cc85874ff40af2",
+    "peak_allocated_bytes": 143753728,
+    "timing_qualified": false
+  },
+  "publication_validation": {
+    "independent_cpu_reference_tests": 402,
+    "new_norm_attention_tests": 20,
+    "cpu_scaffold_tests": 38,
+    "contract_validation_pass": true,
+    "exhaustive_format_self_check_pass": true,
+    "python_compile_pass": true,
+    "publication_turn_gpu_experiments": 0,
+    "replay_repeat_dtype_controls_pass": true,
+    "unchanged_retained_report_verified": true
+  },
+  "publication_main_commit": "54557e2e537f56f32ad0b604aaba9361a655b634"
+}

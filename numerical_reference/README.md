@@ -41,6 +41,12 @@ an unconditional native-MMA or whole-model gate. Schema 2 checks the frozen
 historical schema 1 remains readable with its narrower provenance. See the
 [diagnosis, private replay commands and remaining limits](../docs/layer0-arithmetic-diagnosis.md).
 
+`layer0_norm_attention_reference.py` adds independent ordinary-RMS bounds,
+exact BF16-cache NeoX RoPE, and conditional FA2/XQA attention checks. It re-reads
+all fixed operator repeats and binds asynchronous launches by correlation,
+including the original XQA multi-block geometry. See the
+[source-matched contract and remaining gates](../docs/layer0-norm-attention-contract.md).
+
 ## One-request router diagnostic
 
 The independent `router_reference.py` and `check_router_capture.py` add 41
