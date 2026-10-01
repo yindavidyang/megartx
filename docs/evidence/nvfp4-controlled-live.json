@@ -1,0 +1,194 @@
+{
+  "scope": "controlled_routing_fixture",
+  "route_origin": "controlled",
+  "routing_intervention": true,
+  "routing_unchanged": false,
+  "checkpoint": {
+    "repository": "nvidia/Gemma-4-26B-A4B-NVFP4",
+    "immutable_revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+    "config_sha256": "4e379cc809c617a49179a49140f553a2d6a5ec538ed480832b0c54f6ace43d98",
+    "original_weight_payloads_requantized": false
+  },
+  "stack": {
+    "vllm": "0.30.0",
+    "flashinfer_python": "0.6.18.post1",
+    "torch": "2.13.0+cu130",
+    "transformers": "5.18.0",
+    "triton": "3.7.1",
+    "python_target": "3.12.3",
+    "numpy_target": "2.3.5",
+    "compute_dtype": "bfloat16",
+    "kv_dtype": "bfloat16",
+    "gpu_compute_capability": "12.0",
+    "moe_backend": "FLASHINFER_CUTLASS",
+    "enforce_eager": true,
+    "speculation": false,
+    "prefix_cache": false,
+    "max_active_sequences": 1
+  },
+  "provenance": {
+    "runtime_base_head": "3dc46b463480b6d24fd805ec5d9f39ddb24edc07",
+    "runtime_archive_sha256": "de8147015a8a54358692c77b790e00f099e648e4598da801802f32bdeeff439b",
+    "runtime_source_sha256": {
+      "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
+      "src/megartx/vllm_scale_plugin.py": "507f2b4bac64dc6ae4de65955a561fe8c6c547994115d9b3d29648506f16d289",
+      "src/megartx/controlled_capture.py": "391d47bac097257954314058458afb3ad6773d730a71b8ff9d700ad7a893e6d3",
+      "src/megartx/controlled_kv_capture.py": "18ac6d2ad5fe4d6704d9c9ed9fa3ea426185b629f08060d623cdd57334289164",
+      "src/megartx/nvfp4_activation.py": "61960de988385e09e4772060ea8338983139ca4b12afd1c4a735eff691e5eb97"
+    },
+    "independent_report_sha256": "7efd6e70c6cf79ccc14dc6c60fa68c3c2cc85bf9e603881065f0b158d19b4bc4",
+    "checker_source_sha256": {
+      "compare_controlled_capture.py": "4f8a6af1f838dcef2673d27a7cbb48f567f28d2aaae8c8ed078630ab83c21f46",
+      "compare_controlled_paths.py": "da3f764573c45fba95ebb443860b97f49920e081ccecdcf8b2175bdebee888d7"
+    },
+    "token_sha256": "ba85b6ee55debd42d8ad445823aaa902410839f921e795229fcb3d0809c954dd",
+    "schedule_sha256": "f1f65ce56aeb47f9866cb23ea9e461279a281dd8d5aabac41a6b5664f228c0c6",
+    "raw_arrays_and_traces_public": false,
+    "runtime_launch_metadata_note": "Executed runtime archive remains immutable. Future lifecycle metadata now includes controlled destinations/path/digest and one request instead of a legacy timing-trial default; numerical runtime source is unchanged."
+  },
+  "fixture": {
+    "actual_input_tokens": 33,
+    "full_prompt_tokens": 33,
+    "full_output_cap": 1,
+    "cached_prompt_tokens": 32,
+    "cached_output_cap": 2,
+    "cached_forwarded_decode_inputs": 1,
+    "routes_shape": [
+      30,
+      33,
+      8
+    ],
+    "ordinary_experts": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8
+    ],
+    "all_weights_fp32": 0.125,
+    "completed_corrections_per_pass": 6,
+    "gpu_requests": 5,
+    "full_modes": [
+      "native",
+      "paired_reference",
+      "gate_only_negative_control"
+    ],
+    "cached_modes": [
+      "native",
+      "paired_reference"
+    ],
+    "cached_negative_executed": false,
+    "chunked_executed": false
+  },
+  "observed_operator_checks": {
+    "retained_projection_comparisons": 90,
+    "all_raw_bf16_projection_replays_equal": true,
+    "within_path_all_positive_stage_payloads_equal": true,
+    "within_path_all_positive_weighted_routed_bits_equal": true,
+    "original_54_tensor_hashes_and_layermax_activation_globals_verified": true,
+    "controlled_adapter_spans_per_pass": 6,
+    "native_dense_launches_per_native_or_negative_pass": 18,
+    "native_dense_launches_per_paired_pass": 0,
+    "adapter_activation_launches_per_pass": 6,
+    "trace_correlation_to_controlled_spans_verified": true,
+    "individual_kernel_to_projection_stage_identity_qualified": false,
+    "natural_hit_counts": 0
+  },
+  "negative_common_input": {
+    "common_input_and_gate_bits_verified": true,
+    "negative_matches_wrong_alpha_oracle": true,
+    "negative_differs_from_correct_alpha_oracle": true,
+    "negative_control_effect_observed": true,
+    "changed_up_bf16_elements": 553,
+    "up_elements": 704,
+    "max_up_absolute_difference": 0.00390625
+  },
+  "positive_within_path": {
+    "full_matching_raw_head_rows_equal": true,
+    "cached_matching_raw_head_rows_equal": true,
+    "full_selected_all_30_layer_kv_bits_equal": true,
+    "cached_selected_all_30_layer_kv_bits_equal": true,
+    "observed_both_positions": [
+      31,
+      32
+    ],
+    "full_position32_sampler_vs_prompt_head": {
+      "source_rows": [
+        1,
+        33
+      ],
+      "differing_raw_f32_values": 135,
+      "vocabulary_size": 262144,
+      "max_absolute_difference": 0.125,
+      "roles_retained_separately": true
+    }
+  },
+  "full_vs_cached": {
+    "actual_token_position_and_route_weight_tables_equal": true,
+    "layer0_position31_key_value_and_expert42_stage_bits_equal": true,
+    "layer0_position32_key": {
+      "differing_bf16_elements": 3,
+      "total_elements": 2048,
+      "max_absolute_difference": 9.1552734375e-05
+    },
+    "layer0_position32_value": {
+      "differing_bf16_elements": 3,
+      "total_elements": 2048,
+      "max_absolute_difference": 0.00048828125
+    },
+    "layer0_position32_expert82_input": {
+      "differing_bf16_elements": 393,
+      "total_elements": 2816,
+      "max_absolute_difference": 0.0078125
+    },
+    "selected_layer_kv_fields_with_differences": 60,
+    "same_single_row_sampler_position32": {
+      "raw_f32_bits_equal": false,
+      "differing_raw_values": 251741,
+      "max_absolute_difference": 3.125,
+      "rmse": 0.6173275556662106,
+      "candidate_top1": 108,
+      "reference_top1": 108,
+      "numerical_acceptance_tolerance": null,
+      "quality_gate_passed": false
+    },
+    "controlled_handoff_equivalence_observed": false,
+    "first_retained_discrepancy_precedes_position32_scale_correction": true,
+    "root_cause_independently_established": false
+  },
+  "guards": {
+    "minimum_free_gpu_memory_mib": 2048,
+    "minimum_available_host_ram_gib": 8,
+    "observed_minimum_free_gpu_memory_mib": 10685,
+    "all_five_run_exit_codes_zero": true,
+    "owned_servers_cleaned_up": true,
+    "final_gpu_compute_jobs": 0,
+    "final_gpu_utilization_percent": 0,
+    "observed_final_gpu_memory_used_mib": 41
+  },
+  "cpu_validation": {
+    "reference_and_guard_tests": 312,
+    "scaffold_tests": 32,
+    "local_python": "3.12.8",
+    "local_numpy": "2.4.4",
+    "synthetic_tests_certify_live_execution": false
+  },
+  "qualification": {
+    "natural_coverage_accepted": false,
+    "controlled_operator_fixture_observed_pass": true,
+    "complete_negative_matrix_for_requested_paths": false,
+    "full_cache_handoff_accepted": false,
+    "native_mma_universally_qualified": false,
+    "independent_attention_scheduler_qualified": false,
+    "frozen_checkpoint_activation_quantizer_equivalence": false,
+    "whole_model_quality_gate_passed": false,
+    "g0_g1_accepted": false,
+    "timing_baseline_qualified": false,
+    "corrected_2k_8k_timing_suite_executed": false,
+    "fitted_numerical_tolerance": null
+  },
+  "next_experiment": "Same fixture, layer0 positions31/32 only: retain input-RMS and raw QKV/KV-RMS intermediates and writer associations, compare against bounded independent original-weight dots and source-aware norm reference before any correction."
+}

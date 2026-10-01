@@ -112,18 +112,25 @@ python numerical_reference/check_router_capture.py \
 
 The lifecycle runner records exact flags, phases and telemetry, bounds compilation/request lifetime, reserves 2 GiB free GPU memory and 8 GiB host RAM, and cleans up only its own server process group. Do not run the oracle while another compute job is present. CPU checks require the pinned NumPy dependency in `numerical_reference/requirements-cpu.txt`. Large raw logits, weights, traces and private environment manifests stay outside the public repository.
 
-## Controlled integration preparation
+## Controlled live integration
 
-The next bounded diagnostic deliberately fixes every layer's route table and
-places all six affected experts on predeclared full-model inputs. The
-[reviewed 33-input design](controlled-scale-integration.md) distinguishes
-positive controlled coverage from natural selection, uses a shared-activation
-paired GEMM reference and a same-path wrong-up-global negative control, and
-gates downstream raw logits and direct KV snapshots on operator evidence.
-CPU replay/identity helpers and synthetic tests are prepared; no live
-intervention or new full-model/cache result has been recorded. Natural coverage
-rejects explicitly controlled artifacts even when their six counters are
-positive. Timing and G0/G1 acceptance remain blocked.
+Five GPU passes of the [fixed 33-input case](controlled-scale-integration.md)
+now exercise all six corrections on actual full-model inputs. Independent
+original-weight replay agrees in raw BF16 bits on all 90 retained projections
+across the full three-lane and cached positive-only passes. Within each path,
+native and paired reference agree at every saved expert stage, matched raw
+head-call row and selected K/V row. The common-input full negative control
+changes 553 of 704 up values and matches the wrong-alpha oracle. This resolves
+controlled hook activation and scale sensitivity for this fixture.
+
+Full-versus-cached agreement does not hold. Layer 0 position-32 K/V already
+differs before that row's scale correction; its actual expert input differs
+in 393 BF16 values. Even matched single-row sampler logits differ. GPU expansion
+stopped, with no negative cached, chunked or timing suite added. The
+[live scalar packet](evidence/nvfp4-controlled-live.json) preserves the failed
+handoff and qualification limits. Natural coverage rejects explicitly
+controlled artifacts even when their counters are positive. G0/G1, full-model
+quality, frozen-quantizer and timing acceptance remain blocked.
 
 ## Source evidence
 

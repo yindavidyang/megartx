@@ -21,13 +21,22 @@ parser.add_argument("--label", required=True)
 parser.add_argument("--trials", type=int, default=30)
 parser.add_argument("--prefill-chunk", type=int, default=256)
 parser.add_argument("--profile", action="store_true")
-parser.add_argument("--mode", choices=("native", "reference", "control"), required=True)
-parser.add_argument("--client", choices=("quality", "benchmark"), default="quality")
+parser.add_argument("--mode", choices=("native", "reference", "control", "paired_reference", "gate_only_negative_control"), required=True)
+parser.add_argument("--client", choices=("quality", "benchmark", "controlled"), default="quality")
+parser.add_argument("--controlled-plan", type=pathlib.Path)
+parser.add_argument("--controlled-path", choices=("full", "cached", "chunked"))
 parser.add_argument("--activation-only", action="store_true")
 parser.add_argument("--routing-diagnostic", action="store_true")
 parser.add_argument("--router-score-only", action="store_true")
 parser.add_argument("--router-prefix-manifest", type=pathlib.Path)
 args = parser.parse_args()
+if args.client == "controlled":
+    if args.mode not in {"native", "paired_reference", "gate_only_negative_control"} or args.controlled_plan is None or args.controlled_path is None or args.profile or args.activation_only or args.routing_diagnostic or args.router_score_only or args.router_prefix_manifest is not None:
+        parser.error("Controlled capture requires its plan/path and paired lane without other corpus/profile flags")
+    if args.prefill_chunk != (16 if args.controlled_path == "chunked" else 256) or args.kv != "bfloat16" or args.backend != "flashinfer_cutlass":
+        parser.error("Controlled capture requires the declared chunk, BF16 KV and FlashInfer CUTLASS lane")
+elif args.controlled_plan is not None or args.controlled_path is not None or args.mode in {"paired_reference", "gate_only_negative_control"}:
+    parser.error("Controlled plan/path/arithmetic lanes require --client controlled")
 if args.client == "benchmark":
     parser.error("Timing is fail-closed until a paired quality report and positive natural correction coverage are explicitly validated")
 if args.client == "quality" and args.profile:
@@ -48,13 +57,15 @@ env.update({"XDG_CACHE_HOME": str(base / "cache"), "TMPDIR": str(base / "tmp"), 
 env["PATH"] = "/usr/local/cuda/bin:" + str(base / ".venv/bin") + ":" + env["PATH"]
 headers = base / "toolchains/python-headers/usr/include"
 env["CPATH"] = str(headers / "python3.12") + ":" + str(headers) + ":" + str(headers / "x86_64-linux-gnu/python3.12")
-env["PYTHONPATH"] = os.environ.get("MEGARTX_ADAPTER_SITE", str(work / "adapter-site"))
+env["PYTHONPATH"] = os.environ.get("MEGARTX_ADAPTER_SITE", str(work / "adapter-site")) + ":" + str(project / "numerical_reference")
 env["VLLM_PLUGINS"] = "megartx_scale_adapter"
 env["MEGARTX_SCALE_MODE"] = args.mode
 env["MEGARTX_SCALE_MANIFEST"] = str(output / "adapter-manifest.jsonl")
 env["MEGARTX_ACTIVATION_PROOF_PATH"] = str(output / "activation-proof.json")
 env["MEGARTX_ACTIVATION_TRACE_PATH"] = str(output / "activation-forced.json.gz")
 env["MEGARTX_CHECKPOINT_PATH"] = str(base / "models/gemma4-nvfp4")
+for inherited in ("MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR", "MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN"):
+    env.pop(inherited, None)
 if args.client == "quality":
     env["MEGARTX_LOGITS_DIR"] = str(output / "logits")
     env["MEGARTX_ROUTE_AUDIT_PATH"] = str(output / "route-hits.jsonl")
@@ -62,6 +73,11 @@ if args.client == "quality":
     pathlib.Path(env["MEGARTX_ROUTE_AUDIT_PATH"]).touch(exist_ok=False)
     if args.router_score_only:
         env["MEGARTX_ROUTER_SCORE_DIR"] = str(output / "router-scores")
+elif args.client == "controlled":
+    env["MEGARTX_LOGITS_DIR"] = str(output / "logits")
+    env["MEGARTX_CONTROLLED_DIR"] = str(output / "controlled")
+    env["MEGARTX_CONTROLLED_PLAN"] = str(args.controlled_plan.resolve())
+    (output / "CONTROLLED-ROUTING.json").write_text(json.dumps({"route_origin": "controlled", "scope": "controlled_routing_fixture", "routing_intervention": True, "routing_unchanged": False, "quality_gate_passed": False, "timing_qualified": False}, indent=2))
 else:
     env.pop("MEGARTX_LOGITS_DIR", None)
     env.pop("MEGARTX_ROUTE_AUDIT_PATH", None)
@@ -130,7 +146,7 @@ sample_thread.start()
 command = [str(base / ".venv/bin/vllm"), "serve", str(base / "models/gemma4-nvfp4"), "--host", "127.0.0.1", "--port", "18000", "--served-model-name", "gemma4-nvfp4", "--dtype", "bfloat16", "--max-model-len", "8448", "--max-num-seqs", "1", "--max-num-batched-tokens", str(args.prefill_chunk), "--gpu-memory-utilization", "0.84", "--kv-cache-memory-bytes", "2147483648", "--kv-cache-dtype", args.kv, "--moe-backend", args.backend, "--attention-backend", "FLASHINFER", "--no-enable-prefix-caching", "--language-model-only", "--generation-config", "vllm", "--seed", "1234", "--stream-interval", "1", "--enforce-eager", "--max-logprobs", "5"]
 if args.profile:
     command += ["--profiler-config", json.dumps({"profiler": "torch", "torch_profiler_dir": str(output / "traces"), "torch_profiler_with_stack": False, "torch_profiler_with_flops": False, "torch_profiler_with_memory": True})]
-(output / "launch-manifest.json").write_text(json.dumps({"command": command, "environment_overrides": {k: env[k] for k in ["XDG_CACHE_HOME", "TMPDIR", "HF_HOME", "HF_HUB_OFFLINE", "VLLM_NO_USAGE_STATS", "DO_NOT_TRACK", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "CPATH", "FLASHINFER_WORKSPACE_BASE", "TRITON_CACHE_DIR", "CUDA_CACHE_PATH", "TORCHINDUCTOR_CACHE_DIR", "TORCH_EXTENSIONS_DIR", "MAX_JOBS", "FLASHINFER_NVCC_THREADS", "PYTHONPATH", "VLLM_PLUGINS", "MEGARTX_SCALE_MODE", "MEGARTX_SCALE_MANIFEST", "MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ACTIVATION_PROOF_PATH", "MEGARTX_ACTIVATION_TRACE_PATH", "MEGARTX_CHECKPOINT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR"] if k in env}, "path_prefixes": ["/usr/local/cuda/bin", str(base / ".venv/bin")], "backend_requested": args.backend, "kv_requested": args.kv, "trust_remote_code": False, "trials_per_context": args.trials, "router_score_only": args.router_score_only, "minimum_free_memory_mib": 2048, "minimum_host_available_ram_gib": 8, "qualification": "Experimental separate-projection original-weight correction; numerical qualification evaluated in separate reports. Eager execution and deterministic finalization are distinct from the original exploratory graph lane.", "adapter_mode": args.mode}, indent=2))
+(output / "launch-manifest.json").write_text(json.dumps({"command": command, "environment_overrides": {k: env[k] for k in ["XDG_CACHE_HOME", "TMPDIR", "HF_HOME", "HF_HUB_OFFLINE", "VLLM_NO_USAGE_STATS", "DO_NOT_TRACK", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "CPATH", "FLASHINFER_WORKSPACE_BASE", "TRITON_CACHE_DIR", "CUDA_CACHE_PATH", "TORCHINDUCTOR_CACHE_DIR", "TORCH_EXTENSIONS_DIR", "MAX_JOBS", "FLASHINFER_NVCC_THREADS", "PYTHONPATH", "VLLM_PLUGINS", "MEGARTX_SCALE_MODE", "MEGARTX_SCALE_MANIFEST", "MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ACTIVATION_PROOF_PATH", "MEGARTX_ACTIVATION_TRACE_PATH", "MEGARTX_CHECKPOINT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR", "MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN"] if k in env}, "path_prefixes": ["/usr/local/cuda/bin", str(base / ".venv/bin")], "backend_requested": args.backend, "kv_requested": args.kv, "trust_remote_code": False, "trials_per_context": 0 if args.client == "controlled" else args.trials, "controlled_request_count": 1 if args.client == "controlled" else None, "router_score_only": args.router_score_only, "controlled_path": args.controlled_path, "controlled_plan_sha256": json.loads((args.controlled_plan / "manifest.json").read_text())["schedule_sha256"] if args.controlled_plan else None, "minimum_free_memory_mib": 2048, "minimum_host_available_ram_gib": 8, "qualification": "Experimental separate-projection original-weight correction; numerical qualification evaluated in separate reports. Eager execution and deterministic finalization are distinct from the original exploratory graph lane.", "adapter_mode": args.mode}, indent=2))
 client = requests.Session()
 client.trust_env = False
 try:
@@ -169,7 +185,9 @@ try:
             pass
     if other:
         raise RuntimeError("Another GPU compute job appeared; benchmark not started")
-    if args.router_score_only:
+    if args.client == "controlled":
+        bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/controlled_client.py"), "--plan", str(args.controlled_plan), "--path", args.controlled_path, "--output", str(output)]
+    elif args.router_score_only:
         bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/router_score_client.py"), "--prefix-manifest", str(args.router_prefix_manifest), "--output", str(output)]
     else:
         bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/quality_client.py" if args.client == "quality" else project / "scripts/host_benchmark.py"), "--model-path", str(base / "models/gemma4-nvfp4"), "--output", str(output), "--trials", str(args.trials)]
@@ -185,7 +203,9 @@ try:
     (output / "benchmark.exit").write_text(str(result.returncode) + "\n")
     if result.returncode:
         raise RuntimeError("Host-local client failed; see client.log")
-    if args.router_score_only:
+    if args.client == "controlled":
+        phase("bounded_controlled_capture_complete", qualified_quality_baseline=False, qualified_performance_baseline=False)
+    elif args.router_score_only:
         try:
             report = natural_coverage(output, args.mode)
             scope = {"natural_coverage": report, "qualified_quality_baseline": False, "qualified_performance_baseline": False}
@@ -197,7 +217,7 @@ try:
     elif args.client == "quality":
         natural_coverage(output, args.mode)
         phase("natural_correction_coverage_verified")
-    phase("diagnostic_complete" if args.router_score_only else "benchmark_complete")
+    phase("diagnostic_complete" if args.router_score_only or args.client == "controlled" else "benchmark_complete")
     (output / "run.exit").write_text("0\n")
 except Exception as error:
     phase("failed", error=guard_failure or str(error))

@@ -14,8 +14,13 @@ def install():
     mode = os.environ.get("MEGARTX_SCALE_MODE")
     if mode is None:
         return  # Ordinary installations remain inactive unless explicitly enabled.
-    if mode not in {"native", "reference", "control"}:
-        raise RuntimeError("MEGARTX_SCALE_MODE must explicitly select native, reference, or control")
+    controlled = os.environ.get("MEGARTX_CONTROLLED_DIR")
+    if mode not in {"native", "reference", "control", "paired_reference", "gate_only_negative_control"}:
+        raise RuntimeError("Unknown explicit adapter arithmetic lane")
+    if controlled and mode not in {"native", "paired_reference", "gate_only_negative_control"}:
+        raise RuntimeError("Controlled routing requires a declared paired arithmetic lane")
+    if not controlled and mode in {"paired_reference", "gate_only_negative_control"}:
+        raise RuntimeError("Paired arithmetic lanes require explicit controlled routing")
     if os.environ.get("VLLM_PLUGINS") != "megartx_scale_adapter":
         raise RuntimeError("Experimental adapter requires its explicit, exclusive VLLM_PLUGINS allowlist")
     quantizer_flags = {k: v for k, v in os.environ.items() if k.startswith("FLASHINFER_NVFP4_") or k == "FLASHINFER_DISABLE_FP4_QUANT_FAST_MATH"}
@@ -42,12 +47,15 @@ def install():
     capture = os.environ.get("MEGARTX_LOGITS_DIR")
     router_score = os.environ.get("MEGARTX_ROUTER_SCORE_DIR")
     router_observer = None
+    controlled_observer = None
     if not os.environ.get("MEGARTX_ACTIVATION_PROOF_PATH") or not os.environ.get("MEGARTX_ACTIVATION_TRACE_PATH"):
         raise RuntimeError("Experimental adapter requires explicit bounded integration-proof destinations")
     if route_audit and not capture:
         raise RuntimeError("Route audit requires the bounded quality-capture client")
     if router_score and (not capture or mode != "native"):
         raise RuntimeError("Router score diagnostic requires native mode and explicit request capture")
+    if controlled and (not capture or route_audit or router_score or os.environ.get("MEGARTX_ROUTING_COVERAGE_PATH") or not os.environ.get("MEGARTX_CONTROLLED_PLAN")):
+        raise RuntimeError("Controlled routing requires its isolated capture/plan without natural audit destinations")
 
     def deterministic_fused(*args, **kwargs):
         kwargs["use_fused_finalize"] = False
@@ -87,7 +95,7 @@ def install():
         self._megartx_load_ordinal = load_ordinal
         load_ordinal += 1
         old_load(self, layer)
-        layer._megartx = {"owner": self, "registry": config.compilation_config.static_forward_context, "kernel": self.moe_kernel, "experts": experts, "ordinal": self._megartx_load_ordinal, "dispatch_calls": 0, "forced_hits": {}, "natural_hits": {}}
+        layer._megartx = {"owner": self, "registry": config.compilation_config.static_forward_context, "kernel": self.moe_kernel, "experts": experts, "ordinal": self._megartx_load_ordinal, "dispatch_calls": 0, "forced_hits": {}, "natural_hits": {}, "controlled_hits": {}, "unmarked_hits": {}}
         manifest = os.environ.get("MEGARTX_SCALE_MANIFEST")
         if manifest and experts:
             with Path(manifest).open("a") as f:
@@ -100,6 +108,9 @@ def install():
         data = layer._megartx
         data["dispatch_calls"] += 1
         experts = data["experts"]
+        controlled_request = controlled_observer is not None and controlled_observer.active and "fixture_mode" not in data
+        if controlled_request:
+            topk_ids, topk_weights = controlled_observer.routes(layer, x, topk_ids, topk_weights)
         if router_observer is not None:
             router_observer.consume(layer, topk_ids, topk_weights)
         # Diagnostic CPU histograms are confined to quality runs and marked
@@ -133,14 +144,20 @@ def install():
         pair = isinstance(output, tuple)
         routed = output[1] if pair else output
         accumulator = routed.float()
+        captured = []
         for e in experts:
             locations = torch.nonzero(topk_ids == e.index)
             if locations.shape[0] == 0:
                 continue
             rows, slots = locations[:, 0], locations[:, 1]
             with torch.profiler.record_function("megartx::corrected_expert_" + execution_mode):
-                y = run_expert(x[rows], e, mode=execution_mode)
-            kind = "forced_hits" if "fixture_mode" in data else "natural_hits"
+                if controlled_request:
+                    with torch.profiler.record_function("megartx::controlled_expert_" + execution_mode):
+                        y, stages = run_expert(x[rows], e, mode=execution_mode, return_stages=True)
+                    captured.append((e, rows, slots, topk_weights[rows, slots], stages))
+                else:
+                    y = run_expert(x[rows], e, mode=execution_mode)
+            kind = "forced_hits" if "fixture_mode" in data else ("controlled_hits" if controlled_request else ("unmarked_hits" if controlled else "natural_hits"))
             data[kind][e.index] = data[kind].get(e.index, 0) + rows.numel()
             if route_audit and "fixture_mode" not in data:
                 marker = Path(capture).parent / "capture-request.json"
@@ -150,6 +167,8 @@ def install():
                         f.write(json.dumps({"case_id": request["id"], "prompt_sha256": request["prompt_sha256"], "mode": execution_mode, "loader_ordinal": data["ordinal"], "layer_name": layer.layer_name, "expert": e.index, "routed_rows": rows.numel(), "nonzero_route_weights": int((topk_weights[rows, slots] != 0).sum().item())}) + "\n")
             accumulator.index_add_(0, rows, y.float() * topk_weights[rows, slots].float().unsqueeze(1))
         corrected = accumulator.to(routed.dtype)
+        for e, rows, slots, weights, stages in captured:
+            controlled_observer.expert(layer, e, rows, slots, weights, stages, routed, corrected)
         return (output[0], corrected) if pair else corrected
 
     ModelOptNvFp4FusedMoE.process_weights_after_loading = load
@@ -165,23 +184,37 @@ def install():
     integration_report = None
 
     def model_forward(self, input_ids, positions, *args, **kwargs):
-        nonlocal context, forward_counter, integration_layers, integration_report, router_observer
+        nonlocal context, forward_counter, integration_layers, integration_report, router_observer, controlled_observer
         if integration_layers is None:
             integration_layers, integration_report = prepare(self, routed_adapter)
             if router_score:
                 from .router_score_capture import RouterScoreCapture
                 router_observer = RouterScoreCapture(self, integration_layers)
+            if controlled:
+                from .controlled_capture import ControlledCapture
+                controlled_observer = ControlledCapture(self, integration_layers, mode)
         before = [layer._megartx["dispatch_calls"] for layer in integration_layers]
         if router_observer is not None:
             router_observer.begin(input_ids, positions)
-        result = old_forward(self, input_ids, positions, *args, **kwargs)
-        if router_observer is not None:
-            router_observer.end()
-        if any(layer._megartx["dispatch_calls"] <= count for layer, count in zip(integration_layers, before)):
-            raise RuntimeError("Model forward bypassed one or more registered routed adapters")
-        if not integration_report["natural_model_forward_verified"]:
-            integration_report["natural_model_forward_verified"] = True
-            write_proof(integration_report)
+        if controlled_observer is not None:
+            controlled_observer.begin(input_ids, positions)
+        try:
+            result = old_forward(self, input_ids, positions, *args, **kwargs)
+            if router_observer is not None:
+                router_observer.end()
+            if any(layer._megartx["dispatch_calls"] <= count for layer, count in zip(integration_layers, before)):
+                raise RuntimeError("Model forward bypassed one or more registered routed adapters")
+            if not integration_report["natural_model_forward_verified"]:
+                # This historical field verifies dispatch, not natural coverage.
+                integration_report["natural_model_forward_verified"] = True
+                write_proof(integration_report)
+            if controlled_observer is not None:
+                controlled_observer.end()
+        except Exception as error:
+            if controlled_observer is not None:
+                controlled_observer.abort(error)
+            context = None
+            raise
         if not capture:
             return result
         if not isinstance(result, torch.Tensor) or result.ndim != 2 or result.shape[1] != 2816:
@@ -240,7 +273,12 @@ def install():
             if request["teacher_forced"]:
                 if token_ids is None or any(p < 0 or p >= len(request["prompt_token_ids"]) or t != request["prompt_token_ids"][p] for p, t in zip(pos, token_ids)):
                     raise RuntimeError("Captured row does not match the supplied teacher-forced prefix")
-            torch.save({"logits": result[-rows:].detach().float().cpu(), "source_rows": result.shape[0], "selected_last_rows": rows, "forward_id": context["forward_id"], "input_positions": pos, "prediction_positions": [p + 1 for p in pos], "input_token_ids": token_ids, "row_correspondence": method, "case_id": request["id"], "prompt_sha256": request["prompt_sha256"]}, path)
+            if controlled_observer is not None:
+                if token_ids is None:
+                    raise RuntimeError("Controlled logits require actual input IDs")
+                controlled_observer.logits(result[-rows:], pos, token_ids, method, result.shape[0])
+            else:
+                torch.save({"logits": result[-rows:].detach().float().cpu(), "source_rows": result.shape[0], "selected_last_rows": rows, "forward_id": context["forward_id"], "input_positions": pos, "prediction_positions": [p + 1 for p in pos], "input_token_ids": token_ids, "row_correspondence": method, "case_id": request["id"], "prompt_sha256": request["prompt_sha256"]}, path)
             counter += 1
         return result
 

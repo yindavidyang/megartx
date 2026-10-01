@@ -6,7 +6,7 @@ not a checkpoint conversion, a bit-exact fused reduction, or an acceptance
 claim. It uses the selected runtime's layerwide activation quantizer.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass
@@ -63,19 +63,21 @@ def capture_experts(layer):
     return result
 
 
-def quantize(x, dequant_global):
+def quantize(x, dequant_global, return_multiplier=False):
     import flashinfer
 
-    return flashinfer.nvfp4_quantize(x.contiguous(), 1.0 / dequant_global,
+    multiplier = 1.0 / dequant_global
+    q, sf = flashinfer.nvfp4_quantize(x.contiguous(), multiplier,
         sfLayout=flashinfer.SfLayout.layout_128x4, do_shuffle=False, backend="cuda")
+    return (q, sf, multiplier) if return_multiplier else (q, sf)
 
 
-def mm_native(q, sf, projection, activation_global):
+def mm_native(q, sf, projection, activation_global, alpha=None):
     import torch
     import flashinfer
 
     return flashinfer.mm_fp4(q, projection.packed.T, sf, projection.swizzled.T,
-        (projection.global_scale * activation_global).reshape(1),
+        (projection.global_scale * activation_global).reshape(1) if alpha is None else alpha.reshape(1),
         out_dtype=torch.bfloat16, backend="cutlass", block_size=16, use_nvfp4=True)
 
 
@@ -102,14 +104,14 @@ def decode_units(packed, linear_scales):
     return lut[code] * linear_scales.double().repeat_interleave(16, dim=1)
 
 
-def mm_reference(q, sf, projection, activation_global):
+def mm_reference(q, sf, projection, activation_global, alpha=None):
     import torch
 
     # Float64 accumulation on a bounded expert fixture, independently decoded
     # original weights. No global-scale folding, re-quantization or FP4 GEMM.
     aq = decode_units(q, unswizzle(sf, q.shape[0], q.shape[1] * 2 // 16))
     wq = decode_units(projection.packed, projection.scales)
-    alpha = (projection.global_scale * activation_global).float()
+    alpha = (projection.global_scale * activation_global).float() if alpha is None else alpha.float()
     # Native accumulation/epilogue is F32. Make both rounding boundaries
     # explicit; a direct FP64-alpha/BF16 cast can differ at a BF16 tie.
     return ((aq @ wq.T).float() * alpha).to(torch.bfloat16)
@@ -126,14 +128,23 @@ def activation_semantic(gate, up):
 
 
 def run_expert(x, expert, mode="native", return_stages=False):
-    mm = {"native": mm_native, "reference": mm_reference}[mode]
-    q1, sf1 = quantize(x, expert.a1)
-    gate = mm(q1, sf1, expert.gate, expert.a1)
-    up = mm(q1, sf1, expert.up, expert.a1)
+    mm = {"native": mm_native, "reference": mm_reference,
+          "paired_reference": mm_reference, "gate_only_negative_control": mm_native}[mode]
+    # The diagnostic descriptor borrows original up bytes; retained objects and
+    # checkpoint globals remain immutable. Only its epilogue alpha differs.
+    up_projection = replace(expert.up, global_scale=expert.gate.global_scale) if mode == "gate_only_negative_control" else expert.up
+    q1, sf1, quant1 = quantize(x, expert.a1, return_multiplier=True)
+    gate_alpha = expert.gate.global_scale * expert.a1
+    up_alpha = up_projection.global_scale * expert.a1
+    down_alpha = expert.down.global_scale * expert.a2
+    gate = mm(q1, sf1, expert.gate, expert.a1, alpha=gate_alpha)
+    up = mm(q1, sf1, up_projection, expert.a1, alpha=up_alpha)
     from .nvfp4_activation import cutlass_gelu_product
-    h = cutlass_gelu_product(gate, up) if mode == "native" else activation_semantic(gate, up)
-    q2, sf2 = quantize(h, expert.a2)
-    down = mm(q2, sf2, expert.down, expert.a2)
+    h = activation_semantic(gate, up) if mode == "reference" else cutlass_gelu_product(gate, up)
+    q2, sf2, quant2 = quantize(h, expert.a2, return_multiplier=True)
+    down = mm(q2, sf2, expert.down, expert.a2, alpha=down_alpha)
     if return_stages:
-        return down, {"q1": q1, "sf1": sf1, "gate": gate, "up": up, "activation": h, "q2": q2, "sf2": sf2, "down": down}
+        return down, {"input": x, "q1": q1, "sf1": sf1, "gate": gate, "up": up, "activation": h, "q2": q2, "sf2": sf2, "down": down,
+                      "quant1_global": quant1, "quant2_global": quant2, "gate_alpha": gate_alpha, "up_alpha": up_alpha, "down_alpha": down_alpha,
+                      "a1": expert.a1, "a2": expert.a2}
     return down

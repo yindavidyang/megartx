@@ -53,7 +53,7 @@ to fit a tolerance. Raw NPZ files contain weights/inputs and stay private. See
 [the one-prefix evidence](../docs/evidence/nvfp4-router-scores.json) and the
 [qualification limits](../docs/nvfp4-scale-correction.md#one-unchanged-prefix-router-score-diagnostic).
 
-## Controlled integration preparation
+## Controlled integration checks
 
 `controlled_reference.py` prepares a fixed 33-input, all-30-layer route table
 and verifies complete actual ID/F32-weight correspondence by absolute position.
@@ -62,7 +62,26 @@ the independent NumPy format/GEMM oracle. It compares raw full-vocabulary
 logits and selected logical BF16 K/V with explicit token/table/row provenance.
 Synthetic tests reject missing decode rows, altered ordinary routes, duplicate
 positions, wrong alpha and incomplete execution records. These are preparation
-and artifact checks; there is no new controlled GPU, full-model or cache result.
+and artifact checks; they do not establish live execution by themselves.
+
+The live collector and independent `compare_controlled_capture.py` now read
+hash-bound actual routes/stages, dedicated-span trace correlations, original
+projection payloads and calibration scalars, weighted/routed outputs, raw
+full-vocabulary head-call variants and populated logical K/V rows. The separate
+`compare_controlled_paths.py` binds fresh per-path run directories to their own
+proofs, rejects changed metadata and unknown pinned layout enums, and reports
+incomplete negative matrices explicitly. Both checkers are CPU-only and never
+launch a server. Reports are exclusively created outside all input directories.
+Exit 0 refers to the retained operator gate, while the explicit handoff,
+matrix-completeness and quality fields remain separate acceptance conditions.
+
+The completed five-pass fixture matches 90 observed projection replays and
+positive within-path stages/logits/KV. Full/cache handoff fails upstream of the
+position-32 correction. Raw head variants remain separate; no tolerance is
+fitted, and native MMA, frozen quantizer, independent attention/scheduler,
+natural quality and timing acceptance remain false. The final local suite has
+312 reference/guard tests plus 32 scaffold tests. See the
+[live evidence and stopping point](../docs/controlled-scale-integration.md).
 
 Natural coverage additionally rejects a `CONTROLLED-ROUTING.json` marker or
 explicit non-natural request, manifest or hit scope before report creation.
