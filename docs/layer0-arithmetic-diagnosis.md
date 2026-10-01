@@ -156,6 +156,13 @@ GPU memory was 10,795 MiB, and final state was 41 MiB used / 32,101 MiB free
 with no compute PIDs. Both complete original checkpoint shard hashes still
 match. Installed runtime versions and pinned Python sources were rechecked.
 
+Subsequent CPU review found that the full/cached checker omitted the cached
+Q-weight hash. The [provenance guard revalidation](evidence/layer0-provenance-guard.md)
+records the narrow repair, six added regression tests and an independent reread
+of the immutable retained pair. Both paths still bind to all three original
+Q/K/V tensors, and the first discrepancy remains the same 18 raw QKV values.
+The repaired suite passes 341 reference tests; acceptance gates remain closed.
+
 The observer is opt-in through `--layer0-boundaries` on the native controlled
 full/cached lifecycle; other paths are rejected. Its optional
 `--layer0-capture-policy deferred_downstream` requires that flag. CPU commands

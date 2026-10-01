@@ -290,8 +290,11 @@ def compare_pair(plan_directory, full, cached, checkpoint):
     cases = [load_case(root, path, plan) for root, path in ((full, "full"), (cached, "cached"))]
     if cases[0]["binding"].get("schema", 1) != cases[1]["binding"].get("schema", 1):
         raise ValueError("Layer-0 paired observational schemas differ")
+    schema = cases[0]["binding"].get("schema", 1)
+    if schema == 2 and any("loaded_q_sha256" not in case["binding"] for case in cases):
+        raise ValueError("Layer-0 schema-2 Q provenance is missing")
     for key in ("sources", "qkv_quant_method", "qkv_gemm", "norms", "rope", "loaded_k_sha256", "loaded_v_sha256",
-                "allow_bf16_reduced_precision_reduction", "batch_invariant"):
+                "allow_bf16_reduced_precision_reduction", "batch_invariant") + (("loaded_q_sha256",) if schema == 2 else ()):
         if cases[0]["binding"][key] != cases[1]["binding"][key]:
             raise ValueError("Layer-0 positive path binding changed: " + key)
     for key in cases[0]["constants"]:
@@ -311,9 +314,11 @@ def compare_pair(plan_directory, full, cached, checkpoint):
     report["selected_rope_cache_bits_equal"] = all(np.array_equal(cases[0]["rows"][p]["rope_cache_bits"], cases[1]["rows"][p]["rope_cache_bits"]) for p in (31, 32))
     for field, section in (("q", slice(0, 4096)), ("k", slice(4096, 6144)), ("v", slice(6144, 8192))):
         weights, source_hash = original_bf16_projection(checkpoint, field)
-        provenance = "loaded_" + field + "_sha256" in cases[0]["binding"]
-        if provenance and source_hash != cases[0]["binding"]["loaded_" + field + "_sha256"]:
-            raise ValueError("Loaded layer-0 projection bytes differ from original checkpoint: " + field)
+        key = "loaded_" + field + "_sha256"
+        provenance = all(key in case["binding"] for case in cases)
+        for case in cases:
+            if key in case["binding"] and source_hash != case["binding"][key]:
+                raise ValueError("Loaded layer-0 projection bytes differ from original checkpoint: " + field + " / " + case["binding"]["path"])
         projected, diagnostics = [], []
         for case in cases:
             inputs = np.stack([case["rows"][p]["qkv_in"] for p in (31, 32)])
