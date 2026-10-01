@@ -24,8 +24,8 @@ and previous evidence stay unchanged. Source records and original norm hashes
 are in [source pins](evidence/layer0-norm-attention-source-pins.json); new scalar
 results are in [live evidence](evidence/layer0-norm-attention-live.json).
 The final publication tree incorporates merged main
-`54557e2e537f56f32ad0b604aaba9361a655b634` and passes 398 independent reference
-tests (16 added by this diagnosis), 38 scaffold tests, contract validation,
+`54557e2e537f56f32ad0b604aaba9361a655b634` and passes 402 independent reference
+tests (20 added by this diagnosis), 38 scaffold tests, contract validation,
 the exhaustive format self-check and Python compilation. The earlier
 [QKV diagnosis](layer0-arithmetic-diagnosis.md) retains its separate conditional
 accumulation assumptions.
@@ -77,6 +77,13 @@ outputs and 16,384 original attention outputs exactly. Two zero-query,
 constant-value attention controls return exact BF16 ones. Twenty-one attention
 launches are independently bound by CPU launch correlation, kernel-name hash,
 grid and block; asynchronous GPU time need not overlap the CPU annotation.
+
+The CPU evidence reader requires raw `uint16` storage on every repeat before
+checking exact values and shapes. Full-reader regressions reject numerically
+equal float32 first/second repeats and a uint32 third repeat even when the NPZ
+digests are regenerated. A CPU-only recheck of the unchanged retained packet
+rejects those same controls and reproduces every prior numerical field and all
+21 launch bindings; the 112-file prior evidence manifest remains unchanged.
 
 | Position-32 comparison | Different BF16 values / 4096 | Maximum absolute difference |
 | --- | ---: | ---: |

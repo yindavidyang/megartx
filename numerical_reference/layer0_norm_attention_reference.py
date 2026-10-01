@@ -404,7 +404,7 @@ def analyze_replay(directory, full, cached, retained_dispatch):
     arrays = layer0.evidence.read_npz(directory, "results.npz", report["results_sha256"], fields)
     for label in labels:
         values = [arrays[label + "_r" + str(i)] for i in range(3)]
-        if values[0].dtype != np.uint16 or any(not np.array_equal(values[0], v) for v in values[1:]):
+        if any(v.dtype != np.uint16 for v in values) or any(not np.array_equal(values[0], v) for v in values[1:]):
             raise ValueError("Operator repeats differ or lost raw BF16 dtype")
         if label in expected and not np.array_equal(values[0], expected[label]):
             raise ValueError("Operator replay differs from retained boundary: " + label)
