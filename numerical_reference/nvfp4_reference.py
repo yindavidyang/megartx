@@ -348,6 +348,11 @@ def compare_gemm(
     delta = candidate.astype(np.float64) - expected
     rmse = float(np.sqrt(np.mean(delta**2))) if finite else None
     scale = float(np.sqrt(np.mean(expected**2)))
+    # BF16 values use exactly representable F32 storage here. Comparing those
+    # storage bits retains the BF16 sign of zero; floating == does not.
+    expected_f32 = expected.astype(np.float32)
+    output_bits_equal = candidate.view(np.uint32) == expected_f32.view(np.uint32)
+    output_bit_equal_fraction = float(np.mean(output_bits_equal))
     return {
         "conditional_envelope_pass": finite and representable and not bool(outside.any()),
         "native_kernel_qualified": False,
@@ -358,7 +363,10 @@ def compare_gemm(
         "max_absolute_error": float(np.max(np.abs(delta))) if finite else None,
         "rmse": rmse,
         "normalized_rmse": rmse / scale if finite and scale else (0.0 if rmse == 0 else None),
-        "bf16_bit_equal_fraction": float(np.mean(candidate == expected)),
+        "output_bit_equal_fraction": output_bit_equal_fraction,
+        "bf16_bit_equal_fraction": output_bit_equal_fraction if output_dtype == "bf16" else None,
+        "value_equal_fraction": float(np.mean(candidate == expected)),
+        "signed_zero_differences": int(np.count_nonzero((candidate == 0) & (expected == 0) & ~output_bits_equal)),
         "bound_contract": "conditional IEEE RNE FP32 accumulate/alpha/output cast diagnostic",
         "qualification_blocker": "PTX E2M1 MMA rounding/subnormal behavior is unspecified; kernel evidence required",
     }

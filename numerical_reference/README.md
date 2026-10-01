@@ -24,6 +24,15 @@ The module imports neither Torch, vLLM, nor FlashInfer. The
 safetensors reader reads individual original expert tensors and hashes their
 payloads. It limits a tensor read to 32 MiB, and never expands all experts.
 
+`compare_gemm` reports output storage-bit equality separately from numerical
+value equality and counts differing signs of zero. Its BF16-specific bit metric
+is null for a declared F32 output. Earlier standalone reports used floating
+value equality under the `bf16_bit_equal_fraction` name, so that historical
+metric does not prove signed-zero equality. The controlled replay's raw uint16
+comparisons and its 90 retained projection matches are unaffected. Conditional
+arithmetic intervals remain separate from exact-bit diagnostics and native
+qualification.
+
 ## One-request router diagnostic
 
 The independent `router_reference.py` and `check_router_capture.py` add 41

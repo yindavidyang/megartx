@@ -225,6 +225,23 @@ class GemmTests(unittest.TestCase):
         self.assertFalse(report["native_kernel_qualified"])
         self.assertIn("unspecified", report["qualification_blocker"])
 
+    def test_bit_equality_distinguishes_signed_zero_from_value_equality(self):
+        a, asf = self.ones()
+        w = ref.pack_nibbles(np.asarray([[2, 10] * 8], dtype=np.uint8))
+        oracle = ref.gemm_reference(a, asf, w, np.asarray([[0x38]], dtype=np.uint8), alpha_fp32=1.)
+        for dtype in ("bf16", "fp32"):
+            with self.subTest(dtype=dtype):
+                report = ref.compare_gemm(np.asarray([[-0.0]], dtype=np.float32), oracle, output_dtype=dtype)
+                self.assertEqual(report["output_bit_equal_fraction"], 0.)
+                self.assertEqual(report["bf16_bit_equal_fraction"], 0. if dtype == "bf16" else None)
+                self.assertEqual(report["value_equal_fraction"], 1.)
+                self.assertEqual(report["signed_zero_differences"], 1)
+                self.assertEqual(report["max_absolute_error"], 0.)
+                self.assertTrue(report["conditional_envelope_pass"])
+                same = ref.compare_gemm(np.asarray([[0.0]], dtype=np.float32), oracle, output_dtype=dtype)
+                self.assertEqual(same["output_bit_equal_fraction"], 1.)
+                self.assertEqual(same["signed_zero_differences"], 0)
+
     def test_gelu_semantic_and_explicit_experimental_cast_profile(self):
         np.testing.assert_array_equal(ref.gelu_tanh_semantic_fp64(np.asarray([0.])), [0.])
         a, asf = self.ones(k=16)
