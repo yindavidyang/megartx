@@ -74,4 +74,5 @@ int main(int argc, char**) {
   layouts("fc2", 2816, 704, false); out << ',';
   layouts("fc2", 2816, 704, true);
   out << "],\"workspace_layout\":null,\"consumer_masks\":null}\n";
+  return 0;
 }
