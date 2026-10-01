@@ -33,6 +33,14 @@ comparisons and its 90 retained projection matches are unaffected. Conditional
 arithmetic intervals remain separate from exact-bit diagnostics and native
 qualification.
 
+`layer0_reference.py` adds NumPy-only validation of the frozen full/cached
+boundary, bounded original BF16 Q/K/V dots, copy/address associations and
+cached repeats. Its gamma-K interval assumes F32 RNE accumulation and is never
+an unconditional native-MMA or whole-model gate. Schema 2 checks the frozen
+33-row layer-0 prefix, residual addition and actual corrected-expert input;
+historical schema 1 remains readable with its narrower provenance. See the
+[diagnosis, private replay commands and remaining limits](../docs/layer0-arithmetic-diagnosis.md).
+
 ## One-request router diagnostic
 
 The independent `router_reference.py` and `check_router_capture.py` add 41

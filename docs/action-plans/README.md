@@ -4,6 +4,11 @@
 
 Start with A0.1 through A1.4. Establish the exact model, runtime fit, numerical oracle and tuned FlashInfer baseline before selecting custom kernels. Expand fusion only when measured full-model latency and correctness justify it.
 
+The [conditional first SM120 kernel plan](../first-sm120-kernel-plan.md) preserves
+the CPU planning audit and a bounded metadata-fusion candidate. Its 4.03%
+exploratory kernel-sum budget, missing ABI/graph qualification and closed
+numerical gates do not authorize implementation or advance a work package.
+
 The first target is the owned RTX 5090 with SM120, one active request and no dynamic request batching. The research hypothesis is model-specific scheduling across layers and operator boundaries. A whole-model megakernel is an experiment; the deliverable may be a smaller winning set of fused regions.
 
 Authority: Markdown repository initialization and a draft WP0–WP1 compatibility/FlashInfer benchmark scaffold are authorized. Target GPU experiments, host setup, custom kernels and later work packages require their own scope and access decisions. Proposed defaults are still awaiting freeze, and no hardware gate has passed. Task deliverable paths below are planned outputs, not a claim that each tool or result already exists.

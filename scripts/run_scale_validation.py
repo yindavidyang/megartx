@@ -25,11 +25,17 @@ parser.add_argument("--mode", choices=("native", "reference", "control", "paired
 parser.add_argument("--client", choices=("quality", "benchmark", "controlled"), default="quality")
 parser.add_argument("--controlled-plan", type=pathlib.Path)
 parser.add_argument("--controlled-path", choices=("full", "cached", "chunked"))
+parser.add_argument("--layer0-boundaries", action="store_true")
+parser.add_argument("--layer0-capture-policy", choices=("synchronous", "deferred_downstream"), default="synchronous")
 parser.add_argument("--activation-only", action="store_true")
 parser.add_argument("--routing-diagnostic", action="store_true")
 parser.add_argument("--router-score-only", action="store_true")
 parser.add_argument("--router-prefix-manifest", type=pathlib.Path)
 args = parser.parse_args()
+if args.layer0_capture_policy != "synchronous" and not args.layer0_boundaries:
+    parser.error("Layer-0 capture policy requires --layer0-boundaries")
+if args.layer0_boundaries and (args.client != "controlled" or args.mode != "native" or args.controlled_path not in {"full", "cached"}):
+    parser.error("Layer-0 boundaries require only the bounded native full/cached pair")
 if args.client == "controlled":
     if args.mode not in {"native", "paired_reference", "gate_only_negative_control"} or args.controlled_plan is None or args.controlled_path is None or args.profile or args.activation_only or args.routing_diagnostic or args.router_score_only or args.router_prefix_manifest is not None:
         parser.error("Controlled capture requires its plan/path and paired lane without other corpus/profile flags")
@@ -64,7 +70,7 @@ env["MEGARTX_SCALE_MANIFEST"] = str(output / "adapter-manifest.jsonl")
 env["MEGARTX_ACTIVATION_PROOF_PATH"] = str(output / "activation-proof.json")
 env["MEGARTX_ACTIVATION_TRACE_PATH"] = str(output / "activation-forced.json.gz")
 env["MEGARTX_CHECKPOINT_PATH"] = str(base / "models/gemma4-nvfp4")
-for inherited in ("MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR", "MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN"):
+for inherited in ("MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR", "MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN", "MEGARTX_LAYER0_BOUNDARIES", "MEGARTX_LAYER0_CAPTURE_POLICY"):
     env.pop(inherited, None)
 if args.client == "quality":
     env["MEGARTX_LOGITS_DIR"] = str(output / "logits")
@@ -77,6 +83,9 @@ elif args.client == "controlled":
     env["MEGARTX_LOGITS_DIR"] = str(output / "logits")
     env["MEGARTX_CONTROLLED_DIR"] = str(output / "controlled")
     env["MEGARTX_CONTROLLED_PLAN"] = str(args.controlled_plan.resolve())
+    if args.layer0_boundaries:
+        env["MEGARTX_LAYER0_BOUNDARIES"] = "1"
+        env["MEGARTX_LAYER0_CAPTURE_POLICY"] = args.layer0_capture_policy
     (output / "CONTROLLED-ROUTING.json").write_text(json.dumps({"route_origin": "controlled", "scope": "controlled_routing_fixture", "routing_intervention": True, "routing_unchanged": False, "quality_gate_passed": False, "timing_qualified": False}, indent=2))
 else:
     env.pop("MEGARTX_LOGITS_DIR", None)
@@ -146,7 +155,7 @@ sample_thread.start()
 command = [str(base / ".venv/bin/vllm"), "serve", str(base / "models/gemma4-nvfp4"), "--host", "127.0.0.1", "--port", "18000", "--served-model-name", "gemma4-nvfp4", "--dtype", "bfloat16", "--max-model-len", "8448", "--max-num-seqs", "1", "--max-num-batched-tokens", str(args.prefill_chunk), "--gpu-memory-utilization", "0.84", "--kv-cache-memory-bytes", "2147483648", "--kv-cache-dtype", args.kv, "--moe-backend", args.backend, "--attention-backend", "FLASHINFER", "--no-enable-prefix-caching", "--language-model-only", "--generation-config", "vllm", "--seed", "1234", "--stream-interval", "1", "--enforce-eager", "--max-logprobs", "5"]
 if args.profile:
     command += ["--profiler-config", json.dumps({"profiler": "torch", "torch_profiler_dir": str(output / "traces"), "torch_profiler_with_stack": False, "torch_profiler_with_flops": False, "torch_profiler_with_memory": True})]
-(output / "launch-manifest.json").write_text(json.dumps({"command": command, "environment_overrides": {k: env[k] for k in ["XDG_CACHE_HOME", "TMPDIR", "HF_HOME", "HF_HUB_OFFLINE", "VLLM_NO_USAGE_STATS", "DO_NOT_TRACK", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "CPATH", "FLASHINFER_WORKSPACE_BASE", "TRITON_CACHE_DIR", "CUDA_CACHE_PATH", "TORCHINDUCTOR_CACHE_DIR", "TORCH_EXTENSIONS_DIR", "MAX_JOBS", "FLASHINFER_NVCC_THREADS", "PYTHONPATH", "VLLM_PLUGINS", "MEGARTX_SCALE_MODE", "MEGARTX_SCALE_MANIFEST", "MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ACTIVATION_PROOF_PATH", "MEGARTX_ACTIVATION_TRACE_PATH", "MEGARTX_CHECKPOINT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR", "MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN"] if k in env}, "path_prefixes": ["/usr/local/cuda/bin", str(base / ".venv/bin")], "backend_requested": args.backend, "kv_requested": args.kv, "trust_remote_code": False, "trials_per_context": 0 if args.client == "controlled" else args.trials, "controlled_request_count": 1 if args.client == "controlled" else None, "router_score_only": args.router_score_only, "controlled_path": args.controlled_path, "controlled_plan_sha256": json.loads((args.controlled_plan / "manifest.json").read_text())["schedule_sha256"] if args.controlled_plan else None, "minimum_free_memory_mib": 2048, "minimum_host_available_ram_gib": 8, "qualification": "Experimental separate-projection original-weight correction; numerical qualification evaluated in separate reports. Eager execution and deterministic finalization are distinct from the original exploratory graph lane.", "adapter_mode": args.mode}, indent=2))
+(output / "launch-manifest.json").write_text(json.dumps({"command": command, "environment_overrides": {k: env[k] for k in ["XDG_CACHE_HOME", "TMPDIR", "HF_HOME", "HF_HUB_OFFLINE", "VLLM_NO_USAGE_STATS", "DO_NOT_TRACK", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "CPATH", "FLASHINFER_WORKSPACE_BASE", "TRITON_CACHE_DIR", "CUDA_CACHE_PATH", "TORCHINDUCTOR_CACHE_DIR", "TORCH_EXTENSIONS_DIR", "MAX_JOBS", "FLASHINFER_NVCC_THREADS", "PYTHONPATH", "VLLM_PLUGINS", "MEGARTX_SCALE_MODE", "MEGARTX_SCALE_MANIFEST", "MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ACTIVATION_PROOF_PATH", "MEGARTX_ACTIVATION_TRACE_PATH", "MEGARTX_CHECKPOINT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR", "MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN", "MEGARTX_LAYER0_BOUNDARIES", "MEGARTX_LAYER0_CAPTURE_POLICY"] if k in env}, "path_prefixes": ["/usr/local/cuda/bin", str(base / ".venv/bin")], "backend_requested": args.backend, "kv_requested": args.kv, "trust_remote_code": False, "trials_per_context": 0 if args.client == "controlled" else args.trials, "controlled_request_count": 1 if args.client == "controlled" else None, "router_score_only": args.router_score_only, "controlled_path": args.controlled_path, "controlled_plan_sha256": json.loads((args.controlled_plan / "manifest.json").read_text())["schedule_sha256"] if args.controlled_plan else None, "minimum_free_memory_mib": 2048, "minimum_host_available_ram_gib": 8, "qualification": "Experimental separate-projection original-weight correction; numerical qualification evaluated in separate reports. Eager execution and deterministic finalization are distinct from the original exploratory graph lane.", "adapter_mode": args.mode}, indent=2))
 client = requests.Session()
 client.trust_env = False
 try:

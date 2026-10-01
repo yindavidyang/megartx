@@ -62,6 +62,10 @@ class ControlledCapture:
         self.context = None
         self.case = None
         self.profiler = None
+        self.layer0 = None
+        if os.environ.get("MEGARTX_LAYER0_BOUNDARIES") == "1":
+            from .controlled_layer0_capture import ControlledLayer0
+            self.layer0 = ControlledLayer0(model, self)
 
     @property
     def active(self):
@@ -101,6 +105,8 @@ class ControlledCapture:
 
     def abort(self, error):
         self.context = None
+        if self.layer0 is not None:
+            self.layer0.close()
         if self.profiler is not None:
             self.profiler.__exit__(type(error), error, error.__traceback__)
             self.profiler = None
@@ -170,6 +176,8 @@ class ControlledCapture:
             if self.context["seen"] != set(range(30)):
                 raise RuntimeError("Controlled model bypassed a registered routed hook")
             self.kv.capture(self.context["positions"], self.context["tokens"])
+            if self.layer0 is not None:
+                self.layer0.end_forward()
             self.forward_counter += 1
             if all(sorted(rows) == list(range(33)) for rows in self.routes_seen.values()):
                 if len(self.stages) != 6:
@@ -180,6 +188,8 @@ class ControlledCapture:
                 self.profiler.export_chrome_trace(str(trace))
                 self.profiler = None
                 self.kv.finish_case()
+                if self.layer0 is not None:
+                    self.layer0.finish()
                 proof = Path(os.environ["MEGARTX_ACTIVATION_PROOF_PATH"])
                 proof_sha, trace_sha = digest(proof), digest(trace)
                 for record in self.stages:
