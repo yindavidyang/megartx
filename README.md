@@ -24,6 +24,7 @@ The goal is lower end-to-end decode latency than a tuned, compatible FlashInfer-
 - Performance/quality acceptance margins remain proposed
 - Resident execution and stock native SM120 FlashInfer CUTLASS dispatch were observed; discarded up globals prevented correctness qualification
 - Separate original-scale projections and six forced registered-runner fixtures have bounded independent evidence; the natural client corpus selected none of the affected experts
+- One unchanged 1,025-token-prefix/eight-output score replay explains nonselection for that prefix; independent sampled router math is consistent, with native precision limits recorded
 - Natural coverage, active full-model numerical checks and full quality/cache qualification remain blocked; timed clients fail closed
 - Start without DSpark; [DSpark-style speculation and conditional draft-model training](docs/action-plans/wp5.md#dspark-and-draft-training-milestones) are planned after the stable target-only baseline
 - Custom kernels and wider fusion are gated follow-on experiments

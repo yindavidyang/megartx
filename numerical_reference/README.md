@@ -24,6 +24,34 @@ The module imports neither Torch, vLLM, nor FlashInfer. The
 safetensors reader reads individual original expert tensors and hashes their
 payloads. It limits a tensor read to 32 MiB, and never expands all experts.
 
+## One-request router diagnostic
+
+The independent `router_reference.py` and `check_router_capture.py` add 41
+CPU tests for BF16 rounding/products, signed-bit top-eight ordering, bounded
+FP64 projection diagnostics, score/weight profiles and original-payload
+provenance. Fifteen additional observer guard tests reject changed prefixes,
+request/row bounds and missing per-forward layers using small tensor API stubs.
+The complete independent/guard suite has 147 tests; the scaffold has 32 more.
+These counts are CPU checks, not CUDA qualification.
+
+Given the private output from the explicitly bounded score client, run:
+
+```bash
+python numerical_reference/check_router_capture.py "$PRIVATE_ROUTER_SCORE_DIR" \
+  --output "$NEW_PRIVATE_CPU_REPORT"
+```
+
+The checker verifies file hashes, original tensor-payload hashes, actual token
+positions and unchanged selected IDs before its arithmetic. It separately
+reports all-row score/rank evidence and retained-input projection checks; it
+never applies the eight-row matmul evidence to every score row. The inline root
+product is reconstructed with separate BF16 stores. Ideal RMS and named F32
+weight profiles remain semantic diagnostics; enabled BF16 partial/split-K
+preferences keep the FP32 dot envelope conditional. No observed error is used
+to fit a tolerance. Raw NPZ files contain weights/inputs and stay private. See
+[the one-prefix evidence](../docs/evidence/nvfp4-router-scores.json) and the
+[qualification limits](../docs/nvfp4-scale-correction.md#one-unchanged-prefix-router-score-diagnostic).
+
 ## Keep three numerical contracts distinct
 
 | Contract | Packed weights and weight globals | Activation globals |

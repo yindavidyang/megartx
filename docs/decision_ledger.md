@@ -1,6 +1,6 @@
 # Decision ledger
 
-Updated 30 September 2026. Stable IDs follow the [master plan](master-plan.md). Proposed values are not frozen acceptance criteria.
+Updated 1 October 2026. Stable IDs follow the [master plan](master-plan.md). Proposed values are not frozen acceptance criteria.
 
 | ID | Status | Decision and remaining evidence |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ Updated 30 September 2026. Stable IDs follow the [master plan](master-plan.md). 
 
 ## Current gate state
 
-G0–G6 remain unaccepted. Actual resident execution and native SM120 dispatch were recorded, but the original exploratory loader lost six up globals. The original-scale correction has bounded operator/reference and forced registered-runner evidence. Twenty natural requests selected none of the six affected experts, so active full-model correctness and corrected timing are blocked. Prior unverified zero-hit integration/benchmark artifacts are explicitly invalidated. Full-model quality, checkpoint activation-quantizer fidelity, complete cache/semantics fixtures and accepted performance gates remain incomplete. See [scale correction](nvfp4-scale-correction.md) for the runtime distinction and stopping rule.
+G0–G6 remain unaccepted. Actual resident execution and native SM120 dispatch were recorded, but the original exploratory loader lost six up globals. The original-scale correction has bounded operator/reference and forced registered-runner evidence. Twenty natural requests selected none of the six affected experts. A later single 1,025-prefix/eight-output replay captured scores and unchanged top-eight IDs: targets ranked 24–128, with no target in top eight, and independent checks found no sampled preprocessing discrepancy. This explains nonselection for that prefix; it does not establish broader rarity or permanent inactivity. Active full-model correctness and corrected timing remain blocked. Prior unverified zero-hit integration/benchmark artifacts are explicitly invalidated. Full-model quality, checkpoint activation-quantizer fidelity, complete cache/semantics fixtures and accepted performance gates remain incomplete. See [scale correction](nvfp4-scale-correction.md) for the runtime distinction and stopping rule.
 
 ## Review record
 

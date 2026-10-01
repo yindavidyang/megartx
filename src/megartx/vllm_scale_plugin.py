@@ -40,10 +40,14 @@ def install():
     load_ordinal = 0
     route_audit = os.environ.get("MEGARTX_ROUTE_AUDIT_PATH")
     capture = os.environ.get("MEGARTX_LOGITS_DIR")
+    router_score = os.environ.get("MEGARTX_ROUTER_SCORE_DIR")
+    router_observer = None
     if not os.environ.get("MEGARTX_ACTIVATION_PROOF_PATH") or not os.environ.get("MEGARTX_ACTIVATION_TRACE_PATH"):
         raise RuntimeError("Experimental adapter requires explicit bounded integration-proof destinations")
     if route_audit and not capture:
         raise RuntimeError("Route audit requires the bounded quality-capture client")
+    if router_score and (not capture or mode != "native"):
+        raise RuntimeError("Router score diagnostic requires native mode and explicit request capture")
 
     def deterministic_fused(*args, **kwargs):
         kwargs["use_fused_finalize"] = False
@@ -96,6 +100,8 @@ def install():
         data = layer._megartx
         data["dispatch_calls"] += 1
         experts = data["experts"]
+        if router_observer is not None:
+            router_observer.consume(layer, topk_ids, topk_weights)
         # Diagnostic CPU histograms are confined to quality runs and marked
         # requests. They prove natural IDs/counters independently of rare-hit
         # branches, and are absent from timed clients.
@@ -159,11 +165,18 @@ def install():
     integration_report = None
 
     def model_forward(self, input_ids, positions, *args, **kwargs):
-        nonlocal context, forward_counter, integration_layers, integration_report
+        nonlocal context, forward_counter, integration_layers, integration_report, router_observer
         if integration_layers is None:
             integration_layers, integration_report = prepare(self, routed_adapter)
+            if router_score:
+                from .router_score_capture import RouterScoreCapture
+                router_observer = RouterScoreCapture(self, integration_layers)
         before = [layer._megartx["dispatch_calls"] for layer in integration_layers]
+        if router_observer is not None:
+            router_observer.begin(input_ids, positions)
         result = old_forward(self, input_ids, positions, *args, **kwargs)
+        if router_observer is not None:
+            router_observer.end()
         if any(layer._megartx["dispatch_calls"] <= count for layer, count in zip(integration_layers, before)):
             raise RuntimeError("Model forward bypassed one or more registered routed adapters")
         if not integration_report["natural_model_forward_verified"]:

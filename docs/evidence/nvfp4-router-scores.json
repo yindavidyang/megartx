@@ -1,0 +1,432 @@
+{
+  "scope": "One observational replay; finite-prefix selection diagnosis, not a corrected quality/performance baseline",
+  "checkpoint": {
+    "repository": "nvidia/Gemma-4-26B-A4B-NVFP4",
+    "revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6"
+  },
+  "runtime": {
+    "vllm": "0.30.0",
+    "flashinfer": "0.6.18.post1",
+    "torch": "2.13.0+cu130",
+    "triton": "3.7.1",
+    "compute_capability": [
+      12,
+      0
+    ],
+    "kv_dtype": "bfloat16",
+    "eager": true,
+    "speculation": false,
+    "one_active_sequence": true,
+    "router_projection": "torch.mm(BF16,BF16,out_dtype=float32)"
+  },
+  "request": {
+    "request_count": 1,
+    "reused_prefix_tokens": 1025,
+    "prefix_sha256": "a6b86806e31151e73cc35940aab2a29d1a76952944bc669f8ccc8e13130860f2",
+    "maximum_output_tokens": 8,
+    "actual_output_tokens": 8,
+    "routing_unchanged": true,
+    "natural_input_rows_per_layer": 1032,
+    "prefill_calls_per_layer": 5,
+    "prefill_rows_per_layer": 1025,
+    "decode_calls_per_layer": 7,
+    "decode_rows_per_layer": 7
+  },
+  "capture": {
+    "files": 60,
+    "layers": 5,
+    "full_finite_score_values": 660480,
+    "selected_ids_compared": 41280,
+    "selected_id_mismatches": 0,
+    "nonzero_selected_weights": 41280,
+    "checked_input_rows": 40,
+    "checked_positions_each_layer": [
+      0,
+      128,
+      255,
+      1024,
+      1025,
+      1026,
+      1027,
+      1028
+    ],
+    "maximum_checked_rows_per_layer": 8,
+    "original_router_tensors": 15,
+    "loaded_original_tensor_bytes_equal": true,
+    "original_source_key_mapping": "Literal checkpoint layer/expert IDs; TP1/EP1, no expert balancing or reindexing",
+    "capture_manifest_sha256": "e8eeb3765c6fe4e009ae860bacded8247da0ee1b88f8f1e3bd7c5eb0e182eca8",
+    "records_sha256": "1ba3899c7da2fdbe08a10e6c3bb976f7263ef4434ac954ca663bc875ee949192"
+  },
+  "independent_cpu_math": {
+    "numpy_local": "2.4.4",
+    "norm_root_dimension_projection_all_retained_bits_equal": true,
+    "ideal_rms_bf16_values_compared": 112640,
+    "ideal_rms_bf16_equal_fraction": 1.0,
+    "projection_values_compared": 5120,
+    "maximum_projection_absolute_error_f64": 2.884449713747017e-06,
+    "conditional_gamma2816_all_retained_passed": true,
+    "maximum_error_over_conditional_gamma2816_envelope": 0.0020841131321597444,
+    "conditional_target_rank_rows": 48,
+    "maximum_selected_weight_error_f64_semantics": 9.237195830458234e-08,
+    "maximum_selected_weight_error_named_f32_profile": 1.1920928955078125e-07,
+    "weight_error_acceptance_bound": null,
+    "matmul_flags": {
+      "allow_tf32": false,
+      "allow_fp16_reduced_precision_reduction": true,
+      "allow_bf16_reduced_precision_reduction": true,
+      "allow_bf16_reduced_precision_reduction_split_k": true
+    },
+    "native_accumulation_rms_and_weight_kernels_qualified": false,
+    "whole_router_or_model_numerically_qualified": false,
+    "unretained_projection_rows_qualified": false,
+    "numpy_remote": "2.3.5",
+    "remote_same_checks_passed": true
+  },
+  "targets": [
+    {
+      "layer": 0,
+      "expert": 42,
+      "phases": {
+        "prefill": {
+          "rows": 1025,
+          "rank_min": 102,
+          "rank_max": 128,
+          "rank_median": 124.0,
+          "score_min": -0.9543939828872681,
+          "score_max": 0.885123074054718,
+          "top8_gap_min": 2.0704881995916367,
+          "top8_gap_max": 3.908628612756729,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.002330138928107403
+        },
+        "decode": {
+          "rows": 7,
+          "rank_min": 108,
+          "rank_max": 127,
+          "rank_median": 125.0,
+          "score_min": -0.5881648659706116,
+          "score_max": 0.8521194458007812,
+          "top8_gap_min": 2.4068071842193604,
+          "top8_gap_max": 3.5004599690437317,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.002286055364911412
+        }
+      },
+      "closest_row": {
+        "position": 2,
+        "rank": 116,
+        "target_score": 0.21629001200199127,
+        "eighth_score": 2.286778211593628,
+        "gap": 2.0704881995916367,
+        "selected_ids": [
+          102,
+          60,
+          49,
+          19,
+          22,
+          105,
+          84,
+          48
+        ]
+      },
+      "rank_minimum": 102,
+      "rank_maximum": 128,
+      "minimum_eighth_score_minus_target_score": 2.0704881995916367,
+      "maximum_semantic_full_softmax_probability_f64": 0.002330138928107403,
+      "natural_selected_count": 0,
+      "conditional_checked_rows_outside_top8": true
+    },
+    {
+      "layer": 0,
+      "expert": 82,
+      "phases": {
+        "prefill": {
+          "rows": 1025,
+          "rank_min": 79,
+          "rank_max": 126,
+          "rank_median": 110.0,
+          "score_min": -0.6609582901000977,
+          "score_max": 1.3957185745239258,
+          "top8_gap_min": 1.7336975932121277,
+          "top8_gap_max": 3.5779102742671967,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.003139636707754599
+        },
+        "decode": {
+          "rows": 7,
+          "rank_min": 80,
+          "rank_max": 122,
+          "rank_median": 111.0,
+          "score_min": 0.3862934708595276,
+          "score_max": 1.2134757041931152,
+          "top8_gap_min": 1.8942084312438965,
+          "top8_gap_max": 2.483309417963028,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.0029254292085368404
+        }
+      },
+      "closest_row": {
+        "position": 1009,
+        "rank": 98,
+        "target_score": 0.9807246327400208,
+        "eighth_score": 2.7144222259521484,
+        "gap": 1.7336975932121277,
+        "selected_ids": [
+          46,
+          39,
+          32,
+          76,
+          16,
+          67,
+          118,
+          22
+        ]
+      },
+      "rank_minimum": 79,
+      "rank_maximum": 126,
+      "minimum_eighth_score_minus_target_score": 1.7336975932121277,
+      "maximum_semantic_full_softmax_probability_f64": 0.003139636707754599,
+      "natural_selected_count": 0,
+      "conditional_checked_rows_outside_top8": true
+    },
+    {
+      "layer": 1,
+      "expert": 126,
+      "phases": {
+        "prefill": {
+          "rows": 1025,
+          "rank_min": 121,
+          "rank_max": 128,
+          "rank_median": 128.0,
+          "score_min": -2.1895289421081543,
+          "score_max": -0.060978617519140244,
+          "top8_gap_min": 2.135817587375641,
+          "top8_gap_max": 4.65407919883728,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.0018154212130237048
+        },
+        "decode": {
+          "rows": 7,
+          "rank_min": 124,
+          "rank_max": 128,
+          "rank_median": 128.0,
+          "score_min": -1.2775729894638062,
+          "score_max": -0.3549479842185974,
+          "top8_gap_min": 2.2479183971881866,
+          "top8_gap_max": 3.5377365350723267,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.001531454746349477
+        }
+      },
+      "closest_row": {
+        "position": 1,
+        "rank": 121,
+        "target_score": -0.4210314154624939,
+        "eighth_score": 1.714786171913147,
+        "gap": 2.135817587375641,
+        "selected_ids": [
+          125,
+          117,
+          104,
+          22,
+          91,
+          93,
+          83,
+          47
+        ]
+      },
+      "rank_minimum": 121,
+      "rank_maximum": 128,
+      "minimum_eighth_score_minus_target_score": 2.135817587375641,
+      "maximum_semantic_full_softmax_probability_f64": 0.0018154212130237048,
+      "natural_selected_count": 0,
+      "conditional_checked_rows_outside_top8": true
+    },
+    {
+      "layer": 2,
+      "expert": 89,
+      "phases": {
+        "prefill": {
+          "rows": 1025,
+          "rank_min": 27,
+          "rank_max": 128,
+          "rank_median": 128.0,
+          "score_min": -0.6518987417221069,
+          "score_max": 1.4724056720733643,
+          "top8_gap_min": 0.36706018447875977,
+          "top8_gap_max": 3.546348452568054,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.009600975426433997
+        },
+        "decode": {
+          "rows": 7,
+          "rank_min": 126,
+          "rank_max": 128,
+          "rank_median": 127.0,
+          "score_min": -0.45091894268989563,
+          "score_max": 0.7958540320396423,
+          "top8_gap_min": 2.181563436985016,
+          "top8_gap_max": 3.098068028688431,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.0016021658157845664
+        }
+      },
+      "closest_row": {
+        "position": 2,
+        "rank": 27,
+        "target_score": 1.4724056720733643,
+        "eighth_score": 1.839465856552124,
+        "gap": 0.36706018447875977,
+        "selected_ids": [
+          86,
+          75,
+          78,
+          79,
+          97,
+          118,
+          44,
+          48
+        ]
+      },
+      "rank_minimum": 27,
+      "rank_maximum": 128,
+      "minimum_eighth_score_minus_target_score": 0.36706018447875977,
+      "maximum_semantic_full_softmax_probability_f64": 0.009600975426433997,
+      "natural_selected_count": 0,
+      "conditional_checked_rows_outside_top8": true
+    },
+    {
+      "layer": 3,
+      "expert": 7,
+      "phases": {
+        "prefill": {
+          "rows": 1025,
+          "rank_min": 24,
+          "rank_max": 128,
+          "rank_median": 121.0,
+          "score_min": -1.9939016103744507,
+          "score_max": 1.7311443090438843,
+          "top8_gap_min": 0.3943486213684082,
+          "top8_gap_max": 3.269388973712921,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.009990349750069571
+        },
+        "decode": {
+          "rows": 7,
+          "rank_min": 46,
+          "rank_max": 127,
+          "rank_median": 113.0,
+          "score_min": -0.595622181892395,
+          "score_max": 1.4277029037475586,
+          "top8_gap_min": 0.8063350915908813,
+          "top8_gap_max": 2.4551740884780884,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.007524173546858369
+        }
+      },
+      "closest_row": {
+        "position": 1020,
+        "rank": 25,
+        "target_score": 1.0416816473007202,
+        "eighth_score": 1.4360302686691284,
+        "gap": 0.3943486213684082,
+        "selected_ids": [
+          51,
+          21,
+          15,
+          102,
+          107,
+          28,
+          69,
+          66
+        ]
+      },
+      "rank_minimum": 24,
+      "rank_maximum": 128,
+      "minimum_eighth_score_minus_target_score": 0.3943486213684082,
+      "maximum_semantic_full_softmax_probability_f64": 0.009990349750069571,
+      "natural_selected_count": 0,
+      "conditional_checked_rows_outside_top8": true
+    },
+    {
+      "layer": 5,
+      "expert": 12,
+      "phases": {
+        "prefill": {
+          "rows": 1025,
+          "rank_min": 84,
+          "rank_max": 128,
+          "rank_median": 124.0,
+          "score_min": -1.0416862964630127,
+          "score_max": 1.9496608972549438,
+          "top8_gap_min": 0.8384701013565063,
+          "top8_gap_max": 3.734828472137451,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.00596035870883764
+        },
+        "decode": {
+          "rows": 7,
+          "rank_min": 107,
+          "rank_max": 128,
+          "rank_median": 122.0,
+          "score_min": -0.6116567850112915,
+          "score_max": 1.8242278099060059,
+          "top8_gap_min": 1.058457851409912,
+          "top8_gap_max": 2.9228631258010864,
+          "selected_rows": 0,
+          "semantic_full_softmax_probability_max_f64": 0.004782040205541475
+        }
+      },
+      "closest_row": {
+        "position": 1010,
+        "rank": 85,
+        "target_score": 1.9377621412277222,
+        "eighth_score": 2.7762322425842285,
+        "gap": 0.8384701013565063,
+        "selected_ids": [
+          56,
+          49,
+          97,
+          60,
+          42,
+          77,
+          98,
+          30
+        ]
+      },
+      "rank_minimum": 84,
+      "rank_maximum": 128,
+      "minimum_eighth_score_minus_target_score": 0.8384701013565063,
+      "maximum_semantic_full_softmax_probability_f64": 0.00596035870883764,
+      "natural_selected_count": 0,
+      "conditional_checked_rows_outside_top8": true
+    }
+  ],
+  "provenance": {
+    "candidate_archive_sha256": "ff2d399f5c61781dc12f3ee55eb7003988c87b7764e10f101a277a03d36e05b1",
+    "runtime_source_sha256": {
+      "src/megartx/router_score_capture.py": "e4650b51cec766720df8e0a4314e8633817caa14109bc0df51463e62f061a62a",
+      "src/megartx/vllm_scale_plugin.py": "e65450cfe870f0a9a4a0beb1e48677937f49efbcc084392dfb0b373c8d9078d8",
+      "scripts/router_score_client.py": "35e3e330b40e12d497403392ab8a20189798b6955fa6b490dbc72d3ff2f1809a",
+      "scripts/run_scale_validation.py": "fdf83f3899bb367a189c0bb60aecab6704e9c5d5d606647dc404693d9aa8a6d2"
+    },
+    "original_checkpoint_preserved": true,
+    "prior_artifacts_preserved": true,
+    "owned_server_cleanup_recorded": true,
+    "cpu_report_numpy235_sha256": "3d69b8858976e3111add0b981239f9250da906cd686ccb94ddd27211bc90fda8"
+  },
+  "gate_state": {
+    "natural_six_target_coverage": false,
+    "corrected_full_model_quality": false,
+    "corrected_2k_8k_baseline": false,
+    "qualified_performance": false
+  },
+  "diagnosis": "Observed low target scores explain this prefix\u2019s zero target selection; no mapping, logging or sampled preprocessing correction is justified",
+  "remaining_limits": [
+    "Native BF16 cuBLAS partial-reduction precision/order is not established; gamma2816 is conditional",
+    "Native RMS IR provider and exp2/div/reduction instruction error contracts are unqualified",
+    "Independent projection covers only retained eight input rows per layer, not all 1032 score rows",
+    "Upstream hidden-state/model semantics, natural six-expert correction coverage and G0/G1 remain unqualified",
+    "Original tensor provenance is verified against producer manifest hashes; original checkpoint files were not reread here"
+  ]
+}

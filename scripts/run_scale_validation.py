@@ -25,6 +25,8 @@ parser.add_argument("--mode", choices=("native", "reference", "control"), requir
 parser.add_argument("--client", choices=("quality", "benchmark"), default="quality")
 parser.add_argument("--activation-only", action="store_true")
 parser.add_argument("--routing-diagnostic", action="store_true")
+parser.add_argument("--router-score-only", action="store_true")
+parser.add_argument("--router-prefix-manifest", type=pathlib.Path)
 args = parser.parse_args()
 if args.client == "benchmark":
     parser.error("Timing is fail-closed until a paired quality report and positive natural correction coverage are explicitly validated")
@@ -32,6 +34,10 @@ if args.client == "quality" and args.profile:
     parser.error("Quality capture and profiling are separate phases; --profile requires --client benchmark")
 if args.activation_only and args.client != "quality":
     parser.error("--activation-only requires the bounded quality client")
+if args.router_score_only and (args.mode != "native" or args.activation_only or args.routing_diagnostic or args.prefill_chunk != 256 or args.router_prefix_manifest is None):
+    parser.error("--router-score-only requires native mode, a recorded prefix manifest, chunk256, and no other corpus flags")
+if args.router_prefix_manifest is not None and not args.router_score_only:
+    parser.error("--router-prefix-manifest requires --router-score-only")
 base = pathlib.Path(os.environ["MEGARTX_BASE"])
 project = pathlib.Path(__file__).resolve().parents[1]
 work = pathlib.Path(os.environ["MEGARTX_WORK"])
@@ -54,6 +60,8 @@ if args.client == "quality":
     env["MEGARTX_ROUTE_AUDIT_PATH"] = str(output / "route-hits.jsonl")
     env["MEGARTX_ROUTING_COVERAGE_PATH"] = str(output / "route-histograms.jsonl")
     pathlib.Path(env["MEGARTX_ROUTE_AUDIT_PATH"]).touch(exist_ok=False)
+    if args.router_score_only:
+        env["MEGARTX_ROUTER_SCORE_DIR"] = str(output / "router-scores")
 else:
     env.pop("MEGARTX_LOGITS_DIR", None)
     env.pop("MEGARTX_ROUTE_AUDIT_PATH", None)
@@ -122,7 +130,7 @@ sample_thread.start()
 command = [str(base / ".venv/bin/vllm"), "serve", str(base / "models/gemma4-nvfp4"), "--host", "127.0.0.1", "--port", "18000", "--served-model-name", "gemma4-nvfp4", "--dtype", "bfloat16", "--max-model-len", "8448", "--max-num-seqs", "1", "--max-num-batched-tokens", str(args.prefill_chunk), "--gpu-memory-utilization", "0.84", "--kv-cache-memory-bytes", "2147483648", "--kv-cache-dtype", args.kv, "--moe-backend", args.backend, "--attention-backend", "FLASHINFER", "--no-enable-prefix-caching", "--language-model-only", "--generation-config", "vllm", "--seed", "1234", "--stream-interval", "1", "--enforce-eager", "--max-logprobs", "5"]
 if args.profile:
     command += ["--profiler-config", json.dumps({"profiler": "torch", "torch_profiler_dir": str(output / "traces"), "torch_profiler_with_stack": False, "torch_profiler_with_flops": False, "torch_profiler_with_memory": True})]
-(output / "launch-manifest.json").write_text(json.dumps({"command": command, "environment_overrides": {k: env[k] for k in ["XDG_CACHE_HOME", "TMPDIR", "HF_HOME", "HF_HUB_OFFLINE", "VLLM_NO_USAGE_STATS", "DO_NOT_TRACK", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "CPATH", "FLASHINFER_WORKSPACE_BASE", "TRITON_CACHE_DIR", "CUDA_CACHE_PATH", "TORCHINDUCTOR_CACHE_DIR", "TORCH_EXTENSIONS_DIR", "MAX_JOBS", "FLASHINFER_NVCC_THREADS", "PYTHONPATH", "VLLM_PLUGINS", "MEGARTX_SCALE_MODE", "MEGARTX_SCALE_MANIFEST", "MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ACTIVATION_PROOF_PATH", "MEGARTX_ACTIVATION_TRACE_PATH", "MEGARTX_CHECKPOINT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH"] if k in env}, "path_prefixes": ["/usr/local/cuda/bin", str(base / ".venv/bin")], "backend_requested": args.backend, "kv_requested": args.kv, "trust_remote_code": False, "trials_per_context": args.trials, "minimum_free_memory_mib": 2048, "minimum_host_available_ram_gib": 8, "qualification": "Experimental separate-projection original-weight correction; numerical qualification evaluated in separate reports. Eager execution and deterministic finalization are distinct from the original exploratory graph lane.", "adapter_mode": args.mode}, indent=2))
+(output / "launch-manifest.json").write_text(json.dumps({"command": command, "environment_overrides": {k: env[k] for k in ["XDG_CACHE_HOME", "TMPDIR", "HF_HOME", "HF_HUB_OFFLINE", "VLLM_NO_USAGE_STATS", "DO_NOT_TRACK", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "CPATH", "FLASHINFER_WORKSPACE_BASE", "TRITON_CACHE_DIR", "CUDA_CACHE_PATH", "TORCHINDUCTOR_CACHE_DIR", "TORCH_EXTENSIONS_DIR", "MAX_JOBS", "FLASHINFER_NVCC_THREADS", "PYTHONPATH", "VLLM_PLUGINS", "MEGARTX_SCALE_MODE", "MEGARTX_SCALE_MANIFEST", "MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ACTIVATION_PROOF_PATH", "MEGARTX_ACTIVATION_TRACE_PATH", "MEGARTX_CHECKPOINT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR"] if k in env}, "path_prefixes": ["/usr/local/cuda/bin", str(base / ".venv/bin")], "backend_requested": args.backend, "kv_requested": args.kv, "trust_remote_code": False, "trials_per_context": args.trials, "router_score_only": args.router_score_only, "minimum_free_memory_mib": 2048, "minimum_host_available_ram_gib": 8, "qualification": "Experimental separate-projection original-weight correction; numerical qualification evaluated in separate reports. Eager execution and deterministic finalization are distinct from the original exploratory graph lane.", "adapter_mode": args.mode}, indent=2))
 client = requests.Session()
 client.trust_env = False
 try:
@@ -161,7 +169,10 @@ try:
             pass
     if other:
         raise RuntimeError("Another GPU compute job appeared; benchmark not started")
-    bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/quality_client.py" if args.client == "quality" else project / "scripts/host_benchmark.py"), "--model-path", str(base / "models/gemma4-nvfp4"), "--output", str(output), "--trials", str(args.trials)]
+    if args.router_score_only:
+        bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/router_score_client.py"), "--prefix-manifest", str(args.router_prefix_manifest), "--output", str(output)]
+    else:
+        bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/quality_client.py" if args.client == "quality" else project / "scripts/host_benchmark.py"), "--model-path", str(base / "models/gemma4-nvfp4"), "--output", str(output), "--trials", str(args.trials)]
     if args.profile:
         bench_command.append("--profile")
     if args.activation_only:
@@ -174,10 +185,19 @@ try:
     (output / "benchmark.exit").write_text(str(result.returncode) + "\n")
     if result.returncode:
         raise RuntimeError("Host-local client failed; see client.log")
-    if args.client == "quality":
+    if args.router_score_only:
+        try:
+            report = natural_coverage(output, args.mode)
+            scope = {"natural_coverage": report, "qualified_quality_baseline": False, "qualified_performance_baseline": False}
+        except RuntimeError as error:
+            scope = {"natural_coverage_blocker": str(error), "qualified_quality_baseline": False, "qualified_performance_baseline": False}
+            (output / "QUALIFICATION-BLOCKED.json").write_text(json.dumps(scope, indent=2))
+        (output / "router-score-scope.json").write_text(json.dumps(scope, indent=2))
+        phase("bounded_router_score_capture_complete", **scope)
+    elif args.client == "quality":
         natural_coverage(output, args.mode)
         phase("natural_correction_coverage_verified")
-    phase("benchmark_complete")
+    phase("diagnostic_complete" if args.router_score_only else "benchmark_complete")
     (output / "run.exit").write_text("0\n")
 except Exception as error:
     phase("failed", error=guard_failure or str(error))

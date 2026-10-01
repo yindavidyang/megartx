@@ -10,6 +10,27 @@ The actual registered `MoERunner` binds the original `ModelOptNvFp4FusedMoE` met
 
 Natural coverage is separate. A bounded diagnostic issued 20 requests across six languages, technical/creative domains and 64-token generation: 2,227 prompt tokens and 85 output tokens. The affected layers each recorded 91 client-bound calls, 2,294 input rows and 18,352 positive routing slots. Between 119 and 124 experts per layer were selected, but none of the six affected experts was selected. The test therefore **fails closed**, and no corrected 2K/8K baseline is reported. This finite corpus does not prove that those experts are permanently inactive. The [bounded original router audit](evidence/nvfp4-router-audit.json) found rows and factors finite/nonzero, with no explicit six-expert mask in the inspected source.
 
+### One unchanged-prefix router-score diagnostic
+
+The [sanitized score evidence](evidence/nvfp4-router-scores.json) records one replay of the already captured 1,025-token prefix, with an eight-output-token cap. Routing was unchanged. Each of the five affected layers recorded five prefill calls with 1,025 rows and seven decode calls with seven rows; the eighth output requires no further router input. All 660,480 scores were finite. An independent source-matched bit-order check reproduced all 41,280 selected IDs exactly, and all selected weights were nonzero. The 15 original router-weight/dimension-factor/expert-factor tensors were byte-equal to loaded tensors and their private payload hashes matched the reference manifests. Literal checkpoint layer/expert IDs, TP1/EP1 and the live registered runners agree; there is no observed offset, shard or reindex ambiguity.
+
+The scores explain nonselection for this prefix. Rank 1 is highest; selection requires rank at most 8. The gap is the eighth score minus the target score, minimized over all captured rows.
+
+| Layer, expert | Prefill rank range | Decode rank range | Minimum gap below eighth score |
+| --- | --- | --- | --- |
+| 0, 42 | 102–128 | 108–127 | 2.070488 |
+| 0, 82 | 79–126 | 80–122 | 1.733698 |
+| 1, 126 | 121–128 | 124–128 | 2.135818 |
+| 2, 89 | 27–128 | 126–128 | 0.367060 |
+| 3, 7 | 24–128 | 46–127 | 0.394349 |
+| 5, 12 | 84–128 | 107–128 | 0.838470 |
+
+Eight actual residual, normalized and projection-input rows per layer were retained at positions `0,128,255,1024,1025,1026,1027,1028`. The independent NumPy checker reconstructed all 40 BF16 norm/root/dimension inputs exactly. Its ideal RMS-to-BF16 profile agreed on all 112,640 retained values. The 5,120 retained F32 logits differed from independent FP64 dots by at most `2.884449713747017e-6` and passed the conditional gamma-2816 diagnostic. Local NumPy 2.4.4 and isolated NumPy 2.3.5 passed the same checks. This is sampled agreement, not qualification of all 1,032 projection rows; several closest-gap positions have no retained input.
+
+Both BF16 reduced-precision partial-reduction and split-K preferences were enabled. F32 GEMM output therefore does not prove full F32 internal accumulation. Native RMS reduction/rsqrt and Triton exp2/division also remain unqualified. The selected-weight differences were at most `9.2372e-8` against F64 semantics and `1.1920928955078125e-7` against the named F32 profile; these are descriptive values with no fitted acceptance tolerance. The inline root product is reconstructed in the CPU reference, not separately captured.
+
+The ranked diagnosis is observed low target scores in this prefix, followed by unresolved broader selection/calibration or earlier hidden-state semantics. No mapping/logging defect, expert-factor suppression of IDs, or sampled preprocessing discrepancy was found. No production router correction is justified. This finite replay does not establish permanent inactivity or rarity across other prompts. The owned server was stopped after capture; no additional GPU request or benchmark followed. Positive natural correction coverage and the corrected full-model/baseline gates remain blocked. The safest next input would be a trusted, preidentified calibration/usage prefix known to naturally select affected experts, inspected before one bounded replay. Forced fixtures remain separate and cannot supply that prerequisite.
+
 Earlier full-model self-equality and supposedly corrected timings lacked verified hook identity and positive correction coverage. They are **invalidated**, with immutable raw artifacts and explicit private provenance/markers. Their zero-hit metrics cannot establish an active correction or diagnose hook bypass; the newer verified hook also observes zero natural selections. A guarded startup/dummy forward proves dispatch only; positive marked client routing is required independently. Artifact checks reject invalidation, duplicate/incomplete scope, altered or span-only traces, inactive/mixed modes and unmatched client prefixes/layers. Both benchmark entry points currently refuse timing.
 
 The next prerequisite is a bounded natural corpus that positively exercises the six experts, followed by matched active teacher-forced checks and a combined-route reference. If calibration/export examples or an upstream corrected checkpoint become available, inspect their provenance first. Layer-maximum activation calibration, whole-model/cache semantics and accepted held-out quality margins remain separate blockers. Do not broaden GPU sweeps to substitute for those checks.
@@ -76,6 +97,19 @@ python scripts/compare_quality.py "$MEGARTX_WORK/results/native-quality" \
   "$MEGARTX_WORK/results/reference-quality" --output "$MEGARTX_WORK/quality-comparison.json"
 ```
 
+For the separate one-request score diagnostic, reuse a private recorded request manifest containing exactly one `context-1025` entry; do not generate another corpus. The score client sends at most eight output tokens, preserves the original router, retains at most eight input rows per affected layer, and leaves quality/timing qualification false even when capture succeeds.
+
+```bash
+python scripts/run_scale_validation.py --mode native --client quality \
+  --router-score-only --router-prefix-manifest "$RECORDED_REQUEST_MANIFEST" \
+  --label one-prefix-router-score --trials 0
+python numerical_reference/check_router_capture.py \
+  "$MEGARTX_WORK/results/one-prefix-router-score/router-scores" \
+  --output "$MEGARTX_WORK/router-score-cpu-report.json"
+```
+
+`RouterScoreCapture` installs only observational hooks returning `None`. It checks actual decoder/router/runner identity and byte-equal original router tensors. Missing per-forward observations fail the test. Raw NPZ files include private router weights and actual inputs; keep them outside the repository. The independent checker imports NumPy and its own numerical reference, never Torch/vLLM/FlashInfer, and reads hashes, shapes and token positions before arithmetic. It rejects report destinations inside captures or equal to the request manifest and exclusively creates a new report. CPU request-bound tests use small stubs; they do not prove live CUDA invocation.
+
 The lifecycle runner records exact flags, phases and telemetry, bounds compilation/request lifetime, reserves 2 GiB free GPU memory and 8 GiB host RAM, and cleans up only its own server process group. Do not run the oracle while another compute job is present. CPU checks require the pinned NumPy dependency in `numerical_reference/requirements-cpu.txt`. Large raw logits, weights, traces and private environment manifests stay outside the public repository.
 
 ## Source evidence
@@ -85,6 +119,8 @@ The lifecycle runner records exact flags, phases and telemetry, bounds compilati
 - [Pinned activation/scale packing helper](https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/model_executor/layers/quantization/utils/flashinfer_fp4_moe.py): `[gate;up]` reorder, layer calibration maxima, independent scale swizzle.
 - [FlashInfer dense FP4 API](https://github.com/flashinfer-ai/flashinfer/blob/v0.6.18/flashinfer/gemm/gemm_base.py): explicit CUTLASS SM120 dispatch and 128x4 operands.
 - [FlashInfer fused MoE implementation](https://github.com/flashinfer-ai/flashinfer/blob/v0.6.18/csrc/fused_moe/cutlass_backend/cutlass_fused_moe_kernels.cuh): GEMM, gated activation and finalization boundaries. Installed wheel source hashes are retained privately because bundled source can differ from navigation tags.
+- [Pinned Gemma4 router](https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/model_executor/models/gemma4.py) and [GateLinear](https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/model_executor/layers/fused_moe/router/gate_linear.py): router residual, separate BF16 input products, F32 logits, finite-score bit ordering and post-selection expert factors.
+- [Installed Torch commit CUDA BLAS](https://github.com/pytorch/pytorch/blob/cf30153c4c131c8164ee7798e5022d810682e2cb/aten/src/ATen/cuda/CUDABlas.cpp): BF16 reduction preferences can apply with F32 output. Actual flags are in the sanitized evidence.
 - [PTX MMA precision contract](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-mma): at least single precision for E2M1 accumulation; rounding/order/subnormal behavior unspecified.
 
 The upstream scale-reconciliation proposal was read as background only. Its code was not executed. Common-global E4M3 reconciliation and BF16 scale folding are different rounded models; the original-scale adapter avoids both.
