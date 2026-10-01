@@ -1,7 +1,7 @@
 // Compile only against explicitly captured installed headers and build flags.
 // Host-only metadata probe: no kernel, CUDA runtime call, device access or weights.
 #include "m1_probe_wire.hpp"
-#include "tensorrt_llm/kernels/cutlass_kernels/moe_gemm_kernels.h"
+#include "moe_gemm_kernels.h"
 #include <iostream>
 
 using G = tensorrt_llm::kernels::cutlass_kernels::TmaWarpSpecializedGroupedGemmInput;

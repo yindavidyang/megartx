@@ -38,6 +38,14 @@ compares every reported coordinate to the independent CPU formula. The program
 takes no arguments and describes M1 only; it calls no CUDA API and contains no
 kernel or allocation. Runtime workspace layouts and consumer masks remain null.
 
+The header spelling `moe_gemm_kernels.h` follows the reference runner's
+[JIT include roots](https://github.com/flashinfer-ai/flashinfer/blob/8bc3b578027791336c6ae87db5c9d76f82cef8bc/flashinfer/jit/fused_moe.py#L226).
+That public file's SHA256 is
+`b41f213cba1be67d7367e0f01b5612992f38ca06e29de1d9e97c8194fa9bc58d`.
+Its `csrc/nv_internal/tensorrt_llm/kernels/cutlass_kernels/include` search root
+contains the pinned header. A CPU preprocessor regression checks this lookup
+using a sentinel header in that source topology; it does not compile native types.
+
 The standalone [C++ wire helper](../probes/m1_probe_wire.hpp) is compiled and
 tested locally against ordinary CPU types. **The typed target program has not
 been compiled against installed FlashInfer/CUTLASS.** Its build and the missing
@@ -131,7 +139,10 @@ Use fixture-owned guarded scale scratch; never read before/after an allocation
 to manufacture guards. Log canonical role views and anonymous `alloc_0` IDs,
 actual allocation extent/alignment, relative origin and inclusive lifetime phases
 0=input, 1=maps, 2=expansion, 3=FC1 consumption, 4=activation, 5=FC2 consumption,
-6=finalization. All views must fit their owners. The referenced stock runner
+6=finalization. All views must fit their owners. Both activation-scale roles
+also require `offset >= 32` and `offset + capacity + 32 <= allocation_extent`,
+so guard reads stay inside the allocation. These guard bounds do
+not apply to resident weight scales. The referenced stock runner
 aliases FC1/FC2 scale storage; permit that only with disjoint declared lifetimes
 such as `[2,3]` and `[4,5]`. V1 rejects every overlapping live alias, including
 unproven read-only aliases. Declared lifetimes are consistency evidence, not an
@@ -166,7 +177,7 @@ Existing CPU CI discovers the new tests; the generic C++ helper test uses the
 system compiler when available. Native target compilation, actual descriptor
 export, execution trace correlation and installed build equivalence remain open.
 
-Local validation passed 379 reference tests (19 new probe tests), 38 scaffold
+Local validation passed 382 reference tests (22 new probe tests), 38 scaffold
 tests, all eight config contracts, Python compilation and the existing exhaustive
 4,064 finite-product BF16 self-test. It used existing Python 3.12.8, NumPy 2.4.4
 and Apple Clang 21.0.0, without changing packages. The repository's independent

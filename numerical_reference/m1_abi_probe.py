@@ -264,6 +264,9 @@ def check_owners(owners, roles):
             integer(value[name], 0, 1 << 40, "owner " + name)
         if value["capacity"] != roles[role] or value["offset"] + value["capacity"] > value["allocation_extent"]:
             raise ValueError("owner view extent mismatch/out of bounds")
+        if role in ("fc1.activation_sf", "fc2.activation_sf"):
+            if value["offset"] < 32 or value["offset"] + value["capacity"] + 32 > value["allocation_extent"]:
+                raise ValueError("activation scale owner must contain both 32-byte guards")
         integer(value["alignment"], 1, 4096, "owner alignment")
         if value["alignment"] & (value["alignment"] - 1):
             raise ValueError("owner alignment must be a power of two")

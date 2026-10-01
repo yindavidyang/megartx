@@ -106,8 +106,11 @@ class CaptureTests(unittest.TestCase):
         self.packet["bindings"] = dict.fromkeys(probe.BINDINGS, "0" * 64)
         self.packet["origin"] = "target_incumbent"
         self.packet["owners"] = {
-            role: {"allocation": f"alloc_{index}", "offset": 0, "capacity": size,
-                   "allocation_extent": size, "alignment": 16, "lifetime": [0, 6]}
+            role: {"allocation": f"alloc_{index}", "offset": 32 if role in (
+                       "fc1.activation_sf", "fc2.activation_sf") else 0, "capacity": size,
+                   "allocation_extent": size + 64 if role in (
+                       "fc1.activation_sf", "fc2.activation_sf") else size,
+                   "alignment": 16, "lifetime": [0, 6]}
             for index, (role, size) in enumerate(probe.role_views(self.expected).items())}
         self.save()
         result, payloads = probe.validate_bundle(self.root)
@@ -123,6 +126,20 @@ class CaptureTests(unittest.TestCase):
         (self.root / "host-abi.json").write_bytes(host + b" ")
         with self.assertRaisesRegex(ValueError, "host probe digest/size"):
             probe.validate_bundle(self.root)
+
+    def test_capture_rejects_scale_owner_without_physically_contained_guards(self):
+        self.packet["owners"] = {
+            role: {"allocation": f"alloc_{index}", "offset": 32, "capacity": size,
+                   "allocation_extent": size + 64, "alignment": 16, "lifetime": [0, 6]}
+            for index, (role, size) in enumerate(probe.role_views(self.expected).items())}
+        original = copy.deepcopy(self.packet["owners"])
+        for role in ("fc1.activation_sf", "fc2.activation_sf"):
+            for changes in ({"offset": 0}, {"allocation_extent": original[role]["capacity"] + 32}):
+                self.packet["owners"] = copy.deepcopy(original)
+                self.packet["owners"][role].update(changes)
+                self.save()
+                with self.subTest(role=role, changes=changes), self.assertRaisesRegex(ValueError, "32-byte guards"):
+                    probe.validate_bundle(self.root)
 
     def test_repeat_and_disjoint_three_case_fixture_and_same_context(self):
         case, _, after = build_bundle(self.root, index=1, before=self.after)
@@ -301,6 +318,56 @@ class HostLayoutAndOwnershipTests(unittest.TestCase):
             bad["fc2.activation_sf"].update(changes)
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 probe.check_owners(bad, roles)
+
+    def test_activation_scale_owners_reserve_both_guards_at_exact_boundaries(self):
+        for role, capacity in (("fc1.activation_sf", 2883584), ("fc2.activation_sf", 720896)):
+            roles = {role: capacity}
+            owner = {"allocation": "alloc_0", "offset": 32, "capacity": capacity,
+                     "allocation_extent": capacity + 64, "alignment": 16, "lifetime": [2, 3]}
+            probe.check_owners({role: owner}, roles)
+            # A larger relative origin is supported if both guards still fit.
+            probe.check_owners({role: owner | {"offset": 64, "allocation_extent": capacity + 96}}, roles)
+            for changes in ({"offset": 0}, {"offset": 31}, {"allocation_extent": capacity},
+                            {"allocation_extent": capacity + 32}, {"allocation_extent": capacity + 63}):
+                with self.subTest(role=role, changes=changes), self.assertRaises(ValueError):
+                    probe.check_owners({role: owner | changes}, roles)
+        # Resident weight scales are not part of the guarded capture scratch.
+        probe.check_owners({"fc1.weight_sf": owner | {"offset": 0, "allocation_extent": capacity}},
+                           {"fc1.weight_sf": capacity})
+
+    def test_host_probe_header_lookup_matches_pinned_runner_include_roots(self):
+        compiler = shutil.which("c++")
+        if not compiler:
+            self.skipTest("system C++ compiler unavailable; installed target build remains pending")
+        include = Path(__file__).resolve().parents[1] / "probes"
+        # Public FlashInfer 8bc3b578 flashinfer/jit/fused_moe.py:226.
+        # Only lookup is exercised; the sentinel supplies no invented native types.
+        roots = ("nv_internal", "nv_internal/include",
+                 "nv_internal/tensorrt_llm/cutlass_extensions/include",
+                 "nv_internal/tensorrt_llm/kernels/cutlass_kernels/include",
+                 "nv_internal/tensorrt_llm/kernels/cutlass_kernels")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            csrc = root / "csrc"
+            output = root / "generated"
+            output.mkdir()
+            for relative in roots:
+                (csrc / relative).mkdir(parents=True, exist_ok=True)
+            header = csrc / roots[3] / "moe_gemm_kernels.h"
+            header.write_text("#error MEGARTX_PINNED_HEADER_LOOKUP_REACHED\n")
+            flags = [flag for directory in (include, *(csrc / x for x in roots), output)
+                     for flag in ("-I", str(directory))]
+            command = [compiler, "-std=c++17", "-E", "-o", os.devnull, *flags]
+            result = subprocess.run(command + [str(include / "m1_host_abi_probe.cpp")],
+                                    capture_output=True, timeout=30)
+            self.assertNotEqual(result.returncode, 0)  # Deliberate sentinel, not a target build.
+            self.assertIn(b"MEGARTX_PINNED_HEADER_LOOKUP_REACHED", result.stderr)
+            broken = root / "old-lookup.cpp"
+            broken.write_text('#include "tensorrt_llm/kernels/cutlass_kernels/moe_gemm_kernels.h"\n')
+            result = subprocess.run(command + [str(broken)], capture_output=True, timeout=30)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn(b"MEGARTX_PINNED_HEADER_LOOKUP_REACHED", result.stderr)
+            self.assertIn(b"moe_gemm_kernels.h", result.stderr)
 
     def test_source_collection_is_bounded_read_only_and_mismatch_is_unsupported(self):
         with tempfile.TemporaryDirectory() as temp:
