@@ -12,7 +12,8 @@ from pathlib import Path
 
 LIVE_ABI_VERSION = 2
 LIVE_VIEW_COUNT = 15
-CONTROLLER_SOURCES = ("m1_live.py", "vllm_scale_plugin.py")
+CONTROLLER_SOURCES = ("m1_live.py", "vllm_scale_plugin.py", "m1_normal_plan.py",
+                      "m1_normal_capture.py", "controlled_kv_capture.py")
 
 
 class View(ctypes.Structure):
@@ -110,6 +111,14 @@ class LivePreparation:
         self.live_contract = expected_contract
         self.route_controls = os.environ.get("MEGARTX_M1_ROUTE_CONTROLS") == "1"
         self.route_controls_done = False
+        self.normal_plan = None
+        self.call_limit = 64
+        if os.environ.get("MEGARTX_M1_NORMAL_PLAN"):
+            from .m1_normal_plan import load_plan, LIVE_CALLS
+            self.normal_plan = load_plan(os.environ["MEGARTX_M1_NORMAL_PLAN"])
+            if self.route_controls:
+                raise RuntimeError("normal M1 plan forbids artificial route controls")
+            self.call_limit = LIVE_CALLS
 
     def begin_forward(self, input_ids, positions):
         if self.failed:
@@ -122,6 +131,12 @@ class LivePreparation:
         if input_ids is None or positions.ndim != 1 or input_ids.numel() != positions.numel():
             raise RuntimeError("live preparation needs actual model token/position rows")
         request = json.loads(marker.read_text())
+        if self.normal_plan is not None:
+            from .m1_normal_plan import request as planned_request
+            cases = [c for c in self.normal_plan["cases"] if c["id"] == request.get("id")]
+            if len(cases) != 1 or request != planned_request(self.normal_plan,cases[0]):
+                self.failed = True
+                raise RuntimeError("normal live request differs from the exact admitted plan")
         self.forward = {"request": request, "forward_index": self.forward_index,
                         "tokens": input_ids.detach().cpu().tolist(),
                         "positions": positions.detach().cpu().tolist()}
@@ -131,11 +146,14 @@ class LivePreparation:
         self.forward = None
         self.layer = None
         if self.native.megartx_m1_active():
+            self.failed = True
             self.native.megartx_m1_end()
             raise RuntimeError("native lease escaped the routed call")
 
     def routed(self, incumbent, layer, *args):
         import torch
+        if self.failed:
+            raise RuntimeError("failed live preparation context requires an owned process restart")
         if self.forward is None:
             return incumbent(layer, *args)
         if self.layer is not None:
@@ -144,18 +162,19 @@ class LivePreparation:
         # owner, method, kernel and callable. Keep these exact objects alive.
         self.layer = layer
         first_call = self.call_index
-        if self.stream is None:
-            self.directory.mkdir(parents=True, exist_ok=False)
-            self.stream = torch.cuda.Stream()
-            self.shadow = torch.empty(32, dtype=torch.uint8, device="cuda")
-        producer = torch.cuda.current_stream()
-        self.stream.wait_stream(producer)
-        for tensor in args:
-            if isinstance(tensor, torch.Tensor):
-                tensor.record_stream(self.stream)
+        producer = None
         primary_error = None
         dependency_inserted = False
         try:
+            if self.stream is None:
+                self.directory.mkdir(parents=True, exist_ok=False)
+                self.stream = torch.cuda.Stream()
+                self.shadow = torch.empty(32, dtype=torch.uint8, device="cuda")
+            producer = torch.cuda.current_stream()
+            self.stream.wait_stream(producer)
+            for tensor in args:
+                if isinstance(tensor, torch.Tensor):
+                    tensor.record_stream(self.stream)
             with torch.cuda.stream(self.stream), torch.profiler.record_function("megartx::m1_routed_" + self.lane):
                 result = incumbent(layer, *args)
         except BaseException as error:
@@ -168,8 +187,9 @@ class LivePreparation:
             # protects mutation/reuse after a late submission/capture error.
             cleanup_error = None
             try:
-                producer.wait_stream(self.stream)
-                dependency_inserted = True
+                if producer is not None and self.stream is not None:
+                    producer.wait_stream(self.stream)
+                    dependency_inserted = True
             except BaseException as error:
                 cleanup_error = error
                 self.failed = True
@@ -205,6 +225,8 @@ class LivePreparation:
 
     def invoke(self, incumbent, args, kwargs):
         import torch
+        if self.failed:
+            raise RuntimeError("failed live preparation context requires an owned process restart")
         if self.layer is None or self.forward is None or args:
             return incumbent(*args, **kwargs)
         x = kwargs.get("input")
@@ -237,6 +259,7 @@ class LivePreparation:
                 or any(quant[i].dtype != torch.int32 for i in (1, 4))):
             return incumbent(**kwargs)
         from flashinfer.fused_moe import cutlass_fused_moe_workspace_size
+        workspace_reused = self.workspace is not None
         if self.workspace is None:
             size = cutlass_fused_moe_workspace_size(
                 1, 2816, 704, 128, 8, x_dtype=x.dtype,
@@ -253,15 +276,19 @@ class LivePreparation:
         views = (View * LIVE_VIEW_COUNT)(*(tensor_view(t) for t in tensors))
         for tensor in tensors:
             tensor.record_stream(self.stream)
+        if self.call_index >= getattr(self,"call_limit",64):
+            self.failed = True
+            raise RuntimeError("bounded live preparation call count exceeded")
         directory = self.directory / f"call-{self.call_index:04d}"
         directory.mkdir(exist_ok=False)
-        if self.call_index >= 64:
-            raise RuntimeError("bounded live preparation call count exceeded")
         self.call_index += 1
-        record = {"schema": "megartx-m1-live-v2", "scope": "controlled_live_request", "lane": self.lane,
+        record = {"schema": "megartx-m1-live-v2", "scope": "normal_live_request" if getattr(self,"normal_plan",None) is not None else "controlled_live_request", "lane": self.lane,
                   "layer_name": self.layer.layer_name, **self.forward,
                   "binary_sha256": self.binary_sha256, "live_contract": self.live_contract,
                   "workspace_bytes": self.workspace.numel(),
+                  "workspace_reused": workspace_reused,
+                  "workspace_storage_pointer": self.workspace.untyped_storage().data_ptr(),
+                  "additional_scratch_bytes": self.workspace.untyped_storage().nbytes() + self.shadow.untyped_storage().nbytes(),
                   "owner_extents": [v.bytes for v in views], "execution_mode": "eager",
                   "quantization_owners": [{"role": role, "dtype": str(t.dtype),
                                            "shape": list(t.shape), "view_bytes": v.bytes,

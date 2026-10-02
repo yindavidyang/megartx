@@ -268,5 +268,38 @@ class TestLiveLease(unittest.TestCase):
             self.assertEqual(calls, [1]);self.assertEqual(native.ends, 1)
             self.assertFalse(native.active);self.assertTrue(obj.failed)
 
+    def test_failed_controller_blocks_direct_routed_and_invoke_reentry(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict("sys.modules",self.modules()):
+            obj = self.controller(directory,Native());obj.failed = True
+            calls = []
+            for action in (lambda: obj.invoke(lambda **kw: calls.append(kw),(),self.kwargs()),
+                           lambda: obj.routed(lambda *a: calls.append(a),object())):
+                with self.assertRaisesRegex(RuntimeError,"process restart"): action()
+            self.assertEqual(calls,[])
+            self.assertEqual(obj.call_index,0)
+            self.assertEqual(obj.native.ends,0)
+
+    def test_producer_wait_failure_clears_layer_without_submission_or_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            events = [];modules,stream = self.routed_modules(events)
+            error = RuntimeError("real producer stream query failed")
+            def failed_wait(other): raise error
+            stream.wait_stream = failed_wait
+            obj = self.controller(directory,Native());obj.layer = None;obj.stream = stream
+            calls = []
+            with patch.dict("sys.modules",modules),self.assertRaises(RuntimeError) as raised:
+                obj.routed(lambda *a: calls.append(a),object())
+            self.assertIs(raised.exception,error)
+            self.assertIsNone(obj.layer);self.assertTrue(obj.failed)
+            self.assertEqual(calls,[])
+            self.assertEqual(events,["caller wait bridge"])
+
+    def test_total_call_cap_is_checked_before_receipt_directory_or_submission(self):
+        with tempfile.TemporaryDirectory() as directory,patch.dict("sys.modules",self.modules()):
+            obj = self.controller(directory,Native());obj.call_limit = 210;obj.call_index = 210
+            with self.assertRaisesRegex(RuntimeError,"call count"): obj.invoke(lambda **kw: None,(),self.kwargs())
+            self.assertFalse((Path(directory)/"call-0210").exists())
+            self.assertEqual(obj.native.ends,0);self.assertTrue(obj.failed)
+
 
 if __name__ == "__main__": unittest.main()

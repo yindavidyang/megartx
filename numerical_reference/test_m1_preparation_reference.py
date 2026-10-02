@@ -307,6 +307,16 @@ class M1PreparationTests(unittest.TestCase):
             self.assertEqual(overlay["base_commit"], "955832939062ac6b9e7bb2698b4181c1472225c3")
             replacements = {r["path"]: r for r in overlay["superseded_inputs"]}
             self.assertEqual(set(replacements), {"src/megartx/vllm_scale_plugin.py"})
+        normal_path = root / "docs/evidence/m1-normal-source-pins.json"
+        if normal_path.exists():
+            normal = json.loads(normal_path.read_text())
+            self.assertEqual(normal["base_commit"], "cc82e59c8053a72af37d9e06a76405d1ef31181e")
+            self.assertEqual(normal["parent_ledger_sha256"], hashlib.sha256(overlay_path.read_bytes()).hexdigest())
+            self.assertEqual({r["path"] for r in normal["superseded_inputs"]}, set(replacements))
+            for replacement in normal["superseded_inputs"]:
+                prior = replacements[replacement["path"]]
+                self.assertEqual(replacement["historical_sha256"], prior["current_sha256"])
+                replacements[replacement["path"]] = dict(prior,current_sha256=replacement["current_sha256"])
         for record in pins["committed_inputs"]:
             digest = hashlib.sha256((root / record["path"]).read_bytes()).hexdigest()
             if record["path"] in replacements:

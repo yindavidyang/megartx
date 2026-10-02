@@ -1,0 +1,12 @@
+{
+  "scope": "Explicit new correctness source overlay. PR10 and historical ledgers remain unchanged; source identity alone grants no live qualification.",
+  "base_commit": "cc82e59c8053a72af37d9e06a76405d1ef31181e",
+  "parent_ledger_sha256": "015426cd18349c3f5be6a437a3bef8256e1b9697a836ecd4f18410f5042bb7b7",
+  "superseded_inputs": [
+    {
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "historical_sha256": "f073549eee892cf5cb1da0861e89095f4b1cf4c36491721d87b6693e18c6c92d",
+      "current_sha256": "68a35cdaaca289c887661b46bf11502fcc4c9bfec010fb4e4e44b32cef0f9810"
+    }
+  ]
+}

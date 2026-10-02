@@ -46,7 +46,9 @@ def build(args):
                "kernels/m1_installed_preparation.cuh", "kernels/m1_maps_expand.cuh",
                "scripts/build_m1_live_bridge.py", "scripts/check_m1_live_bridge.py",
                "scripts/check_m1_live_bindings.py",
-               "src/megartx/m1_live.py", "src/megartx/vllm_scale_plugin.py")
+               "src/megartx/m1_live.py", "src/megartx/vllm_scale_plugin.py",
+               "src/megartx/m1_normal_plan.py", "src/megartx/m1_normal_capture.py",
+               "src/megartx/controlled_kv_capture.py")
     for name in sources:
         target = work / name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -94,7 +96,8 @@ def build(args):
     header += ''.join('{"' + r["symbol"] + '", ' + hex(r["offset"]) + '},\n' for r in relocations)
     live_contract = {"abi_version": 2, "view_count": 15, "view_bytes": 32,
                      "controller_source_hashes": {name: sha(work / "src/megartx" / name)
-                          for name in ("m1_live.py", "vllm_scale_plugin.py")},
+                          for name in ("m1_live.py", "vllm_scale_plugin.py", "m1_normal_plan.py",
+                                       "m1_normal_capture.py", "controlled_kv_capture.py")},
                      "native_source_sha256": sha(work / "probes/m1_live_bridge.cu")}
     header += '};\n#define M1_LIVE_CONTRACT_JSON ' + json.dumps(json.dumps(live_contract, sort_keys=True)) + '\n'
     (work / "m1_live_symbols.h").write_text(header)
