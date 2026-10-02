@@ -10,6 +10,7 @@ import struct
 import subprocess
 import sys
 import unittest
+from unittest.mock import patch
 
 import m1_preparation_reference as ref
 
@@ -321,6 +322,9 @@ class M1PreparationTests(unittest.TestCase):
                 replacements[record["path"]] = dict(previous, current_sha256=record["current_sha256"])
             for name, expected in execution_overlay["controller_source_hashes"].items():
                 self.assertEqual(hashlib.sha256((root / "src/megartx" / name).read_bytes()).hexdigest(), expected, name)
+            native_source = "probes/m1_live_bridge.cu"
+            self.assertEqual(hashlib.sha256((root / native_source).read_bytes()).hexdigest(),
+                             execution_overlay["native_source_sha256"], native_source)
         for record in pins["committed_inputs"]:
             digest = hashlib.sha256((root / record["path"]).read_bytes()).hexdigest()
             if record["path"] in replacements:
@@ -329,6 +333,27 @@ class M1PreparationTests(unittest.TestCase):
                 self.assertEqual(digest, replacement["current_sha256"], record["path"])
             else:
                 self.assertEqual(digest, record["sha256"], record["path"])
+
+    def test_stale_native_source_or_ledger_hash_is_rejected(self):
+        root = Path(__file__).resolve().parents[1]
+        native = root / "probes/m1_live_bridge.cu"
+        ledger = root / "docs/evidence/m1-capture-free-source-pins.json"
+        read_bytes, read_text = Path.read_bytes, Path.read_text
+        for mutation in ("native_source", "ledger_hash"):
+            def changed_bytes(path):
+                data = read_bytes(path)
+                return data + b"\n// simulated bridge edit\n" if path == native and mutation == "native_source" else data
+            def changed_text(path, *args, **kwargs):
+                data = read_text(path, *args, **kwargs)
+                if path == ledger and mutation == "ledger_hash":
+                    record = json.loads(data)
+                    record["native_source_sha256"] = "0" * 64
+                    return json.dumps(record)
+                return data
+            with self.subTest(mutation=mutation), patch.object(Path, "read_bytes", changed_bytes), \
+                 patch.object(Path, "read_text", changed_text), \
+                 self.assertRaisesRegex(AssertionError, "probes/m1_live_bridge.cu"):
+                self.test_committed_source_pins_match_exact_base_evidence()
 
 
 class OriginalGlobalNegativeTests(unittest.TestCase):

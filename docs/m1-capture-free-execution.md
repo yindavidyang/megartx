@@ -219,7 +219,11 @@ controlled route/row/expert/KV/logit checks, and capture-free evidence rejection
 The test environments model contract behavior; they execute no CUDA or model.
 
 Local Python 3.12.8 with existing NumPy 2.4.4 passed 64 scaffold tests and
-438 numerical-reference tests. Config validation, all 4,064 finite-product
+439 numerical-reference tests. Config validation, all 4,064 finite-product
 format checks, Python compilation and `git diff --check` also passed. NumPy
 2.3.5 and Python 3.10/3.12 remain the repository CI pins; local checks do not
 claim those CI results. No native bridge was compiled or loaded here.
+
+The committed-ledger check also verifies the native bridge SHA256. Its
+regression simulates both edited bridge bytes and a stale ledger hash in memory,
+requiring each to fail without modifying source files or historical evidence.
