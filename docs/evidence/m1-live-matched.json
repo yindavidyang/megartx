@@ -34,13 +34,13 @@
   },
   "stock_fallback_calls": 30,
   "fused_fallback_calls": 30,
-  "binary_sha256": "56beace15c19276f5c5af9e163d268948738cb9a2a28e38554d51dc05aa74dfa",
+  "binary_sha256": "10f1cb4fdd9ff5c1cf503213d520d8e46b746e76abb159f780fa694cfb611598",
   "live_contract": {
     "abi_version": 2,
     "view_count": 15,
     "view_bytes": 32,
     "controller_source_hashes": {
-      "m1_live.py": "028849ec4d9e2eacc969e6e022f4177c90db1a314c6cd2fdfe9fdb8de477859e",
+      "m1_live.py": "3972455fab61c43fb1a2f10406b9afc2423910fc5bf758f7c3675b8cb86213bf",
       "vllm_scale_plugin.py": "f073549eee892cf5cb1da0861e89095f4b1cf4c36491721d87b6693e18c6c92d"
     },
     "native_source_sha256": "07001ee7ec31bfe28ef1e2b7b7e55c55a54728e56a930d74d211837979e0ba4b"

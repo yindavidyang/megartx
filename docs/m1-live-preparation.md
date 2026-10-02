@@ -36,7 +36,7 @@ The observer reads the actual installed shapes, SF layouts, pointer and stride t
 
 Two opt-in shadow calls use the same actual input AQ/SF, original model weights/quantization owners and ordinary route-weight bits. They change only the explicitly artificial IDs/output/scratch: fresh workspace with experts 11–18, then reused workspace with disjoint experts 65–72. Neither set contains expert 0. Their captures are separate from the headline controlled request. Both workspaces, retained shadow, probe output and two ID arrays total **6,376,544 bytes**, within the existing 8 MiB aggregate scratch scope. The natural model routing is not qualified by this controlled fixture.
 
-The compiler remained below 2 GiB aggregate RSS / 300 seconds, with 8 GiB host availability and 2 GiB GPU headroom required. The successful live binary compiled in 6.062 seconds with peak aggregate RSS 729,133,056 bytes. This is a compiler resource observation, not an execution speed measurement. Capture copies/synchronizations deliberately affect execution and cannot support a speed claim.
+The compiler remained below 2 GiB aggregate RSS / 300 seconds, with 8 GiB host availability and 2 GiB GPU headroom required. The successful live binary compiled in 5.995 seconds with peak aggregate RSS 730,025,984 bytes. This is a compiler resource observation, not an execution speed measurement. Capture copies/synchronizations deliberately affect execution and cannot support a speed claim.
 
 | Matched validation | Result |
 | --- | --- |
@@ -51,7 +51,7 @@ The compiler remained below 2 GiB aggregate RSS / 300 seconds, with 8 GiB host a
 | Full stock prefill fallback | 30 calls per lane |
 | Lease/dependency cleanup | All 64 leases released; producer and caller waits recorded; both owned server lifecycles completed |
 
-The successful binary SHA256 is `56beace15c19276f5c5af9e163d268948738cb9a2a28e38554d51dc05aa74dfa`. [The sanitized scalar report](evidence/m1-live-matched.json) contains the exact compiled source contract and counts. Private SHA-manifest packets retain original build receipts, binary, generated contract/header, installed sources, all raw captures/traces and intermediate failed attempts. Earlier preload failures and the rejected zero-row carrier assertion are retained, not counted as successful execution. A later build-wrapper TypeError produced no admission receipt; the corrected argv helper has a CPU regression and the successful build passed actual binding controls.
+The successful binary SHA256 is `10f1cb4fdd9ff5c1cf503213d520d8e46b746e76abb159f780fa694cfb611598`. [The sanitized scalar report](evidence/m1-live-matched.json) contains the exact compiled source contract and counts. Private SHA-manifest packets retain original build receipts, binary, generated contract/header, installed sources, all raw captures/traces and intermediate failed attempts. Earlier preload failures and the rejected zero-row carrier assertion are retained, not counted as successful execution. A later build-wrapper TypeError produced no admission receipt; the corrected argv helper has a CPU regression and the successful build passed actual binding controls.
 
 Reproduce only in the preserved pinned environment with an owned adapter site copied from the same source as the build:
 
@@ -62,4 +62,6 @@ python scripts/run_scale_validation.py --mode native --client controlled --contr
 PYTHONPATH=numerical_reference python numerical_reference/compare_m1_live.py --build "$BRIDGE_BUILD" --stock "$STOCK_RUN" --fused "$FUSED_RUN" --output "$NEW_REPORT"
 ```
 
-The comparison reads bounded numeric captures without pickle, requires positive per-request launch correlation, rejects incomplete/failed/mixed-mode leases and compares against the retained compiled contract. Its CPU negative controls reject zero-hit traces, uncorrelated global kernel names, duplicate launch correlations, missing parents, extra stock preparation, wrong streams and graph-mode receipts. The scaffold and numerical suites pass 51 and 426 tests respectively. PR9 preparation-level runtime query/submission fault controls remain covered; this milestone does not claim full-model sanitizer coverage.
+The comparison reads bounded numeric captures without pickle, requires positive per-request launch correlation, rejects incomplete/failed/mixed-mode leases and compares against the retained compiled contract. Its CPU negative controls reject zero-hit traces, uncorrelated global kernel names, duplicate launch correlations, missing parents, extra stock preparation, wrong streams and graph-mode receipts. The scaffold and numerical suites pass 52 and 426 tests respectively. PR9 preparation-level runtime query/submission fault controls remain covered; this milestone does not claim full-model sanitizer coverage.
+
+Python 3.10 CI exposed a hashing API added in Python 3.11. Admission now uses bounded 1 MiB SHA256 streaming, with an API-absence/multiple-block regression. The bridge was rebuilt and the complete bounded stock/fused pair repeated with the new controller source contract; all results above describe that replacement pair. The original successful pair and failed CI logs remain retained.
