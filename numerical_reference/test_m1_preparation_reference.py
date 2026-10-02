@@ -307,6 +307,20 @@ class M1PreparationTests(unittest.TestCase):
             self.assertEqual(overlay["base_commit"], "955832939062ac6b9e7bb2698b4181c1472225c3")
             replacements = {r["path"]: r for r in overlay["superseded_inputs"]}
             self.assertEqual(set(replacements), {"src/megartx/vllm_scale_plugin.py"})
+        execution_overlay_path = root / "docs/evidence/m1-capture-free-source-pins.json"
+        if execution_overlay_path.exists():
+            execution_overlay = json.loads(execution_overlay_path.read_text())
+            self.assertEqual(execution_overlay["base_commit"], "cc82e59c8053a72af37d9e06a76405d1ef31181e")
+            self.assertEqual(execution_overlay["previous_ledger_sha256"], hashlib.sha256(overlay_path.read_bytes()).hexdigest())
+            for field in ("gpu_execution_verified", "graphs_qualified", "performance_qualified"):
+                self.assertIs(execution_overlay[field], False)
+            self.assertEqual({r["path"] for r in execution_overlay["superseded_inputs"]}, set(replacements))
+            for record in execution_overlay["superseded_inputs"]:
+                previous = replacements[record["path"]]
+                self.assertEqual(record["previous_sha256"], previous["current_sha256"])
+                replacements[record["path"]] = dict(previous, current_sha256=record["current_sha256"])
+            for name, expected in execution_overlay["controller_source_hashes"].items():
+                self.assertEqual(hashlib.sha256((root / "src/megartx" / name).read_bytes()).hexdigest(), expected, name)
         for record in pins["committed_inputs"]:
             digest = hashlib.sha256((root / record["path"]).read_bytes()).hexdigest()
             if record["path"] in replacements:

@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 
+from .m1_execution import profile_scope
+
 
 def install():
     mode = os.environ.get("MEGARTX_SCALE_MODE")
@@ -60,6 +62,7 @@ def install():
     m1 = load_controller(mode)
     if m1 is not None and not controlled:
         raise RuntimeError("live preparation requires the bounded controlled request collector")
+    diagnostics = m1 is None or m1.diagnostics
 
     def deterministic_fused(*args, **kwargs):
         kwargs["use_fused_finalize"] = False
@@ -159,9 +162,10 @@ def install():
             if locations.shape[0] == 0:
                 continue
             rows, slots = locations[:, 0], locations[:, 1]
-            with torch.profiler.record_function("megartx::corrected_expert_" + execution_mode):
+            with profile_scope("megartx::corrected_expert_" + execution_mode,
+                               diagnostics or "fixture_mode" in data):
                 if controlled_request:
-                    with torch.profiler.record_function("megartx::controlled_expert_" + execution_mode):
+                    with profile_scope("megartx::controlled_expert_" + execution_mode, diagnostics):
                         y, stages = run_expert(x[rows], e, mode=execution_mode, return_stages=True)
                     captured.append((e, rows, slots, topk_weights[rows, slots], stages))
                 else:
@@ -201,7 +205,8 @@ def install():
                 router_observer = RouterScoreCapture(self, integration_layers)
             if controlled:
                 from .controlled_capture import ControlledCapture
-                controlled_observer = ControlledCapture(self, integration_layers, mode)
+                controlled_observer = ControlledCapture(self, integration_layers, mode,
+                    execution_mode="captured" if m1 is None else m1.execution_mode)
         before = [layer._megartx["dispatch_calls"] for layer in integration_layers]
         if router_observer is not None:
             router_observer.begin(input_ids, positions)

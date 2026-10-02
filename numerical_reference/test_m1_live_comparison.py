@@ -1,9 +1,11 @@
 """Negative controls for request-bound dispatch qualification (CPU only)."""
 import copy
 from pathlib import Path
+import json
+import tempfile
 import unittest
 
-from compare_m1_live import correlate_trace, check_call, EXTENTS
+from compare_m1_live import correlate_trace, check_call, check_run, EXTENTS
 
 
 SCOPES = ["controlled_live_request", "artificial_route_control", "artificial_route_control"] + ["controlled_live_request"]*29
@@ -31,6 +33,14 @@ def trace(lane):
 
 
 class TestLiveComparison(unittest.TestCase):
+    def test_capture_free_launch_cannot_be_presented_as_correctness_evidence(self):
+        for declaration in ({"m1_execution_requested": "capture-free"},
+                            {"environment_overrides": {"MEGARTX_M1_EXECUTION": "capture-free"}}):
+            with self.subTest(declaration=declaration), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root/"launch-manifest.json").write_text(json.dumps(declaration))
+                with self.assertRaisesRegex(ValueError, "Capture-free execution"):
+                    check_run(root, "fused")
     def test_positive_correlated_dispatch_and_matching_incumbent_kernels(self):
         stock = correlate_trace(trace("stock"), "stock", SCOPES)
         fused = correlate_trace(trace("fused"), "fused", SCOPES)
@@ -81,6 +91,7 @@ class TestLiveComparison(unittest.TestCase):
                   "forward_index": 1, "positions": [32], "tokens": [11], "live_contract": {"abi_version": 2, "view_count": 15, "view_bytes": 32}}
         for key,value in (("actual_backend", "stock"), ("pdl", True), ("lease_released", False),
                           ("consumer_wait_inserted", False), ("routed_call_failed", True), ("execution_mode", "graph"),
+                          ("diagnostics_mode", "capture-free"),
                           ("owner_extents", EXTENTS[:7]), ("positions", [31]), ("live_contract", {"abi_version": 1})):
             bad = dict(record);bad[key] = value
             with self.subTest(key=key), self.assertRaises(ValueError): check_call(Path("/unused-evidence"), bad, "fused")

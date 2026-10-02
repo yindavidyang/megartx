@@ -43,6 +43,8 @@ def payload(directory, name, size):
 
 
 def check_call(directory, receipt, lane):
+    require(receipt.get("diagnostics_mode", "captured") == "captured",
+            "Capture-free call cannot supply captured correctness evidence")
     require(receipt.get("schema") == "megartx-m1-live-v2" and receipt.get("lane") == lane
             and receipt.get("actual_backend") == lane, "Missing positive actual backend")
     require(receipt.get("execution_mode") == "eager" and receipt.get("pdl") is False
@@ -123,15 +125,26 @@ def load_build(directory):
                 and hashlib.sha256(read_bytes(directory/name, 8<<20)).hexdigest() == digest,
                 "Compiled source snapshot differs")
     contract = report["live_contract"]
+    controller_sources = ("m1_live.py", "vllm_scale_plugin.py")
+    if "execution_modes" in contract:
+        require(contract["execution_modes"] == ["captured", "capture-free"]
+                and contract.get("capture_free_begin") == "megartx_m1_begin_capture_free_v2",
+                "Compiled execution contract differs")
+        controller_sources += ("m1_execution.py", "controlled_capture.py", "controlled_kv_capture.py")
     require(contract.get("abi_version") == 2 and contract.get("view_count") == 15 and contract.get("view_bytes") == 32
             and contract.get("native_source_sha256") == report["source_hashes"].get("probes/m1_live_bridge.cu")
             and contract.get("controller_source_hashes") == {name: report["source_hashes"].get("src/megartx/"+name)
-               for name in ("m1_live.py", "vllm_scale_plugin.py")}, "Compiled source/ABI contract differs")
+               for name in controller_sources}, "Compiled source/ABI contract differs")
     header = read_bytes(directory/"m1_live_symbols.h", 1<<20).decode()
     declarations = [line.removeprefix("#define M1_LIVE_CONTRACT_JSON ") for line in header.splitlines()
                     if line.startswith("#define M1_LIVE_CONTRACT_JSON ")]
     require(len(declarations) == 1 and json.loads(json.loads(declarations[0])) == contract, "Generated compiled contract differs")
     lease, binding = read_json(directory/"lease-controls.json"), read_json(directory/"binding-controls.json")
+    if "execution_modes" in contract:
+        require(lease.get("execution_modes_tested") == contract["execution_modes"]
+                and lease.get("cross_mode_nested_rejection_preserves_outer") is True
+                and lease.get("captured_null_directory_rejected") is True,
+                "Compiled execution controls differ")
     require(lease.get("live_contract") == contract and lease.get("invalid_framing_before_dereference") is True
             and lease.get("historical_begin_symbol_absent") is True and lease.get("active_after") == 0
             and binding.get("torch_runtime") == "2.13.0+cu130" and binding.get("relocations_bound_to_bridge") == 4
@@ -141,9 +154,12 @@ def load_build(directory):
 
 def check_run(run, lane):
     run = Path(run)
+    launch = read_json(run / "launch-manifest.json")
+    require(launch.get("m1_execution_requested", "captured") == "captured"
+            and launch.get("environment_overrides", {}).get("MEGARTX_M1_EXECUTION", "captured") == "captured",
+            "Capture-free execution cannot supply captured correctness evidence")
     require(read_json(run / "status.json").get("phase") == "cleanup_complete", "Owned lifecycle incomplete")
     require(not (run / "QUALIFICATION-INVALIDATED.json").exists(), "Run explicitly invalidated")
-    launch = read_json(run / "launch-manifest.json")
     require(launch.get("m1_preparation_requested") == lane and launch.get("controlled_request_count") == 1
             and launch.get("controlled_path") == "cached" and launch.get("m1_route_controls") is True,
             "Run lacks bounded matched request declaration")

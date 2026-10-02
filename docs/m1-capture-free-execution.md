@@ -1,0 +1,225 @@
+# Capture-free eager M1 execution and graph eligibility
+
+Base: PR10 main `cc82e59c8053a72af37d9e06a76405d1ef31181e`.
+**CPU validation only. Native CUDA compilation and execution are untested for
+this change. CUDA graph qualification and performance qualification are pending.**
+The [controlled captured proof](m1-live-preparation.md) belongs to its historical
+sources: 30 request-bound fused calls and two separately artificial route
+controls. It does not qualify the sources in this branch.
+
+## Mode contract
+
+`--m1-execution captured|capture-free` is independent of
+`--m1-preparation stock|fused`. Omission selects `captured`; omission of M1
+preparation still constructs no live controller. Capture-free requires the
+existing native, controlled, cached, one-request scope and explicit bridge/build
+receipt. The benchmark client remains fail-closed. Neither execution mode
+permits model graphs; the launcher retains `--enforce-eager`.
+
+| Preparation | Execution | Arithmetic and operator selection | Request evidence |
+| --- | --- | --- | --- |
+| stock | captured (default) | Incumbent maps/expansion; incumbent descriptors/GEMMs/correction/finalization | Existing bounded tensors, receipts and trace |
+| fused | captured (default) | Candidate maps/expansion when eligible; same remaining operators | Existing bounded tensors, receipts and trace |
+| stock | capture-free | Same stock selection and arguments | No tensor, per-call receipt or request trace output |
+| fused | capture-free | Same fused eligibility and arguments, including stock fallback | No tensor, per-call receipt or request trace output |
+
+The launcher records `m1_execution_requested` and clears inherited execution
+and capture destinations before setting the requested lane. Plugin admission
+rejects unknown modes and capture-free mixed with route controls, layer-0,
+router-score, route-audit, coverage or M1 capture destinations. Artificial route
+controls stay available only in the captured lane. Startup checkpoint-byte
+checks, forced native/reference fixtures, proof/trace files and loader manifest
+remain in both modes, before the marked request. The client writes one scalar
+`capture-free-request.json` **after** receiving and checking the API response;
+server lifecycle logs and telemetry also remain. That record explicitly denies
+capture comparison, quality and timing qualification.
+
+The captured `megartx_m1_begin_v2` signature and required directory retain ABI
+v2, 15 views, and 32 bytes per view. Capture-free uses the distinct
+`megartx_m1_begin_capture_free_v2` export with the same six framing/stream/lane
+arguments and no directory. Both enter the same framing, extent, alias and
+lease checks before any view-array access. The compiled contract advertises
+both modes and the new export. Admission requires it even for captured runs.
+An old bridge/receipt cannot be reused with the changed controller.
+
+The contract now binds all five runtime files that control this mode:
+`m1_live.py`, `vllm_scale_plugin.py`, `m1_execution.py`,
+`controlled_capture.py`, and `controlled_kv_capture.py`. Binary/native hashes,
+installed pins, exact incumbent module and all four actual relocations are
+still checked. Rebuild and copy the adapter from the exact same sources. The
+[new source overlay](evidence/m1-capture-free-source-pins.json) chains to PR10's
+ledger without changing historical proof packets. It asserts no GPU result.
+
+## Removed and retained costs
+
+| Boundary | Removed in capture-free | Retained in both modes |
+| --- | --- | --- |
+| Native preparation/output | All 15 binary capture copies/fences/writes per qualified call, including before/after SF, AQ, maps, globals and routed output | CUDA context/allocation/alignment/overlap queries; copying 8 IDs and checking local range/distinctness; query and submission error propagation |
+| Native descriptors | Envelope/mask JSON formatting, output files and diagnostic runner/workspace metadata | Unchanged installed TMA setup; NVFP4/fusion/PDL lane checks; 7 table readbacks per stage and one fence per stage; active token-row, actual SF carrier, dense layout, AQ/output stride and extent checks |
+| Controller | Call directory/receipt JSON, receipt reread/rewrite, fallback JSONL, metadata decode and M1 profiler annotations | Exact 15 owner views, original weights/6 typed quantization owners, stream recording and producer/caller waits on success and failure, eager/capture and geometry checks, workspace bound, 64-call bound, lease release and failed-process restart |
+| Controlled routes/experts | Route/stage tensor downloads for serialization, NPZ compression/hashing/writes, request profiler and its completion synchronization | Immutable plan, actual token/position validation, all 30 live layer identities, same route tensors, native corrected expert operators, declared row/finite/nonzero/positive-weight checks, unique six-expert completion |
+| KV/logits | KV/logit NPZ and their manifests; full-logit CPU copy for serialization | Source/registry/cache owner and writer-slot checks, logical slot ledger, two-row KV gathers and finite check, hidden-row correspondence, actual tokens, full-vocabulary finite check and positions 31/32 |
+
+Native payload files account for 5,811,208 copied bytes and 15 capture fences
+per qualified call in the old lane, calculated from the source extents. These
+are static byte/API counts, not a measured runtime saving. Descriptor readbacks
+are separate: shape, SF layout/pointer, AQ/output pointer, and AQ/output stride
+tables for each of FC1/FC2. The descriptor checker still enumerates the dense
+128-row SF carrier and retains its host allocations. Nothing changes the
+descriptor carrier or assumes inactive layout metadata cannot be read.
+
+The installed preparation predicate remains unchanged. The map hook checks it
+before diagnostics, and `prepare` checks it again in the fused lane; both ID
+readbacks/fences remain when that lane is eligible. Capture-free therefore
+means **no diagnostic tensor/trace capture**, not synchronization-free. Request
+marker/plan reads, token/position CPU copies, `torch.nonzero`, scalar checks,
+KV writer-map copies, descriptor validation, Python/ctypes dispatch, lazy first
+workspace/stream allocation and normal model/logit/sampling work remain.
+Cold startup/allocation and steady-state costs must be separated in any future
+measurement. This bounded single-request client does not implement a warm
+benchmark protocol.
+
+An unsupported query that succeeds still takes the complete stock branch.
+Query/submission failures remain errors, with no stock retry after candidate
+mutation. Native invocation RAII and Python lease cleanup remain; caller waits
+protect queued work even after a late failure. Disabling evidence output cannot
+turn an unbound/unreleased lease into success. Captured comparisons explicitly
+reject capture-free launch manifests rather than infer correctness from absent
+files or constrained output token IDs.
+
+## Graph eligibility by boundary
+
+This is a source-based plan, not a graph admission receipt. The current answer
+is **ineligible for complete model graphs in either mode**. CUDA prohibits
+synchronizing an actively captured stream; invalid operations invalidate the
+capture until it is ended. Cross-stream capture must rejoin the origin stream.
+See the [CUDA 13.0 capture restrictions](https://docs.nvidia.com/cuda/archive/13.0.0/cuda-c-programming-guide/index.html#prohibited-and-unhandled-operations)
+and [cross-stream rules](https://docs.nvidia.com/cuda/archive/13.0.0/cuda-c-programming-guide/index.html#cross-stream-dependencies-and-events).
+
+| Boundary | Current blocker | Required future contract and acceptance evidence |
+| --- | --- | --- |
+| Pure candidate kernel | Kernel launches are potentially capturable, but its public integration rejects capturing streams and validates IDs on the host | Separate reviewed static-owner graph API; validate dynamic ID range/distinctness before any candidate/consumer mutation on every replay; match byte oracle including untouched SF padding and repeated/disjoint routes |
+| Native live runner | Route-ID fences and mandatory descriptor readback/fences execute inside the call | Preserve their guarantees through a reviewed preflight or device guard protocol; hoist only truly immutable checks; revalidate per-replay state that depends on routes/pointers; keep descriptors/GEMMs incumbent |
+| Captured host lease | Python/ctypes begin/end and thread-local lease execute at capture, not on ordinary graph replay | A graph-lifetime owner object retains all 15 tensors/storage, workspace/unused route owner, module/source identities and graph outputs until the last replay completes; destruction/reallocation/rebinding invalidates the graph |
+| Controlled observer | Request marker/position reads, host ledgers, scalar checks and KV gathers; controlled fixture routes differ from natural routing | Keep validation outside the captured region with a specified pre/post-replay boundary. A controlled immutable fixture can establish only that fixture's graph compatibility |
+| Corrected routed adapter | CUDA `torch.nonzero` and Python branches on its dynamic row count choose which separate expert calls run | A separately reviewed device-driven, fixed-capacity gather/correction/scatter path or an explicitly partial graph boundary; prove identical selected IDs, route weights, original projection/global ownership, BF16/F32 casts and accumulation order for every zero/nonzero correction-hit pattern |
+| Producer/owned/caller streams | Eager `wait_stream` and allocator lifetime recording are established per call | Warm and allocate on owned streams before capture; explicit fork/join edges in one capture graph; prove producer visibility, caller reuse safety, allocator/graph-pool lifetime and late-error cleanup |
+| Model and vLLM | Plugin requires `enforce_eager`; KV context requires runtime graph mode `NONE`; launcher forces eager | A new versioned model admission path with installed attention/KV/logit/sampler compatibility and unchanged fallback. Flipping either guard is insufficient |
+
+PyTorch documents the CUDA host synchronization caused by
+[`torch.nonzero`](https://docs.pytorch.org/docs/stable/generated/torch.nonzero.html).
+Its [graph introduction](https://pytorch.org/blog/accelerating-pytorch-with-cuda-graphs/)
+also explains warmup and retained input/output addresses. These general API
+references do not qualify installed Torch 2.13.0+cu130; installed source and
+actual captures remain authoritative.
+
+Suggested sequence: isolate a pure preparation graph fixture first; then
+qualify a native preparation-through-incumbent-consumer region; only then design
+corrected routed/model graphs. Partial capture must report which host work and
+validation remain outside it. Each stage needs captured-eager versus
+capture-free-eager versus graph-replay exact results on identical operands,
+launch/stream correlation, changed-route/workspace-reuse stress, sanitizers,
+memory/lifetime checks, and real query/submission/capture/replay failure tests.
+End an invalidated capture, preserve its primary error, drain only owned work
+where legal, and require process restart. No retry through stock after a late
+CUDA failure. Neither API documentation nor CPU stubs unlocks those stages.
+
+## Serialized GPU validation requests
+
+The natural-correctness task `01a0fcca-421a-735d-9148-b570cbc2d065` owns the GPU
+exclusively. No SSH/GPU command was run for this branch. The following are
+requests for its next authorized ownership window, after parent reconciliation
+and a fresh exact source/head freeze. Keep the pinned vLLM 0.30.0,
+FlashInfer 0.6.18.post1, Torch 2.13.0+cu130, checkpoint revision, SM120 5090,
+incumbent tactics, PDL/finalize settings, and no-TMEM scope. Make no package,
+system or checkpoint changes. Retain 8 GiB host/2 GiB GPU headroom, 8 MiB extra
+device scratch, and the existing 2 GiB/300-second compiler bounds.
+
+1. Rebuild the task-local bridge from the reconciled exact head and adapter
+   sources. The build now requires the new export and runs poison framing,
+   owner extents, null-stream/invalid-lane, repeat and cross-mode nested-lease
+   controls for both entry points, plus all four relocation controls. Check
+   source contract, binary and installed pins again before model launch.
+2. Re-run the captured stock/fused controlled cached pair on that build, with
+   the two labeled route controls, then the existing strict comparison. Require
+   the original 30 request + 2 artificial spans per lane, byte oracle/padding,
+   consumer masks, corrected stages/raw logits/KV, 30 prefill stock fallbacks,
+   complete stream/lease cleanup and separate successful owned lifecycles.
+3. Run the same controlled cached request once in stock capture-free and once
+   in fused capture-free, without route controls. Require successful startup
+   integration checks, response tokens/usage, owned cleanup, no `preparation`
+   directory, no NPZ/PT/BIN/request trace/call receipts, and exactly the scalar
+   client completion record in `controlled/cached`. Constrained response tokens
+   alone do not prove candidate dispatch or output equality.
+4. Before accepting capture-free GPU fidelity, supply a **validation-only**
+   harness that brackets its actual begin/end entry points on the owned thread
+   and stream, records launch correlation externally, and inspects outputs at
+   the same preparation/consumer/model boundaries after execution. It must use
+   the capture-free export and prove its internal capture hooks remain inactive.
+   Require 30 actual candidate launches for fused versus zero for stock, no
+   installed map/expansion in fused eligible spans, identical incumbent kernel
+   choices, and exact preparations/padding/routed output/logits/KV against the
+   matched captured lane. This external observer perturbs execution and supplies
+   no timing result. This harness is **not implemented by this CPU milestone**.
+5. In disposable owned processes, exercise both modes with successful
+   unsupported queries, real CUDA query/submission errors and late consumer
+   failures. Verify pre-mutation stock fallback only for successful unsupported
+   cases, no retry after errors, preserved primary exception, native scope
+   release, producer/caller dependency cleanup and failed-context reuse refusal.
+   Python mocked failures do not substitute for these CUDA results.
+
+Exact supported invocations, to run only in that serialized window:
+
+```sh
+python scripts/build_m1_live_bridge.py --flashinfer-root "$FLASHINFER_ROOT" --cache "$FUSED_MOE_CACHE" --output "$BRIDGE_BUILD" --base-head "$EXACT_HEAD"
+python scripts/run_scale_validation.py --mode native --client controlled --controlled-plan "$CONTROLLED_PLAN" --controlled-path cached --m1-preparation stock --m1-execution captured --m1-bridge "$BRIDGE_BUILD/m1_live_bridge.so" --m1-build-receipt "$BRIDGE_BUILD/build.json" --m1-route-controls --label m1-stock-captured
+python scripts/run_scale_validation.py --mode native --client controlled --controlled-plan "$CONTROLLED_PLAN" --controlled-path cached --m1-preparation fused --m1-execution captured --m1-bridge "$BRIDGE_BUILD/m1_live_bridge.so" --m1-build-receipt "$BRIDGE_BUILD/build.json" --m1-route-controls --label m1-fused-captured
+PYTHONPATH=numerical_reference python numerical_reference/compare_m1_live.py --build "$BRIDGE_BUILD" --stock "$STOCK_CAPTURED_RUN" --fused "$FUSED_CAPTURED_RUN" --output "$NEW_CAPTURED_REPORT"
+python scripts/run_scale_validation.py --mode native --client controlled --controlled-plan "$CONTROLLED_PLAN" --controlled-path cached --m1-preparation stock --m1-execution capture-free --m1-bridge "$BRIDGE_BUILD/m1_live_bridge.so" --m1-build-receipt "$BRIDGE_BUILD/build.json" --label m1-stock-capture-free
+python scripts/run_scale_validation.py --mode native --client controlled --controlled-plan "$CONTROLLED_PLAN" --controlled-path cached --m1-preparation fused --m1-execution capture-free --m1-bridge "$BRIDGE_BUILD/m1_live_bridge.so" --m1-build-receipt "$BRIDGE_BUILD/build.json" --label m1-fused-capture-free
+```
+
+The peer's approved natural-router plan (lengths 257/1023, four constrained
+non-EOS tokens, seven M1 forwards/210 calls and 150 stock fallbacks per lane,
+no artificial controls) belongs to its independent branch. This branch keeps
+the controlled 64-call bound. Reconcile its `m1_live.py` failed-state guards,
+exact-plan cap and normal-call/workspace-reuse receipts with this branch's
+diagnostic gate before combined GPU validation; do not transplant either
+branch's historical receipt onto combined sources. Extending capture-free to
+that natural plan needs an explicit new scope contract and tests.
+
+The peer's frozen controller patch was read without importing or modifying its
+worktree: SHA256
+`ef0c50ce027cb7ab954569048dd9a4125fd776ae2ef569f021704fc20ec931c7`.
+The parent must reconcile these concrete intersections:
+
+| Intersection | Reconciliation requirement |
+| --- | --- |
+| Controller source contract | Use the union of both runtime source lists, including normal plan/collector and this policy/controlled helpers; update compiled header, build snapshot, admission, comparator and a new chained ledger together |
+| Routed stream setup | Preserve the peer's setup/wait/record-stream `try/finally` and failed-state guards, with this branch's conditional capture-directory creation and profiler scope inside that protection |
+| Invoke cap and receipts | Preserve plan-admitted 210 versus controlled 64 limits regardless of diagnostics; keep normal scope, reuse/storage/scratch receipts only in the captured branch of record construction |
+| Plugin cleanup | Keep the peer's primary-error-preserving forward cleanup while constructing the appropriate source-bound observer; capture-free remains controlled-only until normal execution gets its own explicit policy |
+| KV and source ledgers | Keep normal declared-plan validation and this branch's serialization gate independent; freeze fresh combined source hashes rather than rewriting either historical ledger |
+
+No source from that peer patch was applied here. Combined GPU validation needs
+a new build/adapter pair and rerun CPU tests at the reconciled exact head.
+
+After those GPU requests, graph implementation/qualification still needs its
+own reviewed source freeze and failure/lifetime evidence. Natural routing,
+broader quality, actual CUDA failures and a warmed fair timing protocol remain
+independent gates. No timing, graph or GPU qualification follows from this PR.
+
+## CPU checks
+
+Run the existing scaffold and numerical suites, config validation, finite-product
+format self-check and compilation. New stubs test default/explicit/mixed modes,
+disabled diagnostics, unchanged stock/fused forwarding and exact owner views,
+failed calls/waits/lease release/reuse refusal, all five source bindings,
+controlled route/row/expert/KV/logit checks, and capture-free evidence rejection.
+The test environments model contract behavior; they execute no CUDA or model.
+
+Local Python 3.12.8 with existing NumPy 2.4.4 passed 64 scaffold tests and
+438 numerical-reference tests. Config validation, all 4,064 finite-product
+format checks, Python compilation and `git diff --check` also passed. NumPy
+2.3.5 and Python 3.10/3.12 remain the repository CI pins; local checks do not
+claim those CI results. No native bridge was compiled or loaded here.

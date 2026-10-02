@@ -137,7 +137,10 @@ def validate_metadata(meta, rows):
 
 
 class ControlledKV:
-    def __init__(self, model, plan, mode):
+    def __init__(self, model, plan, mode, diagnostics=True):
+        if type(diagnostics) is not bool:
+            raise RuntimeError("K/V diagnostics flag must be explicit boolean")
+        self.diagnostics = diagnostics
         _origin(plan)
         if mode not in {"native", "paired_reference", "gate_only_negative_control"}:
             raise RuntimeError("Unknown controlled K/V arithmetic lane")
@@ -176,7 +179,8 @@ class ControlledKV:
         if self.directory is not None:
             raise RuntimeError("Prior K/V case was not finalized")
         self.directory = Path(directory)
-        if not self.directory.is_dir() or self.directory.name not in {"full", "cached", "chunked"}:
+        if ((self.diagnostics and not self.directory.is_dir())
+                or self.directory.name not in {"full", "cached", "chunked"}):
             raise RuntimeError("K/V output must be the fresh declared controlled case directory")
         self.ledger, self.snapshots, self.bindings = SlotLedger(self.tokens), None, None
 
@@ -237,6 +241,11 @@ class ControlledKV:
 
         if self.directory is None or not self.ledger.complete or self.snapshots is None:
             raise RuntimeError("K/V case lacks committed logical positions 31/32 at all thirty layers")
+        if not self.diagnostics:
+            # Owner/slot/content validation and the two-row finite check still
+            # ran in capture(). Omit only serialization of these snapshots.
+            self.directory = None
+            return []
         source_sha = hashlib.sha256(json.dumps(SOURCE_HASHES, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         contract = {"checkpoint_revision": REVISION, "provenance": {"scope": "installed_runtime_confirmed", "config_sha256": CONFIG_SHA256,
                     "source_sha256": source_sha, "kv_owner_layout_confirmed": True}, "layers": self.descriptors}

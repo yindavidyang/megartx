@@ -51,6 +51,22 @@ def main():
     if choice.get("token_ids") != expected or usage["prompt_tokens"] != len(supplied) or usage["completion_tokens"] != len(expected):
         raise RuntimeError("API did not forward the predeclared cached continuation")
     case = directory / args.path
+    if os.environ.get("MEGARTX_M1_EXECUTION", "captured") == "capture-free":
+        if args.path != "cached" or os.environ.get("MEGARTX_M1_PREPARATION") not in {"stock", "fused"}:
+            raise RuntimeError("Capture-free client requires the bounded cached stock/fused request")
+        # Only the client writes a scalar lifecycle record, after the response.
+        # No tensor/trace proof is produced or accepted by this execution lane.
+        case.mkdir(exist_ok=False)
+        record = {**request, "usage": usage, "completion_token_ids": choice["token_ids"],
+                  "finish_reason": choice["finish_reason"], "request_count": 1,
+                  "payload_controls": {k: v for k, v in payload.items() if k != "prompt"},
+                  "m1_execution": "capture-free", "quality_gate_passed": False,
+                  "timing_qualified": False, "capture_comparison_available": False}
+        with (case / "capture-free-request.json").open("x") as stream:
+            json.dump(record, stream, indent=2)
+        print(json.dumps({**origin, "path": args.path, "request_count": 1,
+                          "m1_execution": "capture-free", "capture_comparison_available": False}), flush=True)
+        return
     captured = json.loads((case / "controlled-manifest.json").read_text())
     if captured["schedule_sha256"] != plan["schedule_sha256"] or captured["input_tokens"] != 33 or len(captured["executed_interventions"]) != 6:
         raise RuntimeError("Controlled registered corrections were not fully captured")

@@ -46,7 +46,9 @@ def build(args):
                "kernels/m1_installed_preparation.cuh", "kernels/m1_maps_expand.cuh",
                "scripts/build_m1_live_bridge.py", "scripts/check_m1_live_bridge.py",
                "scripts/check_m1_live_bindings.py",
-               "src/megartx/m1_live.py", "src/megartx/vllm_scale_plugin.py")
+               "src/megartx/m1_live.py", "src/megartx/vllm_scale_plugin.py",
+               "src/megartx/m1_execution.py", "src/megartx/controlled_capture.py",
+               "src/megartx/controlled_kv_capture.py")
     for name in sources:
         target = work / name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -94,8 +96,11 @@ def build(args):
     header += ''.join('{"' + r["symbol"] + '", ' + hex(r["offset"]) + '},\n' for r in relocations)
     live_contract = {"abi_version": 2, "view_count": 15, "view_bytes": 32,
                      "controller_source_hashes": {name: sha(work / "src/megartx" / name)
-                          for name in ("m1_live.py", "vllm_scale_plugin.py")},
-                     "native_source_sha256": sha(work / "probes/m1_live_bridge.cu")}
+                          for name in ("m1_live.py", "vllm_scale_plugin.py", "m1_execution.py",
+                                       "controlled_capture.py", "controlled_kv_capture.py")},
+                     "native_source_sha256": sha(work / "probes/m1_live_bridge.cu"),
+                     "execution_modes": ["captured", "capture-free"],
+                     "capture_free_begin": "megartx_m1_begin_capture_free_v2"}
     header += '};\n#define M1_LIVE_CONTRACT_JSON ' + json.dumps(json.dumps(live_contract, sort_keys=True)) + '\n'
     (work / "m1_live_symbols.h").write_text(header)
     command = [compiler, *flags, "--shared", "--cudart=shared", "--generate-dependencies-with-compile",
@@ -134,7 +139,8 @@ def build(args):
         report["binary_sha256"] = sha(work / "m1_live_bridge.so")
         exported = subprocess.check_output(["nm", "-D", str(work / "m1_live_bridge.so")], text=True)
         required = {"megartx_m1_begin_v2", "megartx_m1_contract_v2", "megartx_m1_end", "megartx_m1_active",
-                    "megartx_m1_error", "megartx_m1_metadata", "megartx_m1_verify_bindings"} | hooks
+                    "megartx_m1_begin_capture_free_v2", "megartx_m1_error", "megartx_m1_metadata",
+                    "megartx_m1_verify_bindings"} | hooks
         actual = {line.split()[-1] for line in exported.splitlines() if len(line.split()) >= 3}
         if (not required.issubset(actual) or "megartx_m1_begin" in actual
                 or any(name.startswith("cuda") for name in actual)):
