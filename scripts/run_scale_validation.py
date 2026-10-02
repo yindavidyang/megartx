@@ -13,6 +13,7 @@ import requests
 import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 from megartx.nvfp4_qualification import activation, natural_coverage
+from megartx.m1_execution import synchronous_scheduler_args
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--backend", default="flashinfer_cutlass")
@@ -22,7 +23,7 @@ parser.add_argument("--trials", type=int, default=30)
 parser.add_argument("--prefill-chunk", type=int, default=256)
 parser.add_argument("--profile", action="store_true")
 parser.add_argument("--mode", choices=("native", "reference", "control", "paired_reference", "gate_only_negative_control"), required=True)
-parser.add_argument("--client", choices=("quality", "benchmark", "controlled"), default="quality")
+parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal"), default="quality")
 parser.add_argument("--controlled-plan", type=pathlib.Path)
 parser.add_argument("--controlled-path", choices=("full", "cached", "chunked"))
 parser.add_argument("--layer0-boundaries", action="store_true")
@@ -36,9 +37,26 @@ parser.add_argument("--m1-execution", choices=("captured", "capture-free"), defa
 parser.add_argument("--m1-bridge", type=pathlib.Path)
 parser.add_argument("--m1-build-receipt", type=pathlib.Path)
 parser.add_argument("--m1-route-controls", action="store_true")
+parser.add_argument("--m1-normal-plan", type=pathlib.Path)
+parser.add_argument("--m1-external-observer", action="store_true",
+                    help="Enable the perturbing capture-free launch/output sidecar")
 args = parser.parse_args()
+normal_plan = None
+if args.client == "normal":
+    from megartx.m1_normal_plan import load_plan
+    if (args.m1_normal_plan is None or args.m1_preparation is None or args.mode != "native"
+            or args.profile or args.m1_route_controls or args.layer0_boundaries
+            or args.activation_only or args.routing_diagnostic or args.router_score_only
+            or args.prefill_chunk != 256 or args.kv != "bfloat16" or args.backend != "flashinfer_cutlass"):
+        parser.error("normal M1 requires only its exact approved plan and native eager preparation")
+    if args.m1_execution != "captured":
+        parser.error("normal M1 plan validation requires captured diagnostics; capture-free is controlled-only")
+    normal_plan = load_plan(args.m1_normal_plan)
+elif args.m1_normal_plan is not None:
+    parser.error("normal M1 plan requires --client normal")
 if args.m1_preparation:
-    if (args.client != "controlled" or args.mode != "native" or args.controlled_path != "cached"
+    if ((args.client != "controlled" or args.controlled_path != "cached") and args.client != "normal"
+            or args.mode != "native"
             or args.m1_bridge is None or args.m1_build_receipt is None or args.layer0_boundaries):
         parser.error("M1 preparation requires the bounded native cached controlled request and built bridge")
     if os.environ.get("LD_PRELOAD"):
@@ -47,6 +65,13 @@ if args.m1_preparation:
         parser.error("Capture-free M1 excludes separately artificial diagnostic route controls")
 elif args.m1_bridge is not None or args.m1_build_receipt is not None or args.m1_route_controls:
     parser.error("M1 bridge paths require explicit --m1-preparation")
+if args.m1_execution == "capture-free" and (args.client != "controlled" or args.m1_preparation is None):
+    parser.error("capture-free execution is limited to an explicit native controlled stock/fused request")
+if args.m1_external_observer and (args.client != "controlled" or args.controlled_path != "cached"
+        or args.mode != "native" or args.m1_preparation not in {"stock", "fused"}
+        or args.m1_execution != "capture-free" or args.m1_route_controls or args.profile
+        or args.layer0_boundaries):
+    parser.error("external observer requires one native capture-free controlled cached run without profiling or route controls")
 if args.m1_execution != "captured" and not args.m1_preparation:
     parser.error("Capture-free execution requires explicit --m1-preparation stock/fused")
 if args.layer0_capture_policy != "synchronous" and not args.layer0_boundaries:
@@ -89,7 +114,10 @@ env["MEGARTX_ACTIVATION_TRACE_PATH"] = str(output / "activation-forced.json.gz")
 env["MEGARTX_CHECKPOINT_PATH"] = str(base / "models/gemma4-nvfp4")
 for inherited in ("MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR", "MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN", "MEGARTX_LAYER0_BOUNDARIES", "MEGARTX_LAYER0_CAPTURE_POLICY"):
     env.pop(inherited, None)
-for inherited in ("MEGARTX_M1_PREPARATION", "MEGARTX_M1_EXECUTION", "MEGARTX_M1_BRIDGE", "MEGARTX_M1_BUILD_RECEIPT", "MEGARTX_M1_CAPTURE_DIR", "MEGARTX_M1_STOCK_MODULE", "MEGARTX_M1_ROUTE_CONTROLS"):
+for inherited in ("MEGARTX_M1_PREPARATION", "MEGARTX_M1_EXECUTION", "MEGARTX_M1_BRIDGE",
+                  "MEGARTX_M1_BUILD_RECEIPT", "MEGARTX_M1_CAPTURE_DIR", "MEGARTX_M1_STOCK_MODULE",
+                  "MEGARTX_M1_ROUTE_CONTROLS", "MEGARTX_M1_NORMAL_PLAN", "MEGARTX_M1_NORMAL_DIR",
+                  "MEGARTX_M1_EXTERNAL_OBSERVER_DIR"):
     env.pop(inherited, None)
 if args.m1_preparation:
     env.update({"MEGARTX_M1_ROUTE_CONTROLS": "1" if args.m1_route_controls else "0",
@@ -100,7 +128,14 @@ if args.m1_preparation:
                 "MEGARTX_M1_STOCK_MODULE": str(base / "cache/flashinfer-workspace/.cache/flashinfer/0.6.18.post1/120f/cached_ops/fused_moe_120/fused_moe_120.so")})
     if args.m1_execution == "captured":
         env["MEGARTX_M1_CAPTURE_DIR"] = str(output / "preparation")
-if args.client == "quality":
+    if args.m1_external_observer:
+        env["MEGARTX_M1_EXTERNAL_OBSERVER_DIR"] = str(output / "m1-external-observer")
+if args.client == "normal":
+    env["MEGARTX_LOGITS_DIR"] = str(output / "logits")
+    env["MEGARTX_M1_NORMAL_DIR"] = str(output / "normal")
+    env["MEGARTX_M1_NORMAL_PLAN"] = str(args.m1_normal_plan.resolve())
+    (output / "normal-plan.json").write_text(json.dumps(normal_plan, indent=2))
+elif args.client == "quality":
     env["MEGARTX_LOGITS_DIR"] = str(output / "logits")
     env["MEGARTX_ROUTE_AUDIT_PATH"] = str(output / "route-hits.jsonl")
     env["MEGARTX_ROUTING_COVERAGE_PATH"] = str(output / "route-histograms.jsonl")
@@ -181,9 +216,51 @@ def sampler():
 sample_thread = threading.Thread(target=sampler, daemon=True)
 sample_thread.start()
 command = [str(base / ".venv/bin/vllm"), "serve", str(base / "models/gemma4-nvfp4"), "--host", "127.0.0.1", "--port", "18000", "--served-model-name", "gemma4-nvfp4", "--dtype", "bfloat16", "--max-model-len", "8448", "--max-num-seqs", "1", "--max-num-batched-tokens", str(args.prefill_chunk), "--gpu-memory-utilization", "0.84", "--kv-cache-memory-bytes", "2147483648", "--kv-cache-dtype", args.kv, "--moe-backend", args.backend, "--attention-backend", "FLASHINFER", "--no-enable-prefix-caching", "--language-model-only", "--generation-config", "vllm", "--seed", "1234", "--stream-interval", "1", "--enforce-eager", "--max-logprobs", "5"]
+# vLLM 0.30 enables async scheduling by default for this executor. Every
+# admitted M1 lane requires synchronous request/frame identity.
+command.extend(synchronous_scheduler_args(args))
 if args.profile:
     command += ["--profiler-config", json.dumps({"profiler": "torch", "torch_profiler_dir": str(output / "traces"), "torch_profiler_with_stack": False, "torch_profiler_with_flops": False, "torch_profiler_with_memory": True})]
-(output / "launch-manifest.json").write_text(json.dumps({"command": command, "environment_overrides": {k: env[k] for k in ["XDG_CACHE_HOME", "TMPDIR", "HF_HOME", "HF_HUB_OFFLINE", "VLLM_NO_USAGE_STATS", "DO_NOT_TRACK", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "CPATH", "FLASHINFER_WORKSPACE_BASE", "TRITON_CACHE_DIR", "CUDA_CACHE_PATH", "TORCHINDUCTOR_CACHE_DIR", "TORCH_EXTENSIONS_DIR", "MAX_JOBS", "FLASHINFER_NVCC_THREADS", "PYTHONPATH", "VLLM_PLUGINS", "MEGARTX_SCALE_MODE", "MEGARTX_SCALE_MANIFEST", "MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ACTIVATION_PROOF_PATH", "MEGARTX_ACTIVATION_TRACE_PATH", "MEGARTX_CHECKPOINT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR", "MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN", "MEGARTX_LAYER0_BOUNDARIES", "MEGARTX_LAYER0_CAPTURE_POLICY", "MEGARTX_M1_PREPARATION", "MEGARTX_M1_EXECUTION", "MEGARTX_M1_BRIDGE", "MEGARTX_M1_BUILD_RECEIPT", "MEGARTX_M1_CAPTURE_DIR", "MEGARTX_M1_STOCK_MODULE", "MEGARTX_M1_ROUTE_CONTROLS"] if k in env}, "path_prefixes": ["/usr/local/cuda/bin", str(base / ".venv/bin")], "backend_requested": args.backend, "kv_requested": args.kv, "trust_remote_code": False, "trials_per_context": 0 if args.client == "controlled" else args.trials, "controlled_request_count": 1 if args.client == "controlled" else None, "router_score_only": args.router_score_only, "controlled_path": args.controlled_path, "controlled_plan_sha256": json.loads((args.controlled_plan / "manifest.json").read_text())["schedule_sha256"] if args.controlled_plan else None, "minimum_free_memory_mib": 2048, "minimum_host_available_ram_gib": 8, "qualification": "Experimental separate-projection original-weight correction; numerical qualification evaluated in separate reports. Eager execution and deterministic finalization are distinct from the original exploratory graph lane.", "adapter_mode": args.mode, "m1_preparation_requested": args.m1_preparation, "m1_execution_requested": args.m1_execution, "m1_route_controls": args.m1_route_controls, "m1_loader": "after_torch_rtld_global" if args.m1_preparation else None}, indent=2))
+launch_env_keys = [
+    "XDG_CACHE_HOME", "TMPDIR", "HF_HOME", "HF_HUB_OFFLINE", "VLLM_NO_USAGE_STATS",
+    "DO_NOT_TRACK", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "CPATH",
+    "FLASHINFER_WORKSPACE_BASE", "TRITON_CACHE_DIR", "CUDA_CACHE_PATH", "TORCHINDUCTOR_CACHE_DIR",
+    "TORCH_EXTENSIONS_DIR", "MAX_JOBS", "FLASHINFER_NVCC_THREADS", "PYTHONPATH", "VLLM_PLUGINS",
+    "MEGARTX_SCALE_MODE", "MEGARTX_SCALE_MANIFEST", "MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH",
+    "MEGARTX_ACTIVATION_PROOF_PATH", "MEGARTX_ACTIVATION_TRACE_PATH", "MEGARTX_CHECKPOINT_PATH",
+    "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR", "MEGARTX_CONTROLLED_DIR",
+    "MEGARTX_CONTROLLED_PLAN", "MEGARTX_LAYER0_BOUNDARIES", "MEGARTX_LAYER0_CAPTURE_POLICY",
+    "MEGARTX_M1_PREPARATION", "MEGARTX_M1_EXECUTION", "MEGARTX_M1_BRIDGE",
+    "MEGARTX_M1_BUILD_RECEIPT", "MEGARTX_M1_CAPTURE_DIR", "MEGARTX_M1_STOCK_MODULE",
+    "MEGARTX_M1_ROUTE_CONTROLS", "MEGARTX_M1_NORMAL_PLAN", "MEGARTX_M1_NORMAL_DIR",
+    "MEGARTX_M1_EXTERNAL_OBSERVER_DIR",
+]
+launch_manifest = {
+    "command": command,
+    "environment_overrides": {key: env[key] for key in launch_env_keys if key in env},
+    "path_prefixes": ["/usr/local/cuda/bin", str(base / ".venv/bin")],
+    "backend_requested": args.backend,
+    "kv_requested": args.kv,
+    "trust_remote_code": False,
+    "trials_per_context": 0 if args.client in {"controlled", "normal"} else args.trials,
+    "controlled_request_count": 1 if args.client == "controlled" else None,
+    "normal_request_count": 2 if normal_plan else None,
+    "normal_plan_sha256": normal_plan["plan_sha256"] if normal_plan else None,
+    "continuation_constrained": bool(normal_plan),
+    "router_score_only": args.router_score_only,
+    "controlled_path": args.controlled_path,
+    "controlled_plan_sha256": json.loads((args.controlled_plan / "manifest.json").read_text())["schedule_sha256"] if args.controlled_plan else None,
+    "minimum_free_memory_mib": 2048,
+    "minimum_host_available_ram_gib": 8,
+    "qualification": "Experimental separate-projection original-weight correction; numerical qualification evaluated in separate reports. Eager execution and deterministic finalization are distinct from the original exploratory graph lane.",
+    "adapter_mode": args.mode,
+    "m1_preparation_requested": args.m1_preparation,
+    "m1_execution_requested": args.m1_execution,
+    "m1_route_controls": args.m1_route_controls,
+    "m1_external_observer_requested": args.m1_external_observer,
+    "m1_loader": "after_torch_rtld_global" if args.m1_preparation else None,
+}
+(output / "launch-manifest.json").write_text(json.dumps(launch_manifest, indent=2))
 client = requests.Session()
 client.trust_env = False
 try:
@@ -222,7 +299,9 @@ try:
             pass
     if other:
         raise RuntimeError("Another GPU compute job appeared; benchmark not started")
-    if args.client == "controlled":
+    if args.client == "normal":
+        bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/m1_normal_client.py"), "--plan", str(args.m1_normal_plan), "--output", str(output)]
+    elif args.client == "controlled":
         bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/controlled_client.py"), "--plan", str(args.controlled_plan), "--path", args.controlled_path, "--output", str(output)]
     elif args.router_score_only:
         bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/router_score_client.py"), "--prefix-manifest", str(args.router_prefix_manifest), "--output", str(output)]
@@ -240,7 +319,9 @@ try:
     (output / "benchmark.exit").write_text(str(result.returncode) + "\n")
     if result.returncode:
         raise RuntimeError("Host-local client failed; see client.log")
-    if args.client == "controlled":
+    if args.client == "normal":
+        phase("bounded_normal_m1_capture_complete", request_count=2, expected_live_calls=210, expected_fallback_calls=150, continuation_constrained=True, qualified_quality_baseline=False, qualified_performance_baseline=False)
+    elif args.client == "controlled":
         phase("bounded_controlled_execution_complete" if args.m1_execution == "capture-free" else "bounded_controlled_capture_complete",
               m1_execution=args.m1_execution, qualified_quality_baseline=False, qualified_performance_baseline=False)
     elif args.router_score_only:
@@ -255,7 +336,7 @@ try:
     elif args.client == "quality":
         natural_coverage(output, args.mode)
         phase("natural_correction_coverage_verified")
-    phase("diagnostic_complete" if args.router_score_only or args.client == "controlled" else "benchmark_complete")
+    phase("diagnostic_complete" if args.router_score_only or args.client in {"controlled","normal"} else "benchmark_complete")
     (output / "run.exit").write_text("0\n")
 except Exception as error:
     phase("failed", error=guard_failure or str(error))

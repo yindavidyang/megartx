@@ -69,14 +69,24 @@ class TestLiveLease(unittest.TestCase):
         library.write_bytes(b"CPU mock binary")
         module = Path(directory) / "fused_moe_120.so"
         module.write_bytes(b"installed mock")
+        cupti = Path(directory) / "libcupti.so.13"
+        cupti.write_bytes(b"CPU mock CUPTI provider")
+        provider = {"distribution": "nvidia-cuda-cupti", "version": "13.0.85",
+                    "library_name": cupti.name, "library_sha256": digest(cupti)}
         contract = {"abi_version": 2, "view_count": 15, "view_bytes": ctypes.sizeof(View),
                     "controller_source_hashes": {name: digest(Path(m1_live.__file__).with_name(name))
                                                  for name in CONTROLLER_SOURCES},
-                    "native_source_sha256": "b" * 64}
+                    "native_source_sha256": "b" * 64,
+                    "cupti_stream_id_provider": provider}
         contract.update(execution_modes=list(m1_live.EXECUTION_MODES), capture_free_begin=m1_live.CAPTURE_FREE_BEGIN)
+        contract["external_observer"] = {"registration": m1_live.EXTERNAL_OBSERVER_SETTER,
+                                          "callback_abi_version": 1}
         report = {"returncode": 0, "reason": None, "compiled_lease_controls_returncode": 0,
                   "compiled_binding_controls_returncode": 0, "required_exports_present": True,
-                  "binary_sha256": digest(library), "installed_pins": {str(module): "d" * 64},
+                  "binary_sha256": digest(library),
+                  "installed_pins": {str(module): "d" * 64, str(cupti): provider["library_sha256"]},
+                  "installed_package_versions": {"nvidia-cuda-cupti": provider["version"]},
+                  "cupti_stream_id_provider": provider,
                   "source_hashes": {"probes/m1_live_bridge.cu": "b" * 64}, "live_contract": contract}
         receipt = Path(directory) / "build.json"
         env = {"MEGARTX_M1_BRIDGE": str(library), "MEGARTX_M1_BUILD_RECEIPT": str(receipt),
@@ -138,6 +148,8 @@ class TestLiveLease(unittest.TestCase):
         obj.stream = SimpleNamespace(cuda_stream=7)
         obj.binary_sha256, obj.call_index = "a" * 64, 0
         obj.live_contract = {"abi_version": 2}
+        obj.call_limit, obj.external_observer = 64, None
+        obj.normal_plan = None
         obj.route_controls, obj.route_controls_done = False, False
         return obj
 
@@ -421,6 +433,38 @@ class TestLiveLease(unittest.TestCase):
                             self.assertEqual(len(native.megartx_m1_verify_bindings.calls), 1)
                     self.assertEqual(native.megartx_m1_begin_v2.calls, [])
                     self.assertFalse((Path(directory)/"unused").exists())
+    def test_failed_controller_blocks_direct_routed_and_invoke_reentry(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict("sys.modules",self.modules()):
+            obj = self.controller(directory,Native());obj.failed = True
+            calls = []
+            for action in (lambda: obj.invoke(lambda **kw: calls.append(kw),(),self.kwargs()),
+                           lambda: obj.routed(lambda *a: calls.append(a),object())):
+                with self.assertRaisesRegex(RuntimeError,"process restart"): action()
+            self.assertEqual(calls,[])
+            self.assertEqual(obj.call_index,0)
+            self.assertEqual(obj.native.ends,0)
+
+    def test_producer_wait_failure_clears_layer_without_submission_or_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            events = [];modules,stream = self.routed_modules(events)
+            error = RuntimeError("real producer stream query failed")
+            def failed_wait(other): raise error
+            stream.wait_stream = failed_wait
+            obj = self.controller(directory,Native());obj.layer = None;obj.stream = stream
+            calls = []
+            with patch.dict("sys.modules",modules),self.assertRaises(RuntimeError) as raised:
+                obj.routed(lambda *a: calls.append(a),object())
+            self.assertIs(raised.exception,error)
+            self.assertIsNone(obj.layer);self.assertTrue(obj.failed)
+            self.assertEqual(calls,[])
+            self.assertEqual(events,["caller wait bridge"])
+
+    def test_total_call_cap_is_checked_before_receipt_directory_or_submission(self):
+        with tempfile.TemporaryDirectory() as directory,patch.dict("sys.modules",self.modules()):
+            obj = self.controller(directory,Native());obj.call_limit = 210;obj.call_index = 210
+            with self.assertRaisesRegex(RuntimeError,"call count"): obj.invoke(lambda **kw: None,(),self.kwargs())
+            self.assertFalse((Path(directory)/"call-0210").exists())
+            self.assertEqual(obj.native.ends,0);self.assertTrue(obj.failed)
 
 
 if __name__ == "__main__": unittest.main()

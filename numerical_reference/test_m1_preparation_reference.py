@@ -308,23 +308,47 @@ class M1PreparationTests(unittest.TestCase):
             self.assertEqual(overlay["base_commit"], "955832939062ac6b9e7bb2698b4181c1472225c3")
             replacements = {r["path"]: r for r in overlay["superseded_inputs"]}
             self.assertEqual(set(replacements), {"src/megartx/vllm_scale_plugin.py"})
-        execution_overlay_path = root / "docs/evidence/m1-capture-free-source-pins.json"
-        if execution_overlay_path.exists():
-            execution_overlay = json.loads(execution_overlay_path.read_text())
-            self.assertEqual(execution_overlay["base_commit"], "cc82e59c8053a72af37d9e06a76405d1ef31181e")
-            self.assertEqual(execution_overlay["previous_ledger_sha256"], hashlib.sha256(overlay_path.read_bytes()).hexdigest())
-            for field in ("gpu_execution_verified", "graphs_qualified", "performance_qualified"):
-                self.assertIs(execution_overlay[field], False)
-            self.assertEqual({r["path"] for r in execution_overlay["superseded_inputs"]}, set(replacements))
-            for record in execution_overlay["superseded_inputs"]:
-                previous = replacements[record["path"]]
-                self.assertEqual(record["previous_sha256"], previous["current_sha256"])
-                replacements[record["path"]] = dict(previous, current_sha256=record["current_sha256"])
-            for name, expected in execution_overlay["controller_source_hashes"].items():
-                self.assertEqual(hashlib.sha256((root / "src/megartx" / name).read_bytes()).hexdigest(), expected, name)
-            native_source = "probes/m1_live_bridge.cu"
-            self.assertEqual(hashlib.sha256((root / native_source).read_bytes()).hexdigest(),
-                             execution_overlay["native_source_sha256"], native_source)
+        capture_path = root / "docs/evidence/m1-capture-free-source-pins.json"
+        capture_overlay = json.loads(capture_path.read_text())
+        self.assertEqual(capture_overlay["base_commit"], "cc82e59c8053a72af37d9e06a76405d1ef31181e")
+        self.assertEqual(capture_overlay["previous_ledger_sha256"], hashlib.sha256(overlay_path.read_bytes()).hexdigest())
+        for field in ("gpu_execution_verified", "graphs_qualified", "performance_qualified"):
+            self.assertIs(capture_overlay[field], False)
+        self.assertEqual(set(capture_overlay["controller_source_hashes"]), {
+            "m1_live.py", "vllm_scale_plugin.py", "m1_execution.py", "controlled_capture.py",
+            "controlled_kv_capture.py"})
+
+        normal_path = root / "docs/evidence/m1-normal-source-pins.json"
+        normal_overlay = json.loads(normal_path.read_text())
+        self.assertEqual(normal_overlay["base_commit"], "cc82e59c8053a72af37d9e06a76405d1ef31181e")
+        self.assertEqual(normal_overlay["parent_ledger_sha256"], hashlib.sha256(overlay_path.read_bytes()).hexdigest())
+
+        combined_path = root / "docs/evidence/m1-reconciliation-source-pins.json"
+        combined = json.loads(combined_path.read_text())
+        self.assertEqual(combined["base_commit"], "cc82e59c8053a72af37d9e06a76405d1ef31181e")
+        self.assertEqual(combined["pr_heads"], {
+            "pr11": "6e7674377a483fb404be93811a1b58eae0edf475",
+            "pr12": "2a3b35c34f6bfdc5d52e0387f1bdd0da891d4d5a"})
+        history = combined["historical_ledgers"]
+        self.assertEqual(history["capture_free_sha256"], hashlib.sha256(capture_path.read_bytes()).hexdigest())
+        self.assertEqual(history["normal_sha256"], hashlib.sha256(normal_path.read_bytes()).hexdigest())
+        for path, expected in combined["runtime_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+        for path, expected in combined["observer_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+
+        capture_plugin = next(r for r in capture_overlay["superseded_inputs"]
+                              if r["path"] == "src/megartx/vllm_scale_plugin.py")
+        normal_plugin = next(r for r in normal_overlay["superseded_inputs"]
+                             if r["path"] == "src/megartx/vllm_scale_plugin.py")
+        replacement = next(r for r in combined["superseded_inputs"]
+                           if r["path"] == "src/megartx/vllm_scale_plugin.py")
+        self.assertEqual(replacement["historical_sha256"], replacements[replacement["path"]]["current_sha256"])
+        self.assertEqual(replacement["pr11_sha256"], capture_plugin["current_sha256"])
+        self.assertEqual(replacement["pr12_sha256"], normal_plugin["current_sha256"])
+        replacements[replacement["path"]] = dict(replacements[replacement["path"]],
+                                                   current_sha256=replacement["combined_sha256"])
+
         for record in pins["committed_inputs"]:
             digest = hashlib.sha256((root / record["path"]).read_bytes()).hexdigest()
             if record["path"] in replacements:
@@ -334,10 +358,10 @@ class M1PreparationTests(unittest.TestCase):
             else:
                 self.assertEqual(digest, record["sha256"], record["path"])
 
-    def test_stale_native_source_or_ledger_hash_is_rejected(self):
+    def test_stale_combined_source_or_ledger_hash_is_rejected(self):
         root = Path(__file__).resolve().parents[1]
         native = root / "probes/m1_live_bridge.cu"
-        ledger = root / "docs/evidence/m1-capture-free-source-pins.json"
+        ledger = root / "docs/evidence/m1-reconciliation-source-pins.json"
         read_bytes, read_text = Path.read_bytes, Path.read_text
         for mutation in ("native_source", "ledger_hash"):
             def changed_bytes(path):
@@ -347,7 +371,7 @@ class M1PreparationTests(unittest.TestCase):
                 data = read_text(path, *args, **kwargs)
                 if path == ledger and mutation == "ledger_hash":
                     record = json.loads(data)
-                    record["native_source_sha256"] = "0" * 64
+                    record["runtime_source_hashes"]["probes/m1_live_bridge.cu"] = "0" * 64
                     return json.dumps(record)
                 return data
             with self.subTest(mutation=mutation), patch.object(Path, "read_bytes", changed_bytes), \

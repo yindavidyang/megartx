@@ -4,9 +4,11 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from megartx.m1_execution import execution_mode, profile_scope
+from megartx.m1_execution import (execution_mode, profile_scope,
+                                  synchronous_scheduler_args)
 from megartx.m1_live import load_controller
 
 
@@ -16,6 +18,28 @@ FREE_ENV = {"MEGARTX_M1_EXECUTION": "capture-free", "MEGARTX_M1_PREPARATION": "f
 
 
 class ExecutionPolicyTests(unittest.TestCase):
+    def test_every_m1_cli_lane_forces_synchronous_scheduling(self):
+        lanes = (
+            ("normal", "stock", "captured", False),
+            ("normal", "fused", "captured", False),
+            ("controlled", "stock", "captured", False),
+            ("controlled", "fused", "captured", False),
+            ("controlled", "stock", "capture-free", False),
+            ("controlled", "fused", "capture-free", False),
+            ("controlled", "stock", "capture-free", True),
+            ("controlled", "fused", "capture-free", True),
+        )
+        for client, lane, execution, observer in lanes:
+            with self.subTest(client=client, lane=lane, execution=execution,
+                              observer=observer):
+                self.assertEqual(synchronous_scheduler_args(SimpleNamespace(
+                    client=client, m1_preparation=lane, m1_execution=execution,
+                    m1_external_observer=observer)),
+                                 ["--no-async-scheduling"])
+        self.assertEqual(synchronous_scheduler_args(SimpleNamespace(
+            client="controlled", m1_preparation=None, m1_execution="captured",
+            m1_external_observer=False)), [])
+
     def test_absent_toggle_keeps_captured_lane(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(execution_mode(), "captured")
@@ -42,8 +66,19 @@ class ExecutionPolicyTests(unittest.TestCase):
                    {"MEGARTX_ROUTE_AUDIT_PATH": "audit"}, {"MEGARTX_ROUTING_COVERAGE_PATH": "coverage"},
                    {"MEGARTX_ROUTER_SCORE_DIR": "router"}, {"MEGARTX_SCALE_MODE": "reference"})
         for change in changes:
-            with self.subTest(change=change), patch.dict(os.environ, {**FREE_ENV, **change}, clear=True), \
-                 self.assertRaises(RuntimeError): execution_mode()
+                with self.subTest(change=change), patch.dict(os.environ, {**FREE_ENV, **change}, clear=True), \
+                     self.assertRaises(RuntimeError): execution_mode()
+
+    def test_external_observer_is_an_explicit_capture_free_only_opt_in(self):
+        with patch.dict(os.environ, {**FREE_ENV, "MEGARTX_M1_EXTERNAL_OBSERVER_DIR": "/tmp/observer"}, clear=True):
+            self.assertEqual(execution_mode(), "capture-free")
+        with patch.dict(os.environ, {"MEGARTX_M1_EXTERNAL_OBSERVER_DIR": "/tmp/observer"}, clear=True), \
+             self.assertRaisesRegex(RuntimeError, "capture-free"):
+            execution_mode()
+        with patch.dict(os.environ, {**FREE_ENV, "MEGARTX_M1_EXTERNAL_OBSERVER_DIR": "/tmp/observer",
+                                     "MEGARTX_M1_ROUTE_CONTROLS": "1"}, clear=True), \
+             self.assertRaisesRegex(RuntimeError, "route controls"):
+            execution_mode()
 
     def test_disabled_scope_does_not_import_torch(self):
         code = ("import sys; from megartx.m1_execution import profile_scope; "
@@ -58,11 +93,14 @@ class ExecutionPolicyTests(unittest.TestCase):
         code = ("import runpy,sys,types; sys.modules['requests']=types.SimpleNamespace(); "
                 "sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')")
         common = [sys.executable, "-c", code, runner, "--label", "cpu-only-rejection", "--mode", "native"]
-        for args, message in ((["--m1-execution", "capture-free"], "explicit --m1-preparation"),
+        for args, message in ((["--m1-execution", "capture-free"], "capture-free execution is limited"),
                 (["--m1-preparation", "fused", "--m1-execution", "capture-free"], "bounded native"),
                 (["--client", "controlled", "--controlled-plan", "unused", "--controlled-path", "cached",
                   "--m1-preparation", "stock", "--m1-bridge", "unused", "--m1-build-receipt", "unused",
                   "--m1-execution", "capture-free", "--m1-route-controls"], "route controls"),
+                (["--client", "controlled", "--controlled-plan", "unused", "--controlled-path", "cached",
+                  "--m1-preparation", "stock", "--m1-bridge", "unused", "--m1-build-receipt", "unused",
+                  "--m1-external-observer"], "external observer requires one native capture-free"),
                 (["--client", "benchmark"], "Timing is fail-closed")):
             with self.subTest(args=args):
                 result = subprocess.run(common + args, capture_output=True, text=True, env={"PATH": os.environ["PATH"]})

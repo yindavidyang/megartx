@@ -1,0 +1,96 @@
+{
+  "scope": "disposable_synthetic_preparation_and_driver_error_controls_without_model",
+  "passed": true,
+  "source_hashes": {
+    "probes/m1_cuda_error_controls.cu": "1e2d25b2c9682f992ff3e0f38e7fee0ded78a86c1255ff74286e517fc3fda893",
+    "probes/m1_installed_bridge.cuh": "90091a4952ae09bd005998a914b0302601438545c541faebbc27f88782772fa3",
+    "kernels/m1_installed_preparation.cuh": "efd3f3ae99cb645985f57112c0e67a8f9cdc927de2b41c386f17d5951c8f4f7e",
+    "kernels/m1_maps_expand.cuh": "e9baa650809915f4de6b7d9f32ade2718a5fa91bef7e18c69b866d4cf394c47b",
+    "scripts/run_m1_cuda_error_controls.py": "e6832fed6b708404c0ad547a326890a642eeb9537529a13e96430a97eda77f05"
+  },
+  "binary_sha256": "005acd3a7b02efd9c0267eaadc6bea1200a4deb9d6f2892dcd8fd821cea57086",
+  "compile_returncode": 0,
+  "compile_reason": null,
+  "compile_seconds": 5.392523504000565,
+  "peak_aggregate_rss_bytes": 672387072,
+  "limits": {
+    "compiler_rss_bytes": 2147483648,
+    "compile_seconds": 300,
+    "host_available_bytes": 8589934592,
+    "gpu_free_bytes": 2147483648,
+    "device_scratch_bytes": 8388608
+  },
+  "installed_pins_unchanged": true,
+  "installed_pin_count": 17,
+  "controls": [
+    {
+      "control": "supported",
+      "returncode": 0,
+      "result": {
+        "control": "supported",
+        "incumbent_calls": 0,
+        "propagated_errors": 0,
+        "observed_error": "",
+        "trigger_status": 0,
+        "scratch_bytes": 2919976,
+        "preparation_calls": 1,
+        "device_buffers_reused_after_error": false,
+        "process_exit_without_cuda_cleanup_after_error": true
+      },
+      "gpu_compute_pids_after": 0
+    },
+    {
+      "control": "illegal_address",
+      "returncode": 0,
+      "result": {
+        "control": "illegal_address",
+        "incumbent_calls": 0,
+        "propagated_errors": 1,
+        "observed_error": "cudaStreamIsCapturing: an illegal memory access was encountered",
+        "trigger_status": 700,
+        "scratch_bytes": 2919976,
+        "preparation_calls": 1,
+        "device_buffers_reused_after_error": false,
+        "process_exit_without_cuda_cleanup_after_error": true
+      },
+      "gpu_compute_pids_after": 0
+    },
+    {
+      "control": "driver_no_context",
+      "returncode": 0,
+      "result": {
+        "control": "driver_no_context",
+        "incumbent_calls": 0,
+        "propagated_errors": 1,
+        "observed_error": "real cuCtxGetDevice: invalid device context",
+        "trigger_status": 201,
+        "scratch_bytes": 0,
+        "preparation_calls": 0,
+        "device_buffers_reused_after_error": false,
+        "process_exit_without_cuda_cleanup_after_error": true
+      },
+      "gpu_compute_pids_after": 0
+    }
+  ],
+  "cleanup": {
+    "before_gpu_compute_pids": 0,
+    "after_gpu_compute_pids": 0,
+    "after_gpu_used_bytes": 42991616
+  },
+  "excluded_failed_attempts": [
+    {
+      "stage": "initial_link",
+      "no_child_ran": true
+    },
+    {
+      "control": "destroyed_stream",
+      "child_returncode": -11,
+      "passing_error_propagation_evidence": false,
+      "retry_or_buffer_reuse": false,
+      "gpu_compute_pids_after": 0
+    }
+  ],
+  "full_model_fault_injection_qualified": false,
+  "sanitizer_qualified": false,
+  "private_packet_manifest_sha256": "3a72263fbc5a294bf95394d5d5e3f10edb63aa1fcd71657fc0fd668a4ced7822"
+}

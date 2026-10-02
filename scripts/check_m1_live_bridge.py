@@ -16,9 +16,16 @@ def check(library):
     assert not hasattr(native, "megartx_m1_begin")
     assert contract["execution_modes"] == ["captured", "capture-free"]
     assert contract["capture_free_begin"] == "megartx_m1_begin_capture_free_v2"
+    assert contract["external_observer"] == {"registration": "megartx_m1_set_external_observer_v1",
+                                                "callback_abi_version": 1}
     native.megartx_m1_begin_v2.argtypes = [ctypes.c_uint32, ctypes.POINTER(View), ctypes.c_uint32,
                                          ctypes.c_uint32, ctypes.c_uint64, ctypes.c_int, ctypes.c_char_p]
     native.megartx_m1_begin_capture_free_v2.argtypes = native.megartx_m1_begin_v2.argtypes[:-1]
+    callback_type = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p,
+                                     ctypes.c_void_p, ctypes.c_uint64,
+                                     ctypes.c_uint64, ctypes.c_int)
+    native.megartx_m1_set_external_observer_v1.argtypes = [callback_type]
+    native.megartx_m1_set_external_observer_v1.restype = ctypes.c_int
     for name in ("megartx_m1_begin_v2", "megartx_m1_begin_capture_free_v2", "megartx_m1_end", "megartx_m1_active"):
         getattr(native, name).restype = ctypes.c_int
     native.megartx_m1_error.restype = native.megartx_m1_metadata.restype = ctypes.c_char_p
@@ -41,6 +48,7 @@ def check(library):
             for nested in begins:
                 assert nested(2, views, 15, ctypes.sizeof(View), 7, 1) == -1
                 assert native.megartx_m1_active() == 1  # The outer lease must survive rejection.
+                assert native.megartx_m1_error() == b""  # Nor may the rejected begin rewrite it.
             assert native.megartx_m1_end() == -1   # No runner was executed.
             assert native.megartx_m1_active() == 0
     views[0].bytes = 32001
@@ -54,6 +62,18 @@ def check(library):
         assert native.megartx_m1_begin_v2(2, views, 15, ctypes.sizeof(View), stream, opt_in, b"unused-control-directory") == -1
         assert native.megartx_m1_begin_capture_free_v2(2, views, 15, ctypes.sizeof(View), stream, opt_in) == -1
         assert native.megartx_m1_active() == 0
+    observer_events = []
+    @callback_type
+    def observer(event, name, payload, size, stream, value):
+        observer_events.append((event.decode(), name.decode(), size, stream, value))
+        return 0
+    assert native.megartx_m1_set_external_observer_v1(observer) == 0
+    assert native.megartx_m1_begin_capture_free_v2(2, views, 15, ctypes.sizeof(View), 7, 1) == 0
+    assert native.megartx_m1_set_external_observer_v1(callback_type()) == -1
+    assert native.megartx_m1_end() == -1
+    assert native.megartx_m1_set_external_observer_v1(callback_type()) == 0
+    assert observer_events == [("lease_begin", "fused", 0, 7, 0),
+                               ("lease_end", "fused", 0, 7, -1)]
     return {"scope": "compiled C ABI controls with synthetic CPU addresses; no CUDA dispatch",
             "live_contract": contract, "invalid_framing_before_dereference": True,
             "historical_begin_symbol_absent": True, "repeat_cycles": 3, "nested_rejection_preserves_outer": True,
@@ -61,6 +81,9 @@ def check(library):
             "invalid_optin_rejected": True, "captured_null_directory_rejected": True,
             "execution_modes_tested": ["captured", "capture-free"],
             "cross_mode_nested_rejection_preserves_outer": True,
+            "external_observer_export": "megartx_m1_set_external_observer_v1",
+            "external_observer_registration_guarded_by_live_leases": True,
+            "external_observer_capture_free_begin_end_events": observer_events,
             "active_after": native.megartx_m1_active()}
 
 
