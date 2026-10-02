@@ -97,7 +97,8 @@ class PreparationControlFlowTests(unittest.TestCase):
 
     def test_supported_and_unsupported_prepare_controls(self):
         for control in ("supported","disabled","geometry","capture","context","host_pointer",
-                        "short_range","alias","duplicate","incumbent_failure"):
+                        "short_range","alias","duplicate","incumbent_failure",
+                        "per_expert_unverified","per_expert_copy"):
             with self.subTest(control=control):self.run_case(control)
 
 

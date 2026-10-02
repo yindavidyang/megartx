@@ -56,10 +56,19 @@ def install():
         raise RuntimeError("Router score diagnostic requires native mode and explicit request capture")
     if controlled and (not capture or route_audit or router_score or os.environ.get("MEGARTX_ROUTING_COVERAGE_PATH") or not os.environ.get("MEGARTX_CONTROLLED_PLAN")):
         raise RuntimeError("Controlled routing requires its isolated capture/plan without natural audit destinations")
+    from .m1_live import load_controller
+    m1 = load_controller(mode)
+    if m1 is not None and not controlled:
+        raise RuntimeError("live preparation requires the bounded controlled request collector")
 
     def deterministic_fused(*args, **kwargs):
         kwargs["use_fused_finalize"] = False
+        if m1 is not None:
+            return m1.invoke(old_fused, args, kwargs)
         return old_fused(*args, **kwargs)
+
+    def incumbent_routed(layer, *args):
+        return old_routed(layer, *args) if m1 is None else m1.routed(old_routed, layer, *args)
 
     def load(self, layer):
         nonlocal load_ordinal
@@ -131,7 +140,7 @@ def install():
                     f.write(json.dumps({"case_id": request["id"], "prompt_sha256": request["prompt_sha256"], "mode": mode, "loader_ordinal": data["ordinal"], "layer_name": layer.layer_name, "input_rows": x.shape[0], "selected_slots": ids.numel(), "counts": all_counts, "nonzero_weight_counts": nonzero_counts}) + "\n")
         execution_mode = data.get("fixture_mode", mode)
         if not experts or execution_mode == "control":
-            return old_routed(layer, x, topk_weights, topk_ids, shared_experts, shared_experts_input)
+            return incumbent_routed(layer, x, topk_weights, topk_ids, shared_experts, shared_experts_input)
         if x.dtype != torch.bfloat16:
             raise RuntimeError("Adapter input must be BF16")
         # Data-dependent gather intentionally runs eagerly. Original router
@@ -140,7 +149,7 @@ def install():
         for e in experts:
             affected |= topk_ids == e.index
         ordinary_weights = topk_weights.masked_fill(affected, 0)
-        output = old_routed(layer, x, ordinary_weights, topk_ids, shared_experts, shared_experts_input)
+        output = incumbent_routed(layer, x, ordinary_weights, topk_ids, shared_experts, shared_experts_input)
         pair = isinstance(output, tuple)
         routed = output[1] if pair else output
         accumulator = routed.float()
@@ -198,6 +207,8 @@ def install():
             router_observer.begin(input_ids, positions)
         if controlled_observer is not None:
             controlled_observer.begin(input_ids, positions)
+        if m1 is not None:
+            m1.begin_forward(input_ids, positions)
         try:
             result = old_forward(self, input_ids, positions, *args, **kwargs)
             if router_observer is not None:
@@ -215,6 +226,9 @@ def install():
                 controlled_observer.abort(error)
             context = None
             raise
+        finally:
+            if m1 is not None:
+                m1.end_forward()
         if not capture:
             return result
         if not isinstance(result, torch.Tensor) or result.ndim != 2 or result.shape[1] != 2816:

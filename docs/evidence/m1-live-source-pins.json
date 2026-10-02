@@ -1,0 +1,12 @@
+{
+  "scope": "Explicit source overlay for the default-off live adapter; historical evidence remains unchanged. No execution qualification is asserted by these source pins.",
+  "base_commit": "955832939062ac6b9e7bb2698b4181c1472225c3",
+  "historical_ledger_sha256": "f58129400843beed7eb0b3ccf8580fe6aa97209d97c4bd734465d20e074e2d70",
+  "superseded_inputs": [
+    {
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "historical_sha256": "507f2b4bac64dc6ae4de65955a561fe8c6c547994115d9b3d29648506f16d289",
+      "current_sha256": "f073549eee892cf5cb1da0861e89095f4b1cf4c36491721d87b6693e18c6c92d"
+    }
+  ]
+}

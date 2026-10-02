@@ -1,0 +1,52 @@
+{
+  "scope": "controlled_cached_live_preparation",
+  "passed": true,
+  "request_bound_layers": 30,
+  "artificial_route_controls": 2,
+  "whole_sf_bytes_per_call": 2883584,
+  "preparation_oracle_bit_exact": true,
+  "matched_payloads_and_routed_outputs_bit_exact": true,
+  "model_arrays": {
+    "npz_files": 99,
+    "arrays": 471,
+    "elements": 1306330,
+    "bit_exact": true
+  },
+  "stock_trace": {
+    "routed_spans": 60,
+    "request_spans": 30,
+    "artificial_spans": 2,
+    "positive_request_fused_launches": 0,
+    "positive_artificial_fused_launches": 0,
+    "installed_gemm_launches": 64,
+    "cpu_launch_kernel_correlation_verified": true,
+    "owned_nondefault_stream_verified": true
+  },
+  "fused_trace": {
+    "routed_spans": 60,
+    "request_spans": 30,
+    "artificial_spans": 2,
+    "positive_request_fused_launches": 30,
+    "positive_artificial_fused_launches": 2,
+    "installed_gemm_launches": 64,
+    "cpu_launch_kernel_correlation_verified": true,
+    "owned_nondefault_stream_verified": true
+  },
+  "stock_fallback_calls": 30,
+  "fused_fallback_calls": 30,
+  "binary_sha256": "56beace15c19276f5c5af9e163d268948738cb9a2a28e38554d51dc05aa74dfa",
+  "live_contract": {
+    "abi_version": 2,
+    "view_count": 15,
+    "view_bytes": 32,
+    "controller_source_hashes": {
+      "m1_live.py": "028849ec4d9e2eacc969e6e022f4177c90db1a314c6cd2fdfe9fdb8de477859e",
+      "vllm_scale_plugin.py": "f073549eee892cf5cb1da0861e89095f4b1cf4c36491721d87b6693e18c6c92d"
+    },
+    "native_source_sha256": "07001ee7ec31bfe28ef1e2b7b7e55c55a54728e56a930d74d211837979e0ba4b"
+  },
+  "quality_qualified": false,
+  "natural_routing_qualified": false,
+  "graph_qualified": false,
+  "timing_qualified": false
+}
