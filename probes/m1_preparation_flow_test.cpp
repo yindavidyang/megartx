@@ -110,6 +110,11 @@ int main(int argc,char** argv) {
     else if(test=="short_range")mock.short_range=true;
     else if(test=="alias")call.buffers.sorted_to_slot=call.buffers.slot_to_sorted;
     else if(test=="duplicate")fixture->ids[0]=fixture->ids[1];
+    else if(test=="per_expert_unverified")quant.fp4.fc1.use_per_expert_act_scale=true;
+    else if(test=="per_expert_copy") {
+      quant.fp4.fc1.use_per_expert_act_scale=true;
+      call.fc1_input_lane=Fc1InputLane::InstalledPrequantizedFP4;
+    }
     else if(test=="supported"){}
     else if(test=="incumbent_failure")opt_in=false;
     else throw std::runtime_error("unknown control");
@@ -132,7 +137,7 @@ int main(int argc,char** argv) {
       if(!threw || mock.incumbent_calls ||
          (mock.failing_api=="launch" ? launches!=1 || mock.output!=3 : launches!=0 || mock.output!=0))
         throw std::runtime_error("failure invoked fallback or changed preflight output");
-    } else if(test=="supported") {
+    } else if(test=="supported" || test=="per_expert_copy") {
       if(threw || backend!=PreparationBackend::Fused || mock.incumbent_calls || mock.calls["launch"]!=1 || mock.output!=3)
         throw std::runtime_error("supported control did not launch once");
     } else if(test=="incumbent_failure") {

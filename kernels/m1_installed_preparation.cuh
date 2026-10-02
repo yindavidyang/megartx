@@ -9,6 +9,7 @@
 #include <string>
 
 namespace megartx::experimental {
+enum class Fc1InputLane { Unverified, InstalledPrequantizedFP4 };
 struct InstalledPreparationCall {
   M1Buffers buffers;
   tensorrt_llm::kernels::cutlass_kernels::QuantParams const& quant;
@@ -19,6 +20,10 @@ struct InstalledPreparationCall {
   bool swizzled_input_sf = true, enable_pdl = false;
   bool correction_runner_active = false, min_latency = false, lora = false;
   bool groupwise = false, all_to_all = false;
+  // The installed FP4-to-FP4 expansion copies AQ/SF. Its per-expert
+  // scale flag is arithmetic only for a floating-input quantizing lane.
+  // Set this identity only at the exact typed installed caller boundary.
+  Fc1InputLane fc1_input_lane = Fc1InputLane::Unverified;
 };
 enum class PreparationBackend { Stock, Fused };
 
@@ -67,7 +72,9 @@ inline bool candidate_eligible(InstalledPreparationCall const& c, bool opt_in) {
      c.intermediate!=704 || c.tp_size!=1 || c.ep_size!=1 ||
      !c.swizzled_input_sf || c.enable_pdl || !c.correction_runner_active ||
      c.min_latency || c.lora || c.groupwise || c.all_to_all ||
-     c.quant.fp4.fc1.use_per_expert_act_scale || !c.quant.fp4.fc1.weight_block_scale)
+     (c.quant.fp4.fc1.use_per_expert_act_scale &&
+      c.fc1_input_lane!=Fc1InputLane::InstalledPrequantizedFP4) ||
+     !c.quant.fp4.fc1.weight_block_scale)
     return false;
   cudaStreamCaptureStatus capture;
   require_cuda_success(cudaStreamIsCapturing(c.stream,&capture),"cudaStreamIsCapturing");

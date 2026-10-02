@@ -294,13 +294,27 @@ class M1PreparationTests(unittest.TestCase):
 
     def test_committed_source_pins_match_exact_base_evidence(self):
         root = Path(__file__).resolve().parents[1]
-        pins = json.loads((root / "docs/evidence/m1-preparation-source-pins.json").read_text())
+        historical = root / "docs/evidence/m1-preparation-source-pins.json"
+        pins = json.loads(historical.read_text())
         self.assertFalse(pins["installed_binary_abi_verified"])
         self.assertFalse(pins["candidate_available"])
         self.assertEqual(pins["reference_semantic_abi"], ref.REFERENCE_ABI)
+        overlay_path = root / "docs/evidence/m1-live-source-pins.json"
+        overlay = json.loads(overlay_path.read_text()) if overlay_path.exists() else None
+        replacements = {}
+        if overlay is not None:
+            self.assertEqual(overlay["historical_ledger_sha256"], hashlib.sha256(historical.read_bytes()).hexdigest())
+            self.assertEqual(overlay["base_commit"], "955832939062ac6b9e7bb2698b4181c1472225c3")
+            replacements = {r["path"]: r for r in overlay["superseded_inputs"]}
+            self.assertEqual(set(replacements), {"src/megartx/vllm_scale_plugin.py"})
         for record in pins["committed_inputs"]:
             digest = hashlib.sha256((root / record["path"]).read_bytes()).hexdigest()
-            self.assertEqual(digest, record["sha256"], record["path"])
+            if record["path"] in replacements:
+                replacement = replacements[record["path"]]
+                self.assertEqual(replacement["historical_sha256"], record["sha256"])
+                self.assertEqual(digest, replacement["current_sha256"], record["path"])
+            else:
+                self.assertEqual(digest, record["sha256"], record["path"])
 
 
 class OriginalGlobalNegativeTests(unittest.TestCase):
