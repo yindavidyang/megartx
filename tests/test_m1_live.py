@@ -1,5 +1,6 @@
 import json
 import ctypes
+import hashlib
 from contextlib import contextmanager, nullcontext
 import tempfile
 from pathlib import Path
@@ -49,6 +50,13 @@ class TestLiveLease(unittest.TestCase):
         for lane, mode in (("1", "native"), ("fused", "reference"), ("stock", "control")):
             with patch.dict("os.environ", {"MEGARTX_M1_PREPARATION": lane}, clear=True):
                 with self.assertRaises(RuntimeError): load_controller(mode)
+
+    def test_bounded_sha256_is_compatible_without_python311_file_digest(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(hashlib, "file_digest", None, create=True):
+            path = Path(directory)/"hash-input"
+            for data in (b"", b"abc", bytes(range(256)) * 8192 + b"final partial block"):
+                path.write_bytes(data)
+                self.assertEqual(digest(path), hashlib.sha256(data).hexdigest())
 
     def admission_fixture(self, directory):
         library = Path(directory) / "bridge.so"

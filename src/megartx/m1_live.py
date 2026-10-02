@@ -29,8 +29,11 @@ def tensor_view(tensor):
 
 
 def digest(path):
+    result = hashlib.sha256()
     with Path(path).open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            result.update(block)
+    return result.hexdigest()
 
 
 def load_controller(mode):
