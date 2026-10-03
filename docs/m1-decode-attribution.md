@@ -56,9 +56,18 @@ Parent review and explicit GPU clearance are required before the following work.
   runner, first eligibility, dispatch (including repeated fused eligibility),
   descriptor readback/fence, and descriptor validation/enumeration durations.
   Inclusive runner time contains the other phases; totals must not be added.
+  Readback/fence host time includes preceding stream work and owner/submission
+  checks; it is not isolated device-copy time. Correction-selection layer labels
+  require their enclosing routed range and ordered preparation correspondence.
+  Evidence review must verify four model/head/sampling frames, CUDA launch/kernel
+  correlation and actual streams. Expected native phase counts per lane are
+  120 runner/eligibility/dispatch and 240 readback/validation; trace existence
+  and source markers alone do not establish these attribution relationships.
 - Read native timers once per window after stop. They do not introduce per-call
   D2H copies or fences. Profile failures propagate and abort releases native
   profiling state. Inactive leases are required to toggle profiling.
+  Frame-ledger and logits-head failures also stop/reset attribution and mark the
+  controller failed; cleanup failures preserve the primary error and never retry.
 - Fresh bounded bridge build and compiled framing/binding controls, source-bound
   CUDA-hidden AOT dry-run and six native/reference startup fixtures are required.
   Metadata help opt-in remains exact-command/identity bound, with corrected

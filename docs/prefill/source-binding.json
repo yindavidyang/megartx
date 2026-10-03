@@ -1,5 +1,6 @@
 {
   "association_note": "Historical repository evidence, not a fresh host receipt or binary/source equivalence attestation. Rebind exact target sources/binaries/driver/package lock before a future GPU slot.",
+  "attribution_review_sha256": "e9c03345f96a37b857f41e03aabdef6718ef8a31eb4b44adf79b2a781b6b744e",
   "checkpoint_metadata": {
     "config": {
       "bytes": 10289,
@@ -241,6 +242,16 @@
       },
       "review_scope": "cpu_source_compatibility_only",
       "source_head": "dfd77d8c80d333fc9531955795476f7e9c0cbab2"
+    },
+    {
+      "evidence_reference": "docs/prefill/decode-attribution-source-reconciliation.json",
+      "id": "m1-decode-attribution-19b74de",
+      "repo_files": {
+        "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+        "src/megartx/vllm_scale_plugin.py": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
+      },
+      "review_scope": "cpu_source_compatibility_only",
+      "source_head": "19b74de0400b4201550874bd7e9431c068876ef3"
     }
   ],
   "schema": "megartx-prefill-source-binding-v1",

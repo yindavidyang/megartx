@@ -159,18 +159,28 @@ class ProtocolTests(unittest.TestCase):
                          "a3819e2816aa7f3292d216bdcef56e7fe3af3539ba1bacb6604c74e0c4b58196")
         source = p.read_json(DOCS / "source-binding.json")
         self.assertEqual(plan["binding"]["source_manifest_sha256"],
-                         "ef9ece4b8ebd97b095f6a333681d8c2b3abca16ed7a89c59f05955cd06cc70d1")
+                         hashlib.sha256((DOCS / "source-binding.json").read_bytes()).hexdigest())
         self.assertEqual(len(source["repo_files"]), 12)
         self.assertEqual(r.digest(source["repo_files"]),
                          "05f0b4f7f009024b082e170539217fe5839da5f86d6eb7e88105832feea2fc66")
-        self.assertEqual(len(source["reviewed_source_overlays"]), 1)
+        self.assertEqual(len(source["reviewed_source_overlays"]), 2)
         overlay = source["reviewed_source_overlays"][0]
         self.assertEqual(overlay["source_head"], "dfd77d8c80d333fc9531955795476f7e9c0cbab2")
         self.assertEqual(overlay["review_scope"], "cpu_source_compatibility_only")
+        historical_review = p.read_json(DOCS / "pr15-source-reconciliation.json")
         for name, expected in overlay["repo_files"].items():
-            self.assertEqual(hashlib.sha256((ROOT / name).read_bytes()).hexdigest(), expected)
+            self.assertEqual(historical_review["files"][name]["candidate_sha256"], expected)
         self.assertEqual(hashlib.sha256((DOCS / "pr15-source-reconciliation.json").read_bytes()).hexdigest(),
                          source["source_review_sha256"])
+        attribution = p.read_json(DOCS / "decode-attribution-source-reconciliation.json")
+        self.assertEqual(hashlib.sha256((DOCS / "decode-attribution-source-reconciliation.json").read_bytes()).hexdigest(),
+                         source["attribution_review_sha256"])
+        current = source["reviewed_source_overlays"][1]
+        self.assertEqual(current["source_head"], attribution["source_head"])
+        self.assertEqual(current["review_scope"], "cpu_source_compatibility_only")
+        for name, expected in current["repo_files"].items():
+            self.assertEqual(hashlib.sha256((ROOT / name).read_bytes()).hexdigest(), expected)
+            self.assertEqual(attribution["files"][name]["candidate_sha256"], expected)
         self.assertEqual(manifest["repository_base_commit"], "5a32504b5ccb209a779b8a110eb2ebc56d72e373")
         self.assertEqual(hashlib.sha256((ROOT / "src/megartx/prefill_runner.py").read_bytes()).hexdigest(),
                          "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93")

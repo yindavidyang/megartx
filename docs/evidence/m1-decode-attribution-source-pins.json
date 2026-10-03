@@ -1,0 +1,154 @@
+{
+  "schema": "megartx-m1-decode-attribution-source-pins-v1",
+  "scope": "Current CPU source binding for default-off untimed attribution; reviewed lifecycle repair and bounded atomic prefill compatibility. Original eager eligibility/math retained. No transfer of historical GPU evidence to new sources.",
+  "status": "candidate_pending_independent_review",
+  "prior_head": "0581f09259d18044ffb5f9e1363d0760f37ddd4f",
+  "initial_instrumentation_head": "1847844f14122321913d754b87cb22656d796779",
+  "runtime_lifecycle_repair_head": "19b74de0400b4201550874bd7e9431c068876ef3",
+  "fixture_repair_head": "29240a7124f1e02929039041c5067e91afef3158",
+  "parent_ledger_sha256": "45d224fbadfa80eb90c091d3d5525a775f69627506a08287b049eaff066b5b33",
+  "preserved_historical_ledgers": {
+    "docs/evidence/first-sm120-kernel-planning.json": "97046aec8f713667645cbb288fe16e154037a892c66cd17603575b00393c6322",
+    "docs/evidence/layer0-arithmetic-live.json": "b49bec5b2a3eb1e527663aebcb6f092f9efe6a6b5bcad472f1ab06a78e2a4726",
+    "docs/evidence/layer0-norm-attention-live.json": "6d53c5624c749579feb23d7de501d7df9f6c1dcbb73a74fd151e75cb8f63df7e",
+    "docs/evidence/layer0-norm-attention-source-pins.json": "2d14fd78e074d71a8275f0dc86ca68150de7559206bc7ecc39732fa7b978729b",
+    "docs/evidence/layer0-provenance-guard.md": "d2e36bcce65a0f8a4794426b1944cbea189d61c7e5cf6046199077eb6347590a",
+    "docs/evidence/m1-capture-free-source-pins.json": "c9686c933a7e6ad0bccd6df46518e4feba27159f0173e9d61bdacb26e5ee9f1f",
+    "docs/evidence/m1-eager-benchmark-source-pins.json": "45d224fbadfa80eb90c091d3d5525a775f69627506a08287b049eaff066b5b33",
+    "docs/evidence/m1-eager-eecfc13-gpu-scalars.json": "dae4d4ca46ede1a66d6a274af27460d3ba9bf8d3733761d2d10b6bd263d4330e",
+    "docs/evidence/m1-eager-metadata-admission-review.json": "191c3228101f85ce8ab93575bfa25125ea3a34a072d31a067402f5787b03774f",
+    "docs/evidence/m1-eager-pilot-cleanup-failure.json": "7d84ca190ab5c1a6465279e17e9f624c32738e53e598a4b8af6a6cbac0b4ef11",
+    "docs/evidence/m1-eager-startup-failure.json": "d86bdd94f9d15a0fa97ae7857cb3a6810803e28ab2e3c1b2fd70674ac3626adb",
+    "docs/evidence/m1-gpu-validation-bd09109.json": "b2c9cd3d45ce09f511c71c1dafe5f1bc69336b8c2e839144466544962391a75a",
+    "docs/evidence/m1-installed-compatibility-f8abeae-superseded.json": "e761ee93d07c3b98dc2b637aeba77626250cd9dcdb4a02c7a790e597a240b21c",
+    "docs/evidence/m1-installed-compatibility.json": "24cbac36dfdb28ecb51c71af864742cfe54258b72c6602dd53b19f0c15b39383",
+    "docs/evidence/m1-installed-preparation-probe.json": "bc12bbbc634ec203053b229f920030628647bf5d70b7ff87bab0429aa96ababd",
+    "docs/evidence/m1-installed-typed-dependencies-f8abeae-superseded.json": "1a5daf75da01fdde2eac4fbc87bfc5b60b55cf4481b7741b3169fce12142f4f0",
+    "docs/evidence/m1-installed-typed-dependencies.json": "c220b8fb60aca93edd190d6f2aa80240321496253ed90e9466336dd87fd76b61",
+    "docs/evidence/m1-live-matched.json": "2480829eb1e49440b83996af039907554d90b5d41fc4e3164ae70961c87cad64",
+    "docs/evidence/m1-live-source-pins.json": "015426cd18349c3f5be6a437a3bef8256e1b9697a836ecd4f18410f5042bb7b7",
+    "docs/evidence/m1-maps-expand-standalone-04ad916-superseded.json": "88ceed188e7381ac8c5bbc24ea6ba4041af48ccf189fe4d2ab14d170241744d9",
+    "docs/evidence/m1-maps-expand-standalone.json": "c3f8c7334f0d12da1cd2b83455a5c3d4d73672281025bcf977af93ffff5645a1",
+    "docs/evidence/m1-normal-cuda-errors.json": "42d1c925a2d8b1a6a20af6458da43a5c487da251ba99cc13f9872d76f08b7c87",
+    "docs/evidence/m1-normal-matched.json": "39524059c6d6f7870251f990ff3c4a1e8c6a94756e26298d54868dbddc291a1a",
+    "docs/evidence/m1-normal-source-pins.json": "6b077a415eda036207e1127246b175f4af049813d46f87c8b4e9ff12a154640a",
+    "docs/evidence/m1-pr14-gpu-lifecycle.json": "63475296f649a90d2e7a3f671f4553dee31539e25f821a79a799db043e32e414",
+    "docs/evidence/m1-pr14-gpu-lifecycle.md": "371523bdfb2da97688cb9c25deac956b42873a6929639581cd8ce2caff210a10",
+    "docs/evidence/m1-preparation-source-pins.json": "f58129400843beed7eb0b3ccf8580fe6aa97209d97c4bd734465d20e074e2d70",
+    "docs/evidence/m1-process-lifecycle-source-pins.json": "942106acc72152e84f78429c31ad4dd5bf2525dea8df20ba46f4623aa2793ba0",
+    "docs/evidence/m1-reconciliation-source-pins.json": "c90bfeb6ff2351a03c98ab83221844b95b0e0875fa5e1a4e89887074c5b60624",
+    "docs/evidence/nvfp4-controlled-live.json": "654187c82784e43f2541f27dca2c86aeec72f4d38341920afd55d1405baddb20",
+    "docs/evidence/nvfp4-controlled-preparation.json": "121499de1b829022e8c9162a381847b29a1e67690451e4e68b8ff50810998cc0",
+    "docs/evidence/nvfp4-router-audit.json": "fe37aa18162a7a6932a3beb96b541789ac30906470a169287b5abb703e6e39b0",
+    "docs/evidence/nvfp4-router-scores.json": "0f640f2a476a29d4691cb2eab932dbd1765158d26ddc3c2234d953c53fb7ad9e",
+    "docs/evidence/nvfp4-scale-fixtures.json": "f0a40af90d384639c1e9dab59aa5d50d496f3054a64227bad103c10092cda01b",
+    "docs/evidence/speculative-verifier-cpu-reference.json": "dfc0f11ef02905fafadc797c38547d06222799a4cc379af4501a8ca2ea8450d5",
+    "docs/evidence/speculative-verifier-source-pins.json": "e307b9c274683aa19ae28decda718d9252b06fd2f52dfbc3bbead084fee51c3e"
+  },
+  "superseded_sources": [
+    {
+      "path": "docs/prefill/README.md",
+      "prior_sha256": "e3b90e42a974332c83b7fd0bd47a4a2a10dcad2d90014fec5f1693f292c60683",
+      "current_sha256": "0e897c89cfb6e7aa8bb51d81e38571657738c0be6451604a7698f45210ff7647"
+    },
+    {
+      "path": "docs/prefill/profile-plan.json",
+      "prior_sha256": "832daf1fb46c1c80240a4c890490e141c05da2122c6c2cafd8c6fc5df5016f06",
+      "current_sha256": "264aceb2d2247731041a80eb96563bb816ec9394d441bceabeef386ae77afd28"
+    },
+    {
+      "path": "docs/prefill/runner-binding.json",
+      "prior_sha256": "bc57d5a8e303d8684e8c287545e45984d43c7eb46d81109a4492655d53f5d9b0",
+      "current_sha256": "a2020354a707d1419e08c4e3576ec032c19bfe191bde204cbbc9f1188d0c5547"
+    },
+    {
+      "path": "docs/prefill/runner-plan.json",
+      "prior_sha256": "da6f2aa003ba5b187e133b1518ffef6f78ab678159567e99210392e63ad355e1",
+      "current_sha256": "45e43c7a420112b6b81e527bb4173eb8eb2c9bd20a9ec0ca4421c43f7f9b7a96"
+    },
+    {
+      "path": "docs/prefill/runner-protocol.md",
+      "prior_sha256": "fe78505c76a4529c6bc316cb92d8aac63b273c712954a9105873121b1cf501ae",
+      "current_sha256": "7345dd6b2bbf086f8b9e0e201689e78e78810b410c857bf7c106973ed0032f4e"
+    },
+    {
+      "path": "docs/prefill/source-binding.json",
+      "prior_sha256": "ef9ece4b8ebd97b095f6a333681d8c2b3abca16ed7a89c59f05955cd06cc70d1",
+      "current_sha256": "953991a313d808069f52e8e75b64c826f1450cef8be09018bd5f689b34560fc6"
+    },
+    {
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "prior_sha256": "49735c87806ef8cf4ad4b69a3a2eab27614d5e1dcd92be1bcc5c13cfe8edd9ff",
+      "current_sha256": "0e0b951f983e56f0263bf0c453a9cc2887bb56e6e4c471ffc78cb28e7a781de8"
+    },
+    {
+      "path": "probes/m1_live_bridge.cu",
+      "prior_sha256": "e02747a16ade57b5ac3971ccff9f489612db09b2eea568bbd0d9466c15b5cb41",
+      "current_sha256": "b1c4ac5761931b8dfc69014ae1e75714195e873151e7445ad82c30feabbdfdf1"
+    },
+    {
+      "path": "scripts/build_m1_live_bridge.py",
+      "prior_sha256": "26d0d3af4504f223680b3cf8efbd2cdc45dc5e49f7bfe17911b27690e7673132",
+      "current_sha256": "8028dad5f745dd8c1188d8ca7bdef7f5915c5fa598ba007cab7ea00b6542efb6"
+    },
+    {
+      "path": "scripts/check_m1_live_bridge.py",
+      "prior_sha256": "0e8ba415cbc96c11e043bea725ae87aeb9371345776bfdfa4c96291d14fcb6e1",
+      "current_sha256": "08dbdc9234e6c9e7649c8b5c30262d7ab395e342791fe4961e47a297bacbdb18"
+    },
+    {
+      "path": "scripts/m1_eager_benchmark_client.py",
+      "prior_sha256": "a7b871b71d7b1d19a7813405602592f9562e7e0269e48d78a50950f49f20d34d",
+      "current_sha256": "7a19f27434fc871e6d75f4a4a926036b572281d6ea7c8e77b152333c90329653"
+    },
+    {
+      "path": "scripts/run_scale_validation.py",
+      "prior_sha256": "a62e4b405f00a256aa8bdee71df006197fe8b2145868f9d7c57ca22d244bc205",
+      "current_sha256": "fae6a3ac950a2121e5288b19dc78bf6fa3f532ae26479289c9cacb2c7df3d6b4"
+    },
+    {
+      "path": "src/megartx/m1_execution.py",
+      "prior_sha256": "4db938f4f0f6d39b8bc1d136d9eaf15559a3a6df1b61aaf5b57c10a299038c42",
+      "current_sha256": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90"
+    },
+    {
+      "path": "src/megartx/m1_live.py",
+      "prior_sha256": "5c555e420c77a590c9fad47b45f6aff36af6f22279f29fdfbbd4641cd80368a4",
+      "current_sha256": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70"
+    },
+    {
+      "path": "src/megartx/prefill_plan.py",
+      "prior_sha256": "0422d4f0f08cdae54d0835987722096703cfb04691040d1517930f09ba8ee65f",
+      "current_sha256": "a1bdcc9d4c57effdc2f08241e66e1e50a62c6a8d3bbe44bc66e708b44f2bbcd8"
+    },
+    {
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "prior_sha256": "5bbdd7ba1b6777eb48cafae742ba7d808b28ef166292f8a1c2e79df2d621b54a",
+      "current_sha256": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
+    },
+    {
+      "path": "tests/test_m1_launcher_resources.py",
+      "prior_sha256": "db3a928d292a5f32b6edd5f1d3c3117a837ebf12c2d2a62844c0f730c09bd5d3",
+      "current_sha256": "ea7dc0b4b8cf8b183d290fa0be9da50871efe24d6269da453cbcbd1695a19adf"
+    },
+    {
+      "path": "tests/test_prefill_runner.py",
+      "prior_sha256": "d4eba48456879a4ba5e875e2c0b647b8f580ddfbe9c280d3215f7290be4116c4",
+      "current_sha256": "5f3c73510cd43fbc3fa2397caced10cad6562209db9070d47d98fef253bb36b2"
+    },
+    {
+      "path": "tests/test_prefill_source_reconciliation.py",
+      "prior_sha256": "be68b239ab47fea4a623ac8b5ea8c2b0636c60a134f9b80b6138fbd2013d5a14",
+      "current_sha256": "4d4dea7bbdf00c4891bbd7b6a113d75e15e1676bbf33813d8d811a0c5ef6f02f"
+    }
+  ],
+  "added_source_hashes": {
+    "docs/m1-decode-attribution.md": "6126325bd6a1f7744990413a66c492459352cec86d3838d5f3cbd8f4f5db215a",
+    "docs/prefill/decode-attribution-source-reconciliation.json": "e9c03345f96a37b857f41e03aabdef6718ef8a31eb4b44adf79b2a781b6b744e",
+    "tests/test_m1_decode_attribution.py": "dff7c3f89e5f908fbbf6f1b275c98360805524f11046328c7682b1bfa7ca66c8"
+  },
+  "gpu_execution_verified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false
+}

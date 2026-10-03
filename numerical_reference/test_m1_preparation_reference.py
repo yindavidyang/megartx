@@ -359,13 +359,26 @@ class M1PreparationTests(unittest.TestCase):
         for field in ("gpu_execution_verified", "quality_qualified", "graphs_qualified", "performance_qualified"):
             self.assertIs(eager[field], False)
         eager_changes = {r["path"]: r for r in eager["superseded_sources"]}
+        attribution = json.loads((root / "docs/evidence/m1-decode-attribution-source-pins.json").read_text())
+        self.assertEqual(attribution["prior_head"], "0581f09259d18044ffb5f9e1363d0760f37ddd4f")
+        self.assertEqual(attribution["parent_ledger_sha256"], hashlib.sha256(eager_path.read_bytes()).hexdigest())
+        for field in ("gpu_execution_verified", "quality_qualified", "graphs_qualified", "performance_qualified"):
+            self.assertIs(attribution[field], False)
+        for path, expected in attribution["preserved_historical_ledgers"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+        current_changes = {r["path"]: r for r in attribution["superseded_sources"]}
+        def attributed_current(path, previous):
+            if path in current_changes:
+                self.assertEqual(current_changes[path]["prior_sha256"], previous, path)
+                return current_changes[path]["current_sha256"]
+            return previous
         def expected_current(path, historical):
             if path in eager_changes:
                 self.assertEqual(eager_changes[path]["parent_sha256"], historical, path)
-                return eager_changes[path]["current_sha256"]
-            return historical
+                historical = eager_changes[path]["current_sha256"]
+            return attributed_current(path, historical)
         for path, expected in eager["added_source_hashes"].items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), attributed_current(path, expected), path)
         for section in ("runtime_source_hashes", "observer_source_hashes"):
             for path, expected in combined[section].items():
                 digest = hashlib.sha256((root / path).read_bytes()).hexdigest()
@@ -402,7 +415,11 @@ class M1PreparationTests(unittest.TestCase):
             else:
                 self.assertEqual(digest, record["sha256"], record["path"])
         for path, record in eager_changes.items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), attributed_current(path, record["current_sha256"]), path)
+        for path, record in current_changes.items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), record["current_sha256"], path)
+        for path, expected in attribution["added_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
 
     def test_stale_combined_source_or_ledger_hash_is_rejected(self):
         root = Path(__file__).resolve().parents[1]
@@ -422,6 +439,23 @@ class M1PreparationTests(unittest.TestCase):
                 return data
             with self.subTest(mutation=mutation), patch.object(Path, "read_bytes", changed_bytes), \
                  patch.object(Path, "read_text", changed_text), \
+                 self.assertRaisesRegex(AssertionError, "probes/m1_live_bridge.cu"):
+                self.test_committed_source_pins_match_exact_base_evidence()
+
+    def test_attribution_overlay_cannot_erase_prior_lineage_or_relabel_unknown_source(self):
+        root = Path(__file__).resolve().parents[1]
+        ledger = root / "docs/evidence/m1-decode-attribution-source-pins.json"
+        read_text = Path.read_text
+        for field in ("prior_sha256", "current_sha256"):
+            def changed_text(path, *args, **kwargs):
+                data = read_text(path, *args, **kwargs)
+                if path == ledger:
+                    record = json.loads(data)
+                    entry = next(r for r in record["superseded_sources"] if r["path"] == "probes/m1_live_bridge.cu")
+                    entry[field] = "0" * 64
+                    return json.dumps(record)
+                return data
+            with self.subTest(field=field), patch.object(Path, "read_text", changed_text), \
                  self.assertRaisesRegex(AssertionError, "probes/m1_live_bridge.cu"):
                 self.test_committed_source_pins_match_exact_base_evidence()
 

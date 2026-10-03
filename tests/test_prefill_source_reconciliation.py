@@ -40,6 +40,21 @@ def functions(path):
     return result
 
 
+def normalize_attribution(node, path, review):
+    """Normalize only complete AST nodes pinned by the reviewed exact delta."""
+    approved = {r["candidate_ast_sha256"]: r for r in review["exact_ast_replacements"] if r["path"] == path}
+    class ExactAttribution(ast.NodeTransformer):
+        def visit(self, current):
+            record = approved.get(ast_signature(current))
+            if record is not None:
+                parsed = ast.parse(record["previous_source"])
+                if record["kind"] == "expression":
+                    return parsed.body[0].value
+                return parsed.body[0]
+            return super().visit(current)
+    return ExactAttribution().visit(copy.deepcopy(node))
+
+
 class ReviewedOverlayTests(unittest.TestCase):
     def fixture(self, root):
         plan = prefill.read_json(ROOT / "docs/prefill/profile-plan.json")
@@ -47,8 +62,10 @@ class ReviewedOverlayTests(unittest.TestCase):
         baseline = {PAIR[0]: b"baseline controller", PAIR[1]: b"baseline plugin",
                     "src/megartx/nvfp4_runtime.py": b"fixed quantizer"}
         candidate = {PAIR[0]: b"reviewed controller", PAIR[1]: b"reviewed plugin"}
+        newest = {PAIR[0]: b"attribution controller", PAIR[1]: b"attribution plugin"}
         manifest["repo_files"] = {p: sha(v) for p, v in baseline.items()}
         manifest["reviewed_source_overlays"][0]["repo_files"] = {p: sha(v) for p, v in candidate.items()}
+        manifest["reviewed_source_overlays"][1]["repo_files"] = {p: sha(v) for p, v in newest.items()}
         path = root / "manifest.json"
         path.write_text(json.dumps(manifest))
         plan["binding"]["source_manifest_sha256"] = sha(path.read_bytes())
@@ -62,7 +79,8 @@ class ReviewedOverlayTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan, path, baseline, candidate = self.fixture(root)
-            for values in (baseline, {**baseline, **candidate}):
+            newest = {PAIR[0]: b"attribution controller", PAIR[1]: b"attribution plugin"}
+            for values in (baseline, {**baseline, **candidate}, {**baseline, **newest}):
                 for name, data in values.items():
                     (root / name).write_bytes(data)
                 self.assertEqual(prefill.verify_source_binding(plan, path, root), 3)
@@ -73,8 +91,13 @@ class ReviewedOverlayTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan, path, baseline, candidate = self.fixture(root)
+            newest = {PAIR[0]: b"attribution controller", PAIR[1]: b"attribution plugin"}
             variants = [{**baseline, PAIR[0]: candidate[PAIR[0]]},
                         {**baseline, PAIR[1]: candidate[PAIR[1]]},
+                        {**baseline, PAIR[0]: newest[PAIR[0]]},
+                        {**baseline, PAIR[1]: newest[PAIR[1]]},
+                        {**baseline, **candidate, PAIR[0]: newest[PAIR[0]]},
+                        {**baseline, **candidate, PAIR[1]: newest[PAIR[1]]},
                         {**baseline, **candidate, PAIR[0]: b"unknown controller"},
                         {**baseline, **candidate, "src/megartx/nvfp4_runtime.py": b"changed quantizer"}]
             for values in variants:
@@ -83,6 +106,38 @@ class ReviewedOverlayTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Source drift"):
                     prefill.verify_source_binding(plan, path, root)
 
+    def test_third_overlay_is_rejected_even_when_source_matches(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan, path, baseline, candidate = self.fixture(root)
+            manifest = prefill.read_json(path)
+            manifest["reviewed_source_overlays"] = [manifest["reviewed_source_overlays"][0]] * 3
+            path.write_text(json.dumps(manifest))
+            plan["binding"]["source_manifest_sha256"] = sha(path.read_bytes())
+            with self.assertRaisesRegex(ValueError, "At most two"):
+                prefill.verify_source_binding(plan, path, root)
+
+    def test_exact_normalization_rejects_added_work_scope_or_condition_mutations(self):
+        review = prefill.read_json(ROOT / "docs/prefill/decode-attribution-source-reconciliation.json")
+        locations = [(PAIR[0], "LivePreparation.routed"), (PAIR[1], "install.routed_adapter"),
+                     (PAIR[1], "install.model_forward"), (PAIR[1], "install.logits_forward")]
+        for path, boundary in locations:
+            original = functions(ROOT / path)[boundary]
+            expected = ast_signature(normalize_attribution(original, path, review))
+            for mutation in ("work", "scope", "condition"):
+                node = copy.deepcopy(original)
+                scopes = [n for n in ast.walk(node) if isinstance(n, ast.Call)
+                          and isinstance(n.func, ast.Name) and n.func.id == "profile_scope"]
+                scope = next(n for n in scopes if "megartx::" in ast.unparse(n.args[0]))
+                if mutation == "work":
+                    scope.args.append(ast.Call(func=ast.Name(id="unexpected_work", ctx=ast.Load()), args=[], keywords=[]))
+                elif mutation == "scope":
+                    scope.args[0] = ast.Constant(value="arbitrary_scope")
+                else:
+                    scope.args[1] = ast.Constant(value=True)
+                with self.subTest(boundary=boundary, mutation=mutation):
+                    self.assertNotEqual(ast_signature(normalize_attribution(node, path, review)), expected)
+
     def test_reviewed_math_and_capture_boundaries_equal_original_ast(self):
         path = ROOT / "docs/prefill/pr15-source-reconciliation.json"
         review = prefill.read_json(path)
@@ -90,12 +145,16 @@ class ReviewedOverlayTests(unittest.TestCase):
         self.assertEqual(sha(path.read_bytes()), manifest["source_review_sha256"])
         self.assertFalse(review["gpu_qualified"])
         self.assertEqual(review["final_pr15_head"], manifest["reviewed_source_overlays"][0]["source_head"])
+        attribution_path = ROOT / "docs/prefill/decode-attribution-source-reconciliation.json"
+        attribution = prefill.read_json(attribution_path)
+        self.assertEqual(sha(attribution_path.read_bytes()), manifest["attribution_review_sha256"])
+        self.assertFalse(attribution["gpu_qualified"])
         sources = {name: functions(ROOT / name) for name in PAIR}
         for location, expected in review["baseline_equal_ast_boundaries"].items():
             name, function = location.split("::")
-            self.assertEqual(ast_signature(sources[name][function]), expected, location)
+            self.assertEqual(ast_signature(normalize_attribution(sources[name][function], name, attribution)), expected, location)
         boundary = review["routed_math_boundary"]
-        routed = copy.deepcopy(sources[PAIR[1]][boundary["name"]])
+        routed = normalize_attribution(sources[PAIR[1]][boundary["name"]], PAIR[1], attribution)
         approved = boundary["approved_added_counter_ast_sha256"]
         class RemoveExactCounter(ast.NodeTransformer):
             def visit_If(self, node):
@@ -110,7 +169,9 @@ class ReviewedOverlayTests(unittest.TestCase):
         import test_m1_live as lease_tests
         fixture = lease_tests.TestLiveLease()
         review = prefill.read_json(ROOT / "docs/prefill/pr15-source-reconciliation.json")
-        candidate = sha((ROOT / PAIR[0]).read_bytes()) == review["files"][PAIR[0]]["candidate_sha256"]
+        attribution = prefill.read_json(ROOT / "docs/prefill/decode-attribution-source-reconciliation.json")
+        candidate = sha((ROOT / PAIR[0]).read_bytes()) in {
+            review["files"][PAIR[0]]["candidate_sha256"], attribution["files"][PAIR[0]]["candidate_sha256"]}
         for rows in (255, 256, 512):
             with tempfile.TemporaryDirectory() as directory:
                 native = lease_tests.Native()

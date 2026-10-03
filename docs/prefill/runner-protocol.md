@@ -57,6 +57,14 @@ Its exact bytes, historical source-binding bytes and the seven additional pins i
 binding records the implementation base, not an assertion that the future target
 is running this code. Freeze the final Git head/tree and patch independently.
 
+The later decode-attribution reconciliation adds one exact atomic controller/plugin
+pair alongside the preserved original and PR15 vectors. Its CPU-only evidence is
+[decode-attribution-source-reconciliation.json](decode-attribution-source-reconciliation.json).
+The source-manifest digest advances the profile-plan pointer and its runner-plan
+digest. Changed README/protocol/validator/test bytes advance the runner binding
+and then its runner-plan pointer. Prior digests below describe the historical
+repair; no prior GPU receipt, prefill admission or numerical qualification advances.
+
 ### Merged-source compatibility repair
 
 PR19 head `d2744ce118950e13f576e65c2611877e69c600f8` was reviewed against
