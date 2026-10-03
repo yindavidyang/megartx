@@ -122,6 +122,10 @@ Host available RAM stays at least 8 GiB and GPU headroom at least 2 GiB.
 Any guard failure blocks dispatch and stops verified owned identities. Cleanup
 uses bounded TERM/KILL, reaps adopted children, checks remembered identities and
 owned GPU PIDs across groups, and preserves the primary failure if cleanup fails.
+Dispatch, post-client and final admission read the retained ownership failure
+directly; watchdog notification is not the authority. A compiler breach first
+detected during successful cleanup invalidates the run while cleanup remains
+separately reportable as complete.
 Ownership and resource supervision costs remain in both measured lanes.
 
 Private mount isolation was unavailable on the assigned host. Instead, eight
@@ -156,6 +160,11 @@ idle/owned processes and bounds before each launch; run one server at a time.
    successful owned identity/GPU cleanup. Require no observer/probe or diagnostic
    capture destination or preparation/NPZ/request-trace/call-receipt output.
    Its scalar checks are not a CUDA trace, tensor oracle or quality proof.
+   Timing receipts must establish compiler quiescence after warmups. For the
+   initial bounded comparison, reject timing if the ownership receipt shows any
+   sampled compiler activity during the server lifetime; this stricter condition
+   avoids accepting an unlocalized compilation interval. Ordinary other specs
+   may compile, but those runs supply no accepted timing result under this plan.
 3. Only after the affected source/build and pilot gates pass, prepare the six-pair plan
    and execute one fresh observer-off warm server. Any failed gate blocks timing.
    Publish only sanitized scalar results and source/test hashes, never prompts,

@@ -263,6 +263,14 @@ ownership = None
 stop_guard = threading.Event()
 
 
+def require_resources():
+    # observe()/cleanup() can latch a failure before the watchdog copies it.
+    # The retained ownership state is authoritative at every admission gate.
+    failure = ownership.failure if ownership is not None else None
+    if failure or guard_failure:
+        raise RuntimeError(failure or guard_failure)
+
+
 def fail_guard(message):
     global guard_failure
     if ownership is not None:
@@ -412,8 +420,7 @@ try:
     deadline = time.monotonic() + 1200
     ready = False
     while time.monotonic() < deadline:
-        if guard_failure:
-            raise RuntimeError(guard_failure)
+        require_resources()
         if server.poll() is not None:
             raise RuntimeError(f"Server exited before ready (code {server.returncode}); see server.log")
         try:
@@ -474,8 +481,7 @@ try:
             pass
     if other:
         raise RuntimeError("Another GPU compute job appeared; benchmark not started")
-    if guard_failure:
-        raise RuntimeError(guard_failure)
+    require_resources()
     if eager_benchmark:
         bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/m1_eager_benchmark_client.py"),
                          "--plan", str(args.m1_eager_benchmark_plan), "--output", str(output)]
@@ -497,8 +503,7 @@ try:
     with (output / "client.log").open("w") as bench_log:
         result = subprocess.run(bench_command, env=env, stdout=bench_log, stderr=subprocess.STDOUT, timeout=3600)
     (output / "benchmark.exit").write_text(str(result.returncode) + "\n")
-    if guard_failure:
-        raise RuntimeError(guard_failure)
+    require_resources()
     if result.returncode:
         raise RuntimeError("Host-local client failed; see client.log")
     if eager_benchmark:
@@ -619,8 +624,9 @@ finally:
         from m1_owned_processes import preserve_primary
         preserve_primary(sys.exc_info()[1], "Owned M1 server cleanup did not complete")
     if eager_benchmark and cleanup_complete and sys.exc_info()[1] is None:
-        from m1_eager_benchmark_client import summarize_run
         try:
+            require_resources()
+            from m1_eager_benchmark_client import summarize_run
             summarize_run(output)
         except BaseException:
             (output / "run.exit").write_text("1\n")

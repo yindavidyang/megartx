@@ -35,7 +35,7 @@
     {
       "path": "scripts/run_scale_validation.py",
       "parent_sha256": "a0a9b57991d3b78db3d0617408dd3e8720bf139832fad37a9eeb018ca6f24b52",
-      "current_sha256": "c4b7e2c8b1935845e2d7eaa2585bbb4707221d5c80903614db4a4c12f69791b6"
+      "current_sha256": "37569a0ec11bd6c7c1228013b23a845de2a5ab8125f9e9e34b628e7db261c248"
     },
     {
       "path": "src/megartx/m1_execution.py",
@@ -63,7 +63,7 @@
     "scripts/m1_eager_benchmark_client.py": "a7b871b71d7b1d19a7813405602592f9562e7e0269e48d78a50950f49f20d34d",
     "scripts/prepare_m1_eager_benchmark.py": "8d27bdd36809aa111386d54a961711e1f495c45585480709904119db793bfa77",
     "tests/test_m1_eager_benchmark.py": "a161e5dc04f638b776f418bd98c35ab3a03ad1fd6101da2e8c370acce5d7d093",
-    "docs/m1-matched-eager-benchmark.md": "428479c265a8465392e470abc117dac2121009ffbdda7563dc70b0463c0438f3",
+    "docs/m1-matched-eager-benchmark.md": "a4a559eef9d8e9af4614c653482f922693c54a4b2e602bafff141558854adb8a",
     "scripts/m1_owned_processes.py": "cd390178a7304fe1639b52ae662e11e9b31787fbb287dbc55a39a47f885d16c5",
     "scripts/m1_private_aot.py": "2369dfac5f41c5c07dd6a0f9dcac8af4aa5b11a819f5d6add1cf11d64d8ddbee",
     "scripts/check_m1_private_aot.py": "9e1e94b0c9859f05fd69d8ae3e9cd632f46006f89cfc22f513f3ab525ccb5f62",
@@ -71,7 +71,8 @@
     "scripts/m1_aot_cache/flashinfer_jit_cache/__init__.py": "2f8ca5cc4706b4b9c5fca181654ec5d0a4577058a8cf8413ebc32a12794a8203",
     "tests/test_m1_owned_processes.py": "7b3728d707497a39a5c1a39fbff78bb8b6dea840ba083e51801b5c9b1b6ce45d",
     "tests/test_m1_private_aot.py": "c706d94af6e87308185de75682fff4b76b622d7716748b7184276addfc76effb",
-    "docs/evidence/m1-eager-startup-failure.json": "d86bdd94f9d15a0fa97ae7857cb3a6810803e28ab2e3c1b2fd70674ac3626adb"
+    "docs/evidence/m1-eager-startup-failure.json": "d86bdd94f9d15a0fa97ae7857cb3a6810803e28ab2e3c1b2fd70674ac3626adb",
+    "tests/test_m1_launcher_resources.py": "cd3c2ac85c5c3e1a333e82e1d4f6b128ea858e6cc8b53a2ed479570981c6f7e6"
   },
   "timing_review_fix": {
     "blocked_head": "aba466e3cb6f0298fb6e9978faa1f112d6c8de28",
@@ -80,5 +81,9 @@
   "startup_remediation": {
     "failed_runtime_head": "77af2413f17b060067620cffe684e9f067f806e1",
     "scope": "Default-off eager startup PID/start-time subreaper containment and aggregate compiler bounds; private pinned AOT reuse. No kernel/arithmetic changes or new timing acceptance."
+  },
+  "retained_resource_failure_fix": {
+    "blocked_head": "223fdf8ce3a2771fedeaab7d31d9f27f10da14cb",
+    "scope": "Check authoritative ownership.failure at dispatch,post-client and final admission; successful cleanup remains separate. AOT/containment/kernel sources unchanged."
   }
 }
