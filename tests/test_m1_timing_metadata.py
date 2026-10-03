@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -119,6 +120,10 @@ class MetadataTimingTests(unittest.TestCase):
                 owner = OwnedProcesses(Process(10,10,1),metadata_timing=policy); owner.register(self.root)
                 sample = replace(self.sample,compiler_file_version=policy.binary_version)
                 original = path.read_bytes(); before = path.stat()
+                # Linux cached filesystem time can coalesce rapid writes. The
+                # version-drift case needs a distinct timestamp; independent
+                # final-hash coverage below covers unchanged stat evidence.
+                time.sleep(.05)
                 path.write_bytes(b"X" + original[1:])
                 os.utime(path,ns=(before.st_atime_ns,before.st_mtime_ns))
                 self.assertEqual(path.stat().st_ino,before.st_ino)

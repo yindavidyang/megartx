@@ -182,7 +182,7 @@ class LauncherResourceTests(unittest.TestCase):
         policy,sample,binary = self.metadata_owner()
         self.owner.observe({20:self.root,30:sample},100)
         binary.write_bytes(b"X" + binary.read_bytes()[1:])
-        with self.assertRaisesRegex(RuntimeError,"file-version drift"):
+        with self.assertRaisesRegex(RuntimeError,"file-version drift|final binary hash/version differs"):
             self.final([{},{},{}])
         self.summary.assert_not_called()
         self.assertEqual((self.output / "run.exit").read_text(),"1\n")
