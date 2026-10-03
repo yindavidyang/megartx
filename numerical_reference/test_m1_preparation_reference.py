@@ -332,9 +332,35 @@ class M1PreparationTests(unittest.TestCase):
         history = combined["historical_ledgers"]
         self.assertEqual(history["capture_free_sha256"], hashlib.sha256(capture_path.read_bytes()).hexdigest())
         self.assertEqual(history["normal_sha256"], hashlib.sha256(normal_path.read_bytes()).hexdigest())
-        for path, expected in combined["runtime_source_hashes"].items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
-        for path, expected in combined["observer_source_hashes"].items():
+        lifecycle_path = root / "docs/evidence/m1-process-lifecycle-source-pins.json"
+        lifecycle = json.loads(lifecycle_path.read_text())
+        self.assertEqual(lifecycle["parent_head"], "3ed6ee85bd2bf08e4a2d9d20f10352c45f208b32")
+        self.assertEqual(lifecycle["parent_branch"], "integration/m1-capture-free-validation-bd09109")
+        self.assertEqual(lifecycle["parent_tree"], "74d5e44771cba35d837e6245302c12e16a26e7e1")
+        self.assertEqual(lifecycle["parent_ledger_sha256"], hashlib.sha256(combined_path.read_bytes()).hexdigest())
+        self.assertEqual(lifecycle["public_validation_head"], "3ed6ee85bd2bf08e4a2d9d20f10352c45f208b32")
+        self.assertEqual(lifecycle["public_validation_tree"], "74d5e44771cba35d837e6245302c12e16a26e7e1")
+        self.assertEqual(lifecycle["base_alignment_tree"], lifecycle["public_validation_tree"])
+        self.assertEqual(lifecycle["verified_pr_heads"], combined["pr_heads"])
+        self.assertEqual(lifecycle["source_reconciliation"]["verified_combined_merge_commit"],
+                         "d002a11c81a32987e4fe00b055f5658ab2f9b914")
+        self.assertTrue(lifecycle["source_reconciliation"]["pr_heads_match_verified_merge_parents"])
+        self.assertFalse(lifecycle["source_reconciliation"]["reconstructed_unverified_pr11_source_accepted"])
+        self.assertEqual(lifecycle["failed_predecessor_snapshot"]["commit"],
+                         "11ec001a9ebc4be7ab62af589b7b44e767a77d98")
+        self.assertFalse(lifecycle["failed_predecessor_snapshot"]["accepted_as_base"])
+        self.assertIs(lifecycle["native_build_verified"], False)
+        self.assertIs(lifecycle["gpu_execution_verified"], False)
+        lifecycle_changes = {r["path"]: r for r in lifecycle["superseded_parent_sources"]}
+        for section in ("runtime_source_hashes", "observer_source_hashes"):
+            for path, expected in combined[section].items():
+                digest = hashlib.sha256((root / path).read_bytes()).hexdigest()
+                if path in lifecycle_changes:
+                    self.assertEqual(lifecycle_changes[path]["parent_sha256"], expected, path)
+                    self.assertEqual(digest, lifecycle_changes[path]["current_sha256"], path)
+                else:
+                    self.assertEqual(digest, expected, path)
+        for path, expected in lifecycle["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
 
         capture_plugin = next(r for r in capture_overlay["superseded_inputs"]

@@ -12,6 +12,7 @@ from pathlib import Path
 from .m1_execution import (CAPTURE_FREE_BEGIN, CONTROLLER_SOURCES,
                            EXECUTION_MODES, EXTERNAL_OBSERVER_SETTER,
                            execution_mode, profile_scope)
+from .m1_process_lifecycle import process_identity
 
 
 LIVE_ABI_VERSION = 2
@@ -65,6 +66,7 @@ class LivePreparation:
         self.lane = lane
         self.execution_mode = execution_mode()
         self.diagnostics = self.execution_mode == "captured"
+        self.process_identity = process_identity()
         library = Path(os.environ["MEGARTX_M1_BRIDGE"]).resolve()
         receipt = json.loads(Path(os.environ["MEGARTX_M1_BUILD_RECEIPT"]).read_text())
         if (receipt.get("returncode") != 0 or receipt.get("reason")
@@ -134,8 +136,21 @@ class LivePreparation:
         if observer_dir:
             if self.diagnostics or os.environ.get("MEGARTX_M1_ROUTE_CONTROLS") == "1":
                 raise RuntimeError("external M1 observer requires capture-free validation without route controls")
-            from .m1_external_observer import ExternalObserver
-            self.external_observer = ExternalObserver(self.native, observer_dir, expected_contract)
+            self.external_observer_requested = True
+            if os.environ.get("MEGARTX_M1_PROCESS_PROBE_ACTIVE") != "1":
+                raise RuntimeError("external M1 observer requires its task-local vLLM process probe")
+            if self.process_identity["process_name"] == "EngineCore":
+                from .m1_external_observer import ExternalObserver
+                self.external_observer = ExternalObserver(
+                    self.native, observer_dir, expected_contract,
+                    registration_identity=self.process_identity,
+                    bridge_identity={"path": str(library),
+                                     "sha256": receipt["binary_sha256"]},
+                    process_evidence_dir=os.environ["MEGARTX_M1_PROCESS_EVIDENCE_DIR"],
+                    api_pid_path=os.environ["MEGARTX_M1_API_PID_FILE"],
+                    process_probe_sha256=os.environ["MEGARTX_M1_PROCESS_PROBE_SHA256"])
+        else:
+            self.external_observer_requested = False
         self.directory = Path(os.environ["MEGARTX_M1_CAPTURE_DIR"]) if self.diagnostics else None
         # Plugin registration also runs in the API process. Allocate/capture
         # only inside the verified model's first marked request.
@@ -169,6 +184,12 @@ class LivePreparation:
         marker = Path(os.environ["MEGARTX_LOGITS_DIR"]).parent / "capture-request.json"
         if not marker.exists():
             return
+        if self.external_observer_requested:
+            current = process_identity()
+            if (self.external_observer is None
+                    or current["pid"] != self.process_identity["pid"]
+                    or current["process_name"] != "EngineCore"):
+                raise RuntimeError("observed model work is not owned by its EngineCore observer process")
         if input_ids is None or positions.ndim != 1 or input_ids.numel() != positions.numel():
             raise RuntimeError("live preparation needs actual model token/position rows")
         request = json.loads(marker.read_text())

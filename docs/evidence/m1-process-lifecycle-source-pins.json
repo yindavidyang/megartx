@@ -1,0 +1,94 @@
+{
+  "scope": "Diagnostic-only observer process-lifecycle ownership delta. Actual EngineCore spawn/owner identity is rejected during startup and revalidated by the launcher before request dispatch. CPU validation only; no native/GPU/graph/performance qualification.",
+  "parent_branch": "integration/m1-capture-free-validation-bd09109",
+  "parent_head": "3ed6ee85bd2bf08e4a2d9d20f10352c45f208b32",
+  "parent_tree": "74d5e44771cba35d837e6245302c12e16a26e7e1",
+  "parent_ledger_sha256": "c90bfeb6ff2351a03c98ab83221844b95b0e0875fa5e1a4e89887074c5b60624",
+  "public_validation_head": "3ed6ee85bd2bf08e4a2d9d20f10352c45f208b32",
+  "base_alignment_tree": "74d5e44771cba35d837e6245302c12e16a26e7e1",
+  "base_tree_blob_count": 181,
+  "base_tree_difference_paths": [],
+  "source_reconciliation": {
+    "pr11_head": "6e7674377a483fb404be93811a1b58eae0edf475",
+    "pr12_head": "2a3b35c34f6bfdc5d52e0387f1bdd0da891d4d5a",
+    "verified_combined_merge_commit": "d002a11c81a32987e4fe00b055f5658ab2f9b914",
+    "pr_heads_match_verified_merge_parents": true,
+    "reconstructed_unverified_pr11_source_accepted": false,
+    "tested_runtime_source_head": "bd09109fd59c9767c1f81ec49dbc54555f1fd29f",
+    "tested_runtime_tree": "103845a9e5b91fe91dbb49fff121d6561fb668b8",
+    "public_pr13_head_tree_exactly_reconciled": true
+  },
+  "failed_predecessor_snapshot": {
+    "commit": "11ec001a9ebc4be7ab62af589b7b44e767a77d98",
+    "parent": "05807d660d041bc1542f916f90c6328abaa94d31",
+    "accepted_as_base": false,
+    "reason": "Regressed later accepted source controls and did not prove actual EngineCore context before request dispatch."
+  },
+  "verified_pr_heads": {
+    "pr11": "6e7674377a483fb404be93811a1b58eae0edf475",
+    "pr12": "2a3b35c34f6bfdc5d52e0387f1bdd0da891d4d5a"
+  },
+  "superseded_parent_sources": [
+    {
+      "path": "docs/m1-capture-free-execution.md",
+      "parent_sha256": "a4e8504bd5900bab7a148729cf74b21b0a914c4e420da4900c409e88f069cd3b",
+      "current_sha256": "4153eecddb105e5f65c6c0b0b9987c12e76238df86bae09bc7d06440424cac92"
+    },
+    {
+      "path": "numerical_reference/compare_m1_external_observer.py",
+      "parent_sha256": "2c574df7933eb07297b5a140caa90b25d77998d6cb972a8415ecd5af55282142",
+      "current_sha256": "ec4d1323f32d85d3a762a56ae56df9cde75a8df4eb4397185178ca3cab1752ad"
+    },
+    {
+      "path": "numerical_reference/test_m1_external_observer.py",
+      "parent_sha256": "71b1d57ade416c85cd74b32e738c8442686450db8f76e5df11d9d407ebf91004",
+      "current_sha256": "6c5880a4586a70cf1ca8ad0a668f8e0c1bc3ded76ad05605df94a3c88dc022a5"
+    },
+    {
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "parent_sha256": "367560bac27897be66a6b4c80392ab2b4193b247ac464851c1ffeb354ca5b93f",
+      "current_sha256": "de762395f405482e0007dd698e4c2229b392284c962002faeb2fb7c2cfc249a7"
+    },
+    {
+      "path": "scripts/build_m1_live_bridge.py",
+      "parent_sha256": "93c1af4733b9331580bff1430dbe24f79cb7597bc67950298368ec181de41476",
+      "current_sha256": "83221856cb327240f6b2910968446ece4b14cfc9c57ea79b75150594ed4abd36"
+    },
+    {
+      "path": "scripts/run_scale_validation.py",
+      "parent_sha256": "5c1e3b1776045fc84eeea79d0f81c6932dc7d2fe146a01f1b4618739d34f5bbb",
+      "current_sha256": "a0a9b57991d3b78db3d0617408dd3e8720bf139832fad37a9eeb018ca6f24b52"
+    },
+    {
+      "path": "src/megartx/m1_execution.py",
+      "parent_sha256": "5310d8491b95956054c65036a7dd31ba70ffaa106f3ec956b28f4d07944ee9f7",
+      "current_sha256": "04a7ecbcf90bc94e0c80370f8a8d3bcb8867981b93d548940726e7c220ca40bf"
+    },
+    {
+      "path": "src/megartx/m1_external_observer.py",
+      "parent_sha256": "8cd17cbb8c957ed35fef3d1b2dcb6cabc53012387deaadde35b19dd4665c0e53",
+      "current_sha256": "3eb0733fa064b7091ce3d446e476bd89453ec360fb230e6518024823c0539e54"
+    },
+    {
+      "path": "src/megartx/m1_live.py",
+      "parent_sha256": "2a34ff07649cb7e5d445fe50487e63c6e8a9a3833c62c52e54e35f0ebaf41168",
+      "current_sha256": "730287e49cdf88be4ac40d67694b3458f4088de1d99b197c1ff06689fb225394"
+    },
+    {
+      "path": "tests/test_m1_external_observer.py",
+      "parent_sha256": "199e7d11ab0278b0dbb0f5a1140c9f5e3b333798cc4e1a1555850e25ab8f5422",
+      "current_sha256": "1c2f7dd4c418f82e3ecb2a13ca8b73be623b13019487217c4a895e15d5ae5a59"
+    }
+  ],
+  "added_source_hashes": {
+    "scripts/m1_process_probe/sitecustomize.py": "159f9480abb766f25385fa598123adf8fe31c2e47129059d79a7ef9607cfced6",
+    "src/megartx/m1_process_lifecycle.py": "a72688f2a7b07f408ff6fb1aabeea7881e87f9b9b052017539a55d71955758f6",
+    "tests/test_m1_process_probe.py": "95537fc65bc2ac181d4811be2ba11a9d55cd7c34becc68e2a30f86d38e27f1b4"
+  },
+  "native_build_verified": false,
+  "gpu_execution_verified": false,
+  "capture_free_observer_gpu_verified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false,
+  "public_validation_tree": "74d5e44771cba35d837e6245302c12e16a26e7e1"
+}

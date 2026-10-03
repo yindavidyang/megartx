@@ -221,8 +221,11 @@ def check_external_run(run, lane, captured_run, build):
     command = launch.get("command")
     env = launch.get("environment_overrides", {})
     observer_root = run / "m1-external-observer"
+    probe_path = Path(__file__).resolve().parents[1] / "scripts/m1_process_probe/sitecustomize.py"
+    process_probe_sha256 = _sha(probe_path, 1 << 20)
     require(launch.get("m1_execution_requested") == "capture-free"
             and isinstance(command, list) and "--no-async-scheduling" in command
+            and "--profiler-config" not in command
             and launch.get("m1_external_observer_requested") is True
             and launch.get("m1_preparation_requested") == lane
             and launch.get("controlled_request_count") == 1
@@ -230,6 +233,16 @@ def check_external_run(run, lane, captured_run, build):
             and env.get("MEGARTX_M1_EXECUTION") == "capture-free"
             and env.get("MEGARTX_M1_PREPARATION") == lane
             and env.get("MEGARTX_M1_EXTERNAL_OBSERVER_DIR") == str(observer_root.resolve())
+            and env.get("VLLM_WORKER_MULTIPROC_METHOD") == "spawn"
+            and env.get("MEGARTX_M1_PROCESS_EXPECTED_METHOD") == "spawn"
+            and env.get("MEGARTX_M1_PROCESS_EVIDENCE_DIR")
+                == str((run / "m1-process-evidence").resolve())
+            and env.get("MEGARTX_M1_PROCESS_PROBE_SHA256") == process_probe_sha256
+            and env.get("MEGARTX_M1_API_PID_FILE") == str((run / "owned-server.pid").resolve())
+            and env.get("PYTHONPATH", "").split(":", 1)[0] == str(probe_path.parent.resolve())
+            and launch.get("m1_process_lifecycle_probe_sha256") == process_probe_sha256
+            and launch.get("m1_process_lifecycle_expected_method") == "spawn"
+            and launch.get("m1_process_lifecycle_policy") == "actual_spawn_owner_pre_dispatch"
             and "MEGARTX_M1_CAPTURE_DIR" not in env,
             "Launch manifest does not bind explicit observer-only execution")
     require(read_json(run / "status.json").get("phase") == "cleanup_complete"
@@ -237,6 +250,8 @@ def check_external_run(run, lane, captured_run, build):
             and not (run / "preparation").exists(),
             "Observer run lifecycle failed or created internal preparation captures")
     contract = read_json(observer_root / "observer-contract.json")
+    registration = contract.get("registration_identity", {})
+    observer = read_json(observer_root / "observer-manifest.json")
     require(contract.get("schema") == SCHEMA and contract.get("execution_mode") == "capture-free"
             and contract.get("internal_capture_enabled") is False
             and contract.get("perturbs_execution") is True
@@ -244,9 +259,11 @@ def check_external_run(run, lane, captured_run, build):
             and contract.get("profiler_trace_stream_field") == "kernel.args.stream"
             and contract.get("cupti_stream_id_provider") == provider
             and contract.get("timing_qualified") is False
+            and registration.get("process_name") == "EngineCore"
+            and contract.get("bridge_identity") == observer.get("bridge_identity")
+            and contract.get("process_probe_sha256") == process_probe_sha256
             and contract.get("native_contract") == compiled,
             "External observer contract differs from built sources")
-    observer = read_json(observer_root / "observer-manifest.json")
     require(observer.get("schema") == SCHEMA and observer.get("case") == "cached"
             and observer.get("execution_mode") == "capture-free"
             and observer.get("observer_enabled") is True
@@ -259,6 +276,39 @@ def check_external_run(run, lane, captured_run, build):
             and observer.get("graph_qualified") is False
             and observer.get("timing_qualified") is False,
             "Observer final manifest lacks its bounded nonqualification fields")
+    lifecycle = observer.get("process_lifecycle", {})
+    cleanup = read_json(run / "m1-process-evidence" / "cleanup.json")
+    pre_dispatch = read_json(run / "m1-process-evidence" / "pre-dispatch.json")
+    try:
+        owned_server_pid = int((run / "owned-server.pid").read_text().strip())
+    except (OSError, ValueError) as error:
+        raise RuntimeError("Owned API server PID receipt is missing or invalid") from error
+    require(lifecycle.get("actual_start_method") == "spawn"
+            and pre_dispatch.get("schema") == "megartx-m1-pre-dispatch-owner-v1"
+            and pre_dispatch.get("passed") is True
+            and pre_dispatch.get("before_request_dispatch") is True
+            and pre_dispatch.get("actual_start_method") == "spawn"
+            and pre_dispatch.get("api_server_pid") == owned_server_pid
+            and pre_dispatch.get("engine_core_pid") == lifecycle.get("engine_core_pid")
+            and pre_dispatch.get("engine_core_ppid") == owned_server_pid
+            and pre_dispatch.get("observer_registration_owner_pid") == lifecycle.get("engine_core_pid")
+            and pre_dispatch.get("bridge_identity") == observer.get("bridge_identity")
+            and pre_dispatch.get("process_probe_sha256") == process_probe_sha256
+            and lifecycle.get("api_server_pid") == owned_server_pid
+            and lifecycle.get("engine_core_ppid") == owned_server_pid
+            and lifecycle.get("engine_core_pid") == lifecycle.get("observer_registration_owner_pid")
+            and lifecycle.get("observer_registration_pid") == lifecycle.get("engine_core_pid")
+            and registration.get("pid") == lifecycle.get("engine_core_pid")
+            and registration.get("ppid") == lifecycle.get("engine_core_ppid")
+            and lifecycle.get("observer_registered_by_api_server") is False
+            and lifecycle.get("observer_callback_unregistered") is True
+            and lifecycle.get("process_probe_sha256") == process_probe_sha256
+            and cleanup.get("schema") == "megartx-m1-process-cleanup-v1"
+            and cleanup.get("server_pid") == owned_server_pid
+            and cleanup.get("cleanup_complete") is True
+            and cleanup.get("owned_process_group_alive") is False
+            and cleanup.get("owned_gpu_pids_remaining") == [],
+            "Observer process ownership or owned-server cleanup did not pass")
     case = run / "controlled" / "cached"
     require(case.is_dir() and not case.is_symlink()
             and {p.name for p in case.iterdir()} == {"capture-free-request.json"},
@@ -302,6 +352,10 @@ def check_external_run(run, lane, captured_run, build):
                 and receipt.get("stream_id_api") == STREAM_ID_API
                 and receipt.get("cupti_stream_id_provider") == provider
                 and receipt.get("per_thread_stream") is False
+                and receipt.get("pid") == lifecycle.get("engine_core_pid")
+                and receipt.get("ppid") == lifecycle.get("engine_core_ppid")
+                and receipt.get("registration_owner_pid") == lifecycle.get("engine_core_pid")
+                and receipt.get("bridge_identity") == observer.get("bridge_identity")
                 and type(receipt.get("stream")) is int and receipt["stream"] != 0
                 and type(receipt.get("profiler_stream_id")) is int
                 and receipt["profiler_stream_id"] != 0
@@ -320,6 +374,8 @@ def check_external_run(run, lane, captured_run, build):
                         and e.get("stream_id_api") == receipt.get("stream_id_api")
                         and e.get("cupti_stream_id_provider") == provider
                         and e.get("profiler_stream_id") == receipt.get("profiler_stream_id")
+                        and e.get("pid") == lifecycle.get("engine_core_pid")
+                        and e.get("registration_owner_pid") == lifecycle.get("engine_core_pid")
                         for i, e in enumerate(events))
                 and receipt.get("stream") != 0,
                 "Native observer event counts, order, thread or stream differ")
@@ -380,6 +436,8 @@ def check_external_run(run, lane, captured_run, build):
             "candidate_launches_correlated": 30 if lane == "fused" else 0,
             "native_payloads_bit_exact_to_captured_lane": True,
             "model_arrays": arrays, "trace": trace,
+            "process_lifecycle": lifecycle,
+            "owned_process_cleanup_complete": True,
             "internal_capture_hooks_inactive": True,
             "observer_perturbs_execution": True, "timing_qualified": False}
 
@@ -406,19 +464,38 @@ def compare_observers(build, stock_captured, fused_captured, stock_observed, fus
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", type=Path, required=True)
-    parser.add_argument("--stock-captured", type=Path, required=True)
+    parser.add_argument("--stock-captured", type=Path)
     parser.add_argument("--fused-captured", type=Path, required=True)
-    parser.add_argument("--stock-observed", type=Path, required=True)
+    parser.add_argument("--stock-observed", type=Path)
     parser.add_argument("--fused-observed", type=Path, required=True)
+    parser.add_argument("--lifecycle-only", action="store_true",
+                        help="Validate one fused observer run against its captured control and runtime owner evidence")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     destination = args.output.resolve()
-    inputs = (args.build, args.stock_captured, args.fused_captured,
-              args.stock_observed, args.fused_observed)
+    if args.lifecycle_only:
+        require(args.stock_captured is None and args.stock_observed is None,
+                "Lifecycle-only comparison accepts only the fused observed lane")
+        inputs = (args.build, args.fused_captured, args.fused_observed)
+    else:
+        require(args.stock_captured is not None and args.stock_observed is not None,
+                "Full comparison requires both stock and fused observer lanes")
+        inputs = (args.build, args.stock_captured, args.fused_captured,
+                  args.stock_observed, args.fused_observed)
     require(all(destination != path.resolve() and path.resolve() not in destination.parents
                 for path in inputs), "Report must be outside each input evidence path")
-    report = compare_observers(args.build, args.stock_captured, args.fused_captured,
-                               args.stock_observed, args.fused_observed)
+    if args.lifecycle_only:
+        report = {"schema": SCHEMA, "scope": "single_fused_capture_free_observer_lifecycle",
+                  "passed": True,
+                  "fused": check_external_run(args.fused_observed, "fused",
+                                              args.fused_captured, args.build),
+                  "fused_outputs_bit_exact_to_captured_control": True,
+                  "previous_full_stock_fused_comparison_repeated": False,
+                  "quality_qualified": False, "graph_qualified": False,
+                  "timing_qualified": False}
+    else:
+        report = compare_observers(args.build, args.stock_captured, args.fused_captured,
+                                   args.stock_observed, args.fused_observed)
     with destination.open("x") as stream:
         json.dump(report, stream, indent=2)
     print(json.dumps(report, indent=2))

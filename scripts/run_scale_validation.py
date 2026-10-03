@@ -1,6 +1,7 @@
 """Bounded ownership-aware server lifecycle and host-local baseline runner."""
 import argparse
 import datetime
+import hashlib
 import json
 import os
 import pathlib
@@ -114,10 +115,14 @@ env["MEGARTX_ACTIVATION_TRACE_PATH"] = str(output / "activation-forced.json.gz")
 env["MEGARTX_CHECKPOINT_PATH"] = str(base / "models/gemma4-nvfp4")
 for inherited in ("MEGARTX_LOGITS_DIR", "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR", "MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN", "MEGARTX_LAYER0_BOUNDARIES", "MEGARTX_LAYER0_CAPTURE_POLICY"):
     env.pop(inherited, None)
+probe_sha256 = None
+env.pop("VLLM_WORKER_MULTIPROC_METHOD", None)
 for inherited in ("MEGARTX_M1_PREPARATION", "MEGARTX_M1_EXECUTION", "MEGARTX_M1_BRIDGE",
                   "MEGARTX_M1_BUILD_RECEIPT", "MEGARTX_M1_CAPTURE_DIR", "MEGARTX_M1_STOCK_MODULE",
                   "MEGARTX_M1_ROUTE_CONTROLS", "MEGARTX_M1_NORMAL_PLAN", "MEGARTX_M1_NORMAL_DIR",
-                  "MEGARTX_M1_EXTERNAL_OBSERVER_DIR"):
+                  "MEGARTX_M1_EXTERNAL_OBSERVER_DIR", "MEGARTX_M1_PROCESS_EVIDENCE_DIR",
+                  "MEGARTX_M1_PROCESS_EXPECTED_METHOD", "MEGARTX_M1_PROCESS_PROBE_SHA256",
+                  "MEGARTX_M1_API_PID_FILE", "MEGARTX_M1_PROCESS_PROBE_ACTIVE"):
     env.pop(inherited, None)
 if args.m1_preparation:
     env.update({"MEGARTX_M1_ROUTE_CONTROLS": "1" if args.m1_route_controls else "0",
@@ -130,6 +135,16 @@ if args.m1_preparation:
         env["MEGARTX_M1_CAPTURE_DIR"] = str(output / "preparation")
     if args.m1_external_observer:
         env["MEGARTX_M1_EXTERNAL_OBSERVER_DIR"] = str(output / "m1-external-observer")
+        probe = project / "scripts/m1_process_probe/sitecustomize.py"
+        process_evidence = output / "m1-process-evidence"
+        process_evidence.mkdir(mode=0o700, exist_ok=False)
+        probe_sha256 = hashlib.sha256(probe.read_bytes()).hexdigest()
+        env["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
+        env["MEGARTX_M1_PROCESS_EXPECTED_METHOD"] = "spawn"
+        env["MEGARTX_M1_PROCESS_EVIDENCE_DIR"] = str(process_evidence)
+        env["MEGARTX_M1_PROCESS_PROBE_SHA256"] = probe_sha256
+        env["MEGARTX_M1_API_PID_FILE"] = str(output / "owned-server.pid")
+        env["PYTHONPATH"] = str(probe.parent) + ":" + env["PYTHONPATH"]
 if args.client == "normal":
     env["MEGARTX_LOGITS_DIR"] = str(output / "logits")
     env["MEGARTX_M1_NORMAL_DIR"] = str(output / "normal")
@@ -235,6 +250,12 @@ launch_env_keys = [
     "MEGARTX_M1_ROUTE_CONTROLS", "MEGARTX_M1_NORMAL_PLAN", "MEGARTX_M1_NORMAL_DIR",
     "MEGARTX_M1_EXTERNAL_OBSERVER_DIR",
 ]
+if args.m1_external_observer:
+    launch_env_keys.extend(("VLLM_WORKER_MULTIPROC_METHOD",
+                            "MEGARTX_M1_PROCESS_EXPECTED_METHOD",
+                            "MEGARTX_M1_PROCESS_EVIDENCE_DIR",
+                            "MEGARTX_M1_PROCESS_PROBE_SHA256",
+                            "MEGARTX_M1_API_PID_FILE"))
 launch_manifest = {
     "command": command,
     "environment_overrides": {key: env[key] for key in launch_env_keys if key in env},
@@ -258,6 +279,9 @@ launch_manifest = {
     "m1_execution_requested": args.m1_execution,
     "m1_route_controls": args.m1_route_controls,
     "m1_external_observer_requested": args.m1_external_observer,
+    "m1_process_lifecycle_probe_sha256": probe_sha256,
+    "m1_process_lifecycle_expected_method": "spawn" if args.m1_external_observer else None,
+    "m1_process_lifecycle_policy": "actual_spawn_owner_pre_dispatch" if args.m1_external_observer else None,
     "m1_loader": "after_torch_rtld_global" if args.m1_preparation else None,
 }
 (output / "launch-manifest.json").write_text(json.dumps(launch_manifest, indent=2))
@@ -286,6 +310,35 @@ try:
     if not ready:
         raise RuntimeError("Server startup exceeded the bounded 20 minute compile/load limit")
     phase("server_ready")
+    if args.m1_external_observer:
+        from megartx.m1_process_lifecycle import validate_engine_core_registration_before_dispatch
+        evidence_dir = output / "m1-process-evidence"
+        api_pid_path = output / "owned-server.pid"
+        build_report = json.loads(args.m1_build_receipt.read_text())
+        bridge_identity = {"path": str(args.m1_bridge.resolve()),
+                           "sha256": build_report.get("binary_sha256")}
+        if not bridge_identity["sha256"]:
+            raise RuntimeError("observer pre-dispatch gate has no source-bound bridge identity")
+        lifecycle = None
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if server.poll() is not None:
+                raise RuntimeError("owned server exited before observer process ownership was verified")
+            event_path = evidence_dir / "process-events.jsonl"
+            if event_path.is_file() and not event_path.is_symlink():
+                lifecycle = validate_engine_core_registration_before_dispatch(
+                    evidence_dir, api_pid_path, probe_sha256, bridge_identity)
+                if lifecycle is not None:
+                    break
+            time.sleep(.25)
+        if lifecycle is None:
+            raise RuntimeError("observer EngineCore ownership was not established before request dispatch")
+        lifecycle_record = {"schema": "megartx-m1-pre-dispatch-owner-v1",
+                            "passed": True, "before_request_dispatch": True,
+                            **lifecycle}
+        (evidence_dir / "pre-dispatch.json").write_text(
+            json.dumps(lifecycle_record, indent=2) + "\n")
+        phase("observer_process_gate_passed", **lifecycle)
     activation(output)
     phase("integration_activation_verified")
     # The process group belongs solely to the server started above. Refuse
@@ -374,7 +427,51 @@ finally:
                 os.killpg(server.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+            deadline = time.monotonic() + 10
+            while group_alive and time.monotonic() < deadline:
+                try:
+                    os.killpg(server.pid, 0)
+                    time.sleep(.2)
+                except ProcessLookupError:
+                    group_alive = False
+    cleanup_error = None
+    cleanup_complete = True
+    if args.m1_external_observer and server is not None:
+        owned_gpu_pids = []
+        try:
+            for pid in gpu_jobs():
+                try:
+                    if os.getpgid(pid) == server.pid:
+                        owned_gpu_pids.append(pid)
+                except ProcessLookupError:
+                    pass
+        except BaseException as error:
+            cleanup_error = type(error).__name__
+        try:
+            os.killpg(server.pid, 0)
+            group_alive = True
+        except ProcessLookupError:
+            group_alive = False
+        cleanup_complete = not group_alive and not owned_gpu_pids and cleanup_error is None
+        cleanup = {"schema": "megartx-m1-process-cleanup-v1",
+                   "server_pid": server.pid, "server_returncode": server.returncode,
+                   "owned_process_group_alive": group_alive,
+                   "owned_gpu_pids_remaining": owned_gpu_pids,
+                   "cleanup_query_error": cleanup_error,
+                   "cleanup_complete": cleanup_complete}
+        (output / "m1-process-evidence" / "cleanup.json").write_text(
+            json.dumps(cleanup, indent=2))
+        if not cleanup_complete:
+            (output / "run.exit").write_text("1\n")
+            phase("cleanup_incomplete", **cleanup)
     stop_sample.set()
     sample_thread.join(timeout=10)
-    phase("cleanup_complete")
+    phase("cleanup_complete" if cleanup_complete else "cleanup_incomplete")
     phases.close()
+    if not cleanup_complete:
+        active_error = sys.exc_info()[1]
+        message = "Owned M1 observer server cleanup did not complete"
+        if active_error is not None and hasattr(active_error, "add_note"):
+            active_error.add_note(message)
+        elif active_error is None:
+            raise RuntimeError(message)

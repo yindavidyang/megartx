@@ -277,6 +277,54 @@ combined branch reconciles its intersections as follows:
 Combined GPU validation requires a fresh bridge/adapter pair rebuilt from the
 exact combined head and a rerun of the serial validation sequence above.
 
+## Observer process-lifecycle closure
+
+The prior stock/fused capture-free observer pair completed its numerical
+comparison, but its launch did not record which multiprocessing context created
+EngineCore or whether the callback registration belonged to that process. The
+follow-up delta keeps the observer validation-only and closes that attribution
+gap. For explicit observer runs only, the bounded launcher sets
+`VLLM_WORKER_MULTIPROC_METHOD=spawn` and prepends the hash-pinned, task-local
+`scripts/m1_process_probe/sitecustomize.py`. The probe wraps the
+`multiprocessing.get_context()` call used by pinned vLLM `get_mp_context` and
+records `ctx.get_start_method()` plus the actual
+`Process.start()` parent/child PIDs and names. vLLM 0.30.0 reads the requested
+method in `get_mp_context` and uses that returned context to create a process
+named `EngineCore` ([pinned context selection](https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/utils/system_utils.py#L153-L166),
+[pinned EngineCore creation](https://github.com/vllm-project/vllm/blob/v0.30.0/vllm/v1/engine/utils.py#L164-L192)).
+
+Only an `EngineCore` plugin instance registers the callback or creates the
+observer sidecar. It records its registration PID/PPID and bridge path/hash;
+every callback event and call receipt record actual PID/TID and registration
+owner PID. The observer rejects inherited or cross-process callback use. After
+the 30-call case it unregisters the native callback, validates a single
+EngineCore child of the owned API server, and requires the task-local server
+process group and its GPU processes to be gone. Any collision, missing start
+record, owner mismatch, failed unregister or incomplete cleanup invalidates the
+run. The process probe and its evidence destination are absent when the
+observer flag is off.
+
+The remaining GPU check after review is one fresh fused, controlled cached
+observer request under that exact spawn configuration. Its 30 request calls
+must bind to the spawned EngineCore and compare bit-exactly against the already
+captured fused control; the existing captured stock/fused numerical reports
+remain preserved and are not repeated. The stock and fused observer paths share
+the same launcher/process-probe branch, so a second stock request is needed
+only if that source or manifest comparison changes. This single diagnostic run
+does not qualify timing, graphs, model quality or performance.
+
+The lifecycle gate runs before that request: `ExternalObserver` validates the
+actual context, unique EngineCore child, API-server parent, probe hash and owner
+while EngineCore is initializing, before it registers the native callback. The
+bounded launcher then waits up to 30 seconds for that exact registration and
+revalidates it before it starts the controlled client. A wrong or missing
+context, duplicate owner, or bridge mismatch stops the owned server before
+request dispatch. The comparator requires the resulting
+`m1-process-evidence/pre-dispatch.json` receipt and matches it to the later
+observer manifest and cleanup record. The earlier GPU packet on `bd09109`
+remains historical evidence for that runtime; it did not record this
+pre-dispatch process gate and does not qualify the lifecycle delta.
+
 After those GPU requests, graph implementation/qualification still needs its
 own reviewed source freeze and failure/lifetime evidence. Natural routing,
 broader quality, actual CUDA failures and a warmed fair timing protocol remain
