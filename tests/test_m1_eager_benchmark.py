@@ -96,6 +96,26 @@ class LedgerTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "bypassed"): obj.end()
         self.assertEqual(obj.index, 0)
 
+    def test_request_transitions_retain_references_and_never_hash_before_drain(self):
+        p = plan()
+        with tempfile.TemporaryDirectory() as directory:
+            obj = EagerBenchmark(p, Path(directory) / "ledger", "stock")
+            retained = []
+            with patch("megartx.m1_eager_benchmark.digest", side_effect=AssertionError("timed transcript hashing")):
+                for row in p["schedule"]:
+                    finish(obj, row)
+                    retained.append(obj.tokens)
+            self.assertEqual(len(obj.completed_transcripts), len(p["schedule"]) - 1)
+            for actual, expected in zip(obj.completed_transcripts, retained):
+                self.assertIs(actual, expected)
+            self.assertTrue(all("input_transcript_sha256" not in r for r in obj.records))
+            with patch("megartx.m1_eager_benchmark.digest", wraps=digest) as hashes:
+                obj.begin(drain_marker(p), [7], [0])
+            self.assertEqual(hashes.call_count, len(p["schedule"]))
+            self.assertEqual(obj.completed_transcripts, [])
+            report = json.loads((obj.directory / "dispatch.json").read_text())
+            self.assertEqual([r["input_transcript_sha256"] for r in report["records"]], [digest(t) for t in retained])
+
     def test_invalid_actual_token_position_and_premature_drain_fail(self):
         p = plan()
         for tokens, positions in (([4] * 256, list(range(256))), ([3] * 256, list(range(1, 257)))):

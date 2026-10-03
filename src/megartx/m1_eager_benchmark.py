@@ -102,6 +102,7 @@ class EagerBenchmark:
         self.plan, self.directory, self.lane = plan, Path(directory), lane
         self.index, self.frame = -1, 0
         self.records, self.tokens = [], []
+        self.completed_transcripts = []
         self.counts = {"stock": 0, "fused": 0, "prefill_fallback": 0}
         self.pending = self.drained = False
         self.hits = {}
@@ -117,8 +118,10 @@ class EagerBenchmark:
                     "prefill_fallback": 30 * (n // 256)}
         if self.pending or self.frame != n // 256 + 255 or self.counts != expected:
             raise RuntimeError("eager benchmark request dispatch/frame ledger incomplete")
-        self.records.append({**row, "input_transcript_sha256": digest(self.tokens),
-                             "frames": self.frame, "counts": dict(self.counts),
+        # Retain the completed list itself: copying, JSON encoding or hashing
+        # here would charge the predecessor's length to the next request's TTFT.
+        self.completed_transcripts.append(self.tokens)
+        self.records.append({**row, "frames": self.frame, "counts": dict(self.counts),
                              "natural_correction_selected_rows": dict(self.hits)})
 
     def begin(self, request, tokens, positions):
@@ -128,12 +131,16 @@ class EagerBenchmark:
             if self.index != len(self.plan["schedule"]) - 1:
                 raise RuntimeError("eager benchmark premature drain")
             self.finish_request()
+            for record, transcript in zip(self.records, self.completed_transcripts):
+                record["input_transcript_sha256"] = digest(transcript)
             self.directory.mkdir(parents=True, exist_ok=True)
             report = {"schema": SCHEMA, "plan_sha256": self.plan["plan_sha256"],
                       "source_head": self.plan["source_head"], "records": self.records,
                       "observer_off": True, "quality_qualified": False, "graphs_qualified": False}
             with (self.directory / "dispatch.json").open("x") as stream:
                 json.dump(report, stream, indent=2)
+            self.completed_transcripts.clear()
+            self.tokens = []
             self.drained = True
             return False
         if self.index < 0 or request != marker(self.plan, self.plan["schedule"][self.index]):

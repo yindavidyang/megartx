@@ -59,10 +59,14 @@
     }
   ],
   "added_source_hashes": {
-    "src/megartx/m1_eager_benchmark.py": "2c749123630c1e7640daf2c890f04d647bb3aab9dd6b7f090279e6eb42c99257",
+    "src/megartx/m1_eager_benchmark.py": "62280390bf1fccc7c83464bf592214801d5cd8207cccd3ed404d587991d28719",
     "scripts/m1_eager_benchmark_client.py": "a7b871b71d7b1d19a7813405602592f9562e7e0269e48d78a50950f49f20d34d",
     "scripts/prepare_m1_eager_benchmark.py": "8d27bdd36809aa111386d54a961711e1f495c45585480709904119db793bfa77",
-    "tests/test_m1_eager_benchmark.py": "7b6f92eb0dca376c29fe809ccb74c0fa045008f36bf7dc252745e64fcd250e8f",
-    "docs/m1-matched-eager-benchmark.md": "667ad3842eaddb47c1bdcc2826024a1be22f7ebd32dcf58f6150fa0dfb284fb8"
+    "tests/test_m1_eager_benchmark.py": "a161e5dc04f638b776f418bd98c35ab3a03ad1fd6101da2e8c370acce5d7d093",
+    "docs/m1-matched-eager-benchmark.md": "c9357615256a68c3e268cc6645e0578a078a15d59691157d1b147661ddeeebfd"
+  },
+  "timing_review_fix": {
+    "blocked_head": "aba466e3cb6f0298fb6e9978faa1f112d6c8de28",
+    "scope": "Retain completed transcript references at request boundaries; hash only in untimed drain. Native safety and arithmetic unchanged."
   }
 }

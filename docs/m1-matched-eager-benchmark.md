@@ -48,6 +48,9 @@ the timed requests. A separate, final one-token drain request exports scalar
 receipts after the response timestamps. It is outside timing. Receipts hash
 the actual input transcript, which the client checks against the prompt and
 first 255 generated token IDs. Paired 256-token output IDs and usage must match.
+Completed transcript lists are retained by reference at ordinary request
+transitions; all transcript hashing/JSON encoding occurs only in the untimed
+drain. Prior frame/backend completion checks still precede each lane switch.
 Natural selected-row correction hits are recorded separately from the six
 forced startup fixtures. Zero natural hits are disclosed; they cannot qualify
 coverage or quality. Selected rows do not independently prove nonzero weights.
@@ -108,24 +111,25 @@ idle/owned processes and bounds before each launch; run one server at a time.
 1. Fresh exact-source build: installed pins, four relocations, versioned contract,
    both ABI entry points, compiled framing/owner/lease/binding controls, binary
    and controller/driver hashes. Recheck all six native/reference startup fixtures.
-2. Exact-source captured controlled stock/fused pair with separately labeled
-   artificial first-use/disjoint-reuse route controls; strict `compare_m1_live`.
-   Fresh observer-enabled controlled stock/fused runs, pre-dispatch EngineCore
-   ownership and strict external comparison; instrumentation is never timed.
-3. Fresh observer-off stock and fused controlled cached preflights: response
-   usage, no observer/probe import or destination, no preparation/NPZ/trace/call
-   receipt, successful owned cleanup. These establish the off contract separately.
-4. Exact-source captured normal stock/fused two-request plan and strict normal
-   comparison establish new-request/workspace-reuse fidelity and dispatch at
-   their bounded natural prompts. Their constrained continuations do not qualify
-   timing or G1. Then the separate 2K/8K observer-off pilot exercises the actual
-   benchmark plan, natural output matching, lane switching, counts/transcripts
-   and full cleanup. Its scalar status is not a CUDA trace or tensor oracle.
-5. Only after the affected source/fidelity gates pass, prepare the six-pair plan
+2. Fresh observer-off 2K/8K pilot with both lanes, one complete warmup per
+   context/lane and one matched pair per context. Require actual request/frame
+   and backend counts, transcript hashes, identical 256-token outputs/usage,
+   natural correction counters, repeated lane switches/workspace reuse, and
+   successful owned group/GPU cleanup. Require no observer/probe or diagnostic
+   capture destination or preparation/NPZ/request-trace/call-receipt output.
+   Its scalar checks are not a CUDA trace, tensor oracle or quality proof.
+3. Only after the affected source/build and pilot gates pass, prepare the six-pair plan
    and execute one fresh observer-off warm server. Any failed gate blocks timing.
    Publish only sanitized scalar results and source/test hashes, never prompts,
    tensors, full profiler data or host logs. Draft PR authorized; merging remains
    outside this milestone.
+
+The independent review accepts this minimum scope because native safety and
+arithmetic sources are unchanged. Do not repeat the complete historical
+captured-controlled, external-observer or normal suites by default. A pilot
+mismatch or further relevant source changes require affected diagnostics and
+fresh review before timing proceeds. Historical numerical results retain their
+own source scope and do not become new full-model quality evidence.
 
 Exact next timing invocations, after source approval and the above gates:
 
