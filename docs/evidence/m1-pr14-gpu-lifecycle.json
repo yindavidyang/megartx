@@ -1,0 +1,137 @@
+{
+  "capture_free_observer_run": {
+    "call_thread_stream_binding_verified": true,
+    "candidate_launches_correlated": 30,
+    "client": "controlled",
+    "completion_record_only_in_controlled_cached_directory": true,
+    "incumbent_gemm_launches": 60,
+    "incumbent_gemms_per_call": 2,
+    "installed_expand_calls": 0,
+    "installed_map_calls": 0,
+    "internal_capture_hooks_inactive": true,
+    "lane": "fused",
+    "launch_manifest_sha256": "710768e1a2584ee7d1ad642db347fabac91cd9637e280450c694eb5437106f0f",
+    "native_calls": 30,
+    "observer_enabled": true,
+    "observer_manifest_sha256": "bdb2eed5fafc659a4122a8e52b61eb4a6d17e734cf8dc02d08e21b23f0c64040",
+    "observer_trace_provider_version": "13.0.85",
+    "path": "cached",
+    "requests": 1,
+    "result": "PASS",
+    "route_controls": false,
+    "stream_id_mapping_api": "cuptiGetStreamIdEx"
+  },
+  "comparison": {
+    "lifecycle_report_sha256": "83aea85655d715119d41327f9c42183b524e155f41cc148e083f184eece1d518",
+    "model_array_count": 99,
+    "model_array_counts": {
+      "kv": 30,
+      "logits": 3,
+      "routes": 60,
+      "stages": 6
+    },
+    "model_arrays_bit_exact_to_preserved_fused_capture": true,
+    "native_payloads_bit_exact_to_preserved_fused_capture": true,
+    "observer_off_cuda_initialized": false,
+    "observer_off_fresh_process_result": "PASS",
+    "observer_off_module_imported": false,
+    "observer_off_requests_dispatched": 0,
+    "observer_off_sidecar_created": false,
+    "physical_masks_and_consumer_descriptors_bit_exact": true,
+    "result": "PASS"
+  },
+  "environment": {
+    "cupti_distribution": "nvidia-cuda-cupti 13.0.85",
+    "cupti_library_sha256": "e2f9ed861fe27c492b8bb52b5e3220ef5120f3edcda36312e96b7fd8a186be3e",
+    "flashinfer": "0.6.18.post1",
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "model": "nvidia/Gemma-4-26B-A4B-NVFP4",
+    "model_revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+    "python": "3.12.3",
+    "request_scheduling": "synchronous",
+    "torch": "2.13.0+cu130",
+    "vllm": "0.30.0"
+  },
+  "lifecycle": {
+    "actual_start_method": "spawn",
+    "api_server_pid": 247273,
+    "callback_registration_owner": "EngineCore",
+    "callback_registration_owner_pid": 247455,
+    "callback_unregistered": true,
+    "engine_core_is_api_server_child": true,
+    "engine_core_pid": 247455,
+    "owned_process_cleanup_complete": true,
+    "owned_process_group_alive_after_cleanup": false,
+    "pre_dispatch_owner_gate_passed": true,
+    "process_probe_sha256": "159f9480abb766f25385fa598123adf8fe31c2e47129059d79a7ef9607cfced6",
+    "result": "PASS"
+  },
+  "native_build": {
+    "adapter_source_binding_sha256": "6c3951e2b46102b6a09e25b612d3adff74167b6c71b12dcd035219b5cafad263",
+    "aggregate_rss_limit_bytes": 2147483648,
+    "binary_sha256": "d897e1f3a3b296a445003f7d297190a180ba29cdb6aa4d9b5336322a43291ced",
+    "binding_controls_returncode": 0,
+    "compiler_seconds": 6.133828962003463,
+    "installed_pins_unchanged": true,
+    "lease_controls_returncode": 0,
+    "peak_aggregate_rss_bytes": 731369472,
+    "required_exports_present": true,
+    "result": "PASS",
+    "returncode": 0,
+    "source_bound_build_json_sha256": "12a4a74a17dd9e095856e985ef1673af803bd110bbe369fd7a212d0c7f3c5022"
+  },
+  "preserved_initial_startup_failure": {
+    "cause": "stale adapter did not match the tested controller/native sources",
+    "exact_source_adapter_binding_passed_before_retry": true,
+    "failed_closed_before_request_dispatch": true,
+    "owned_process_cleanup_complete": true,
+    "requests_dispatched": 0
+  },
+  "private_packet": {
+    "archive_sha256": "ff9f22e4f77a46907126d3cf91dafd577cf0612e7a2768af66902dcf677acea8",
+    "packet_manifest_sha256": "08460a6a496472e72f7e4dd220888552082d31c582b1af8cd1c52fd74960d439",
+    "raw_evidence_manifest_sha256": "94765e3f2d81c44b5ef4b64775a4247b83bb9e14afc9c24c917085757272c72a",
+    "raw_prompts_tensors_and_logs_committed": false
+  },
+  "qualification_limits": {
+    "asynchronous_scheduling_qualified": false,
+    "exact_head_stock_observer_rerun": false,
+    "graph_qualified": false,
+    "natural_routing_qualified": false,
+    "observer_perturbs_execution": true,
+    "performance_qualified": false,
+    "quality_qualified": false,
+    "reviewed_scope": "one fused lifecycle request; paired stock/fused proof retained from the earlier combined source",
+    "timing_qualified": false
+  },
+  "retained_prior_paired_evidence": {
+    "bit_exact_to_captured_controls": true,
+    "candidate_launches": {
+      "fused": 30,
+      "stock": 0
+    },
+    "capture_free_stock_fused_observer_comparison_sha256": "65198778abc58c3826e402782a5d0edb2a1b726436e37fd8c19972b8ecd2281a",
+    "controlled_captured_pair_comparison_sha256": "8bbc6e0117cbdf8ab264c30c82f0410d5f718c6cdb487d0a9e6aadd037033a15",
+    "model_arrays_per_lane": 99,
+    "native_calls_per_lane": 30,
+    "passed": true,
+    "route_controls": 0,
+    "source_head": "bd09109fd59c9767c1f81ec49dbc54555f1fd29f"
+  },
+  "schema": "megartx-m1-gpu-lifecycle-evidence-v1",
+  "scope": "Source-bound native build and one fused controlled-cached capture-free observer request. Validation-only lifecycle and execution-fidelity evidence; not a timing, quality, performance, or graph qualification.",
+  "source": {
+    "combined_merge_tree": "103845a9e5b91fe91dbb49fff121d6561fb668b8",
+    "pr11_pr12_heads_verified_as_combined_merge_parents": true,
+    "pr13_parent_head": "3ed6ee85bd2bf08e4a2d9d20f10352c45f208b32",
+    "pr13_parent_tree": "74d5e44771cba35d837e6245302c12e16a26e7e1",
+    "runtime_source_change_in_this_record": false,
+    "tested_runtime_commit": "80b412e029b74c4cef7ee048cc1b362afc97d2e9",
+    "tested_runtime_tree": "30647957fec2c831cb0e5d8ed07cc90d29561066",
+    "verified_combined_merge": "d002a11c81a32987e4fe00b055f5658ab2f9b914",
+    "verified_pr11_head": "6e7674377a483fb404be93811a1b58eae0edf475",
+    "verified_pr11_tree": "351960b099d2efe4f239609a182375baac3c3efc",
+    "verified_pr12_head": "2a3b35c34f6bfdc5d52e0387f1bdd0da891d4d5a",
+    "verified_pr12_tree": "eecce2b17abea9af591394e2526c9b9914eab570"
+  }
+}

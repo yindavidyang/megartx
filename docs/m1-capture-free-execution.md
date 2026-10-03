@@ -1,11 +1,19 @@
 # Capture-free eager M1 execution and graph eligibility
 
 Base: PR10 main `cc82e59c8053a72af37d9e06a76405d1ef31181e`.
-**CPU validation only. Native CUDA compilation and execution are untested for
-this change. CUDA graph qualification and performance qualification are pending.**
-The [controlled captured proof](m1-live-preparation.md) belongs to its historical
-sources: 30 request-bound fused calls and two separately artificial route
-controls. It does not qualify the sources in this branch.
+
+This plan was initially authored for CPU-only validation. A bounded native/GPU
+lifecycle follow-up has since passed at exact PR14 runtime head
+`80b412e029b74c4cef7ee048cc1b362afc97d2e9` (tree
+`30647957fec2c831cb0e5d8ed07cc90d29561066`). It covers one fused, controlled,
+cached, capture-free observer request. See the [PR14 lifecycle evidence](evidence/m1-pr14-gpu-lifecycle.md)
+and [sanitized scalar record](evidence/m1-pr14-gpu-lifecycle.json). The result
+makes no timing, performance, graph, or quality claim.
+
+The [controlled captured proof](m1-live-preparation.md) belongs to its
+historical sources: 30 request-bound fused calls and two separately artificial
+route controls. It is retained as historical evidence and is not by itself
+qualification of a later source head.
 
 ## Mode contract
 
@@ -188,22 +196,30 @@ End an invalidated capture, preserve its primary error, drain only owned work
 where legal, and require process restart. No retry through stock after a late
 CUDA failure. Neither API documentation nor CPU stubs unlocks those stages.
 
-## Serialized GPU validation requests
+## Broader GPU validation plan
 
-The natural-correctness task `01a0fcca-421a-735d-9148-b570cbc2d065` owns the GPU
-exclusively. No SSH/GPU command was run for this branch. The following are
-requests for its next authorized ownership window, after parent reconciliation
-and a fresh exact source/head freeze. Keep the pinned vLLM 0.30.0,
-FlashInfer 0.6.18.post1, Torch 2.13.0+cu130, checkpoint revision, SM120 5090,
-incumbent tactics, PDL/finalize settings, and no-TMEM scope. Make no package,
-system or checkpoint changes. Retain 8 GiB host/2 GiB GPU headroom, 8 MiB extra
-device scratch, and the existing 2 GiB/300-second compiler bounds.
+The PR14 follow-up rebuilt the bridge from the reconciled exact head, passed
+the ABI, source, lease, binding, and installed-pin controls, and completed one
+fused capture-free observer request with pre-dispatch ownership evidence. The
+observer-off fresh-process preflight also passed. The earlier paired
+stock/fused proof remains linked in the [PR14 lifecycle record](evidence/m1-pr14-gpu-lifecycle.md)
+and [combined-source evidence](evidence/m1-gpu-validation-bd09109.json).
 
-1. Rebuild the task-local bridge from the reconciled exact head and adapter
-   sources. The build now requires the new export and runs poison framing,
-   owner extents, null-stream/invalid-lane, repeat and cross-mode nested-lease
-   controls for both entry points, plus all four relocation controls. Check
-   source contract, binary and installed pins again before model launch.
+The reviewed PR14 lifecycle scope was one fused request; a stock observer run
+was not repeated at this head. The broader two-lane and fault-injection steps
+below are not evidence of additional PR14 runs and are not blockers to that
+reviewed lifecycle scope. Keep any future GPU work serialized and preserve the
+pinned vLLM 0.30.0, FlashInfer 0.6.18.post1, Torch 2.13.0+cu130, checkpoint
+revision, SM120 5090, incumbent tactics, PDL/finalize settings, and no-TMEM
+scope. Make no package, system, or checkpoint changes. Retain 8 GiB host / 2
+GiB GPU headroom, 8 MiB extra device scratch, and the 2 GiB / 300-second
+compiler bounds.
+
+1. **Completed at the tested PR14 runtime head.** The exact-source bridge
+   build passed poison framing, owner extents, null-stream/invalid-lane,
+   repeat and cross-mode nested-lease controls for both entry points, all four
+   relocation controls, source contract, binary identity, and installed pins.
+   See the [sanitized lifecycle record](evidence/m1-pr14-gpu-lifecycle.json).
 2. Re-run the captured stock/fused controlled cached pair on that build, with
    the two labeled route controls, then the existing strict comparison. Require
    the original 30 request + 2 artificial spans per lane, byte oracle/padding,
@@ -274,8 +290,10 @@ combined branch reconciles its intersections as follows:
 | Plugin cleanup | Forward cleanup preserves the original exception and blocks failed-context reuse. The observer is constructed only from its explicit controlled capture-free option. |
 | KV and source ledgers | Normal source/plan validation and diagnostic serialization remain separate. Historical ledgers and evidence are immutable; the combined source hashes describe this branch. |
 
-Combined GPU validation requires a fresh bridge/adapter pair rebuilt from the
-exact combined head and a rerun of the serial validation sequence above.
+Any later runtime-source change requires a fresh bridge/adapter build from the
+new exact head, source/pin revalidation, and reruns of the affected evidence
+gates. The PR14 evidence commit changes documentation and scalar metadata only;
+it preserves the tested runtime sources and binary identity.
 
 ## Observer process-lifecycle closure
 
@@ -304,14 +322,15 @@ record, owner mismatch, failed unregister or incomplete cleanup invalidates the
 run. The process probe and its evidence destination are absent when the
 observer flag is off.
 
-The remaining GPU check after review is one fresh fused, controlled cached
-observer request under that exact spawn configuration. Its 30 request calls
-must bind to the spawned EngineCore and compare bit-exactly against the already
-captured fused control; the existing captured stock/fused numerical reports
-remain preserved and are not repeated. The stock and fused observer paths share
-the same launcher/process-probe branch, so a second stock request is needed
-only if that source or manifest comparison changes. This single diagnostic run
-does not qualify timing, graphs, model quality or performance.
+The PR14 lifecycle check is complete for one fused, controlled cached
+capture-free observer request at the tested source head. The comparator bound
+all 30 calls to the spawned EngineCore and verified bit-exact native payloads,
+physical masks/descriptors, and 99 model arrays against the preserved fused
+captured control. The prior stock/fused numerical and observer comparisons
+remain linked in the evidence record; no stock observer request was repeated
+on the PR14 head. This evidence establishes lifecycle ownership for the
+recorded fused run and does not retroactively add process receipts to earlier
+runs.
 
 The lifecycle gate runs before that request: `ExternalObserver` validates the
 actual context, unique EngineCore child, API-server parent, probe hash and owner
@@ -325,10 +344,12 @@ observer manifest and cleanup record. The earlier GPU packet on `bd09109`
 remains historical evidence for that runtime; it did not record this
 pre-dispatch process gate and does not qualify the lifecycle delta.
 
-After those GPU requests, graph implementation/qualification still needs its
-own reviewed source freeze and failure/lifetime evidence. Natural routing,
-broader quality, actual CUDA failures and a warmed fair timing protocol remain
-independent gates. No timing, graph or GPU qualification follows from this PR.
+Graph implementation/qualification still needs its own reviewed source freeze
+and failure/lifetime evidence. Natural routing, broader quality, actual CUDA
+fault behavior, and a warmed fair timing protocol remain independent gates.
+This follow-up qualifies only its bounded native/GPU lifecycle and execution
+fidelity observations; it does not qualify timing, graphs, performance, or
+quality.
 
 ## CPU checks
 
@@ -341,9 +362,9 @@ The test environments model contract behavior; they execute no CUDA or model.
 
 Local Python 3.12.8 with NumPy 2.4.4 passed 75 scaffold tests and 451
 numerical-reference tests. Config validation, the suite's exhaustive 4,064
-finite-product checks, Python compilation and `git diff --check` passed. No
-native bridge was compiled or loaded here; these checks make no GPU, graph,
-quality or timing claim.
+finite-product checks, Python compilation and `git diff --check` passed. These
+CPU checks do not execute CUDA; the separate bounded PR14 native/GPU result is
+recorded in the [lifecycle evidence](evidence/m1-pr14-gpu-lifecycle.md).
 
 The committed-ledger check also verifies the native bridge SHA256. Its
 regression simulates both edited bridge bytes and a stale ledger hash in memory,
