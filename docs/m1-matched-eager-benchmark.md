@@ -7,6 +7,11 @@ It does not pass G1, qualify full-model quality, admit CUDA graphs, or reopen
 the old `--client benchmark` / `host_benchmark.py` gate. Historical graph and
 uncorrected baselines are not comparison inputs. CPU success is not GPU evidence.
 
+The fresh source-bound pilot and six-pair comparison at runtime `eecfc13` passed
+on 2026-10-03. The exploratory decode result establishes **no speedup**; both
+95% paired bootstrap intervals cross zero. See the [results below](#fresh-eecfc13-gpu-result)
+and [sanitized scalar receipt](evidence/m1-eager-eecfc13-gpu-scalars.json).
+
 ## Scope and retained work
 
 Explicit `--client m1-eager-benchmark --m1-eager-benchmark-plan PATH` is required,
@@ -211,6 +216,15 @@ unmodified AOT fast path with rebuilding forbidden, checks module/Ninja hashes,
 and verifies CUDA stayed uninitialized. This checks loader reuse, not kernels,
 startup correction, quality, or GPU timing.
 
+For a CUDA-hidden dry-run on this pinned loader, set
+`FLASHINFER_CUDA_ARCH_LIST=12.0f` only for that CPU check. With no visible device
+and no explicit architecture, `CompilationContext` selects the version-only JIT
+directory rather than `120f`, and the strict private workspace guard rejects it.
+The fresh run preserved that initial exit-78 setup failure. Both path probes kept
+CUDA uninitialized; the corrected CPU invocation loaded all eight modules with
+zero build calls. The live launcher clears this architecture override and uses
+actual GPU discovery. No loader guard, version policy or source changed.
+
 ## Source review and serialized GPU gates
 
 Freeze a clean commit/tree, CPU results and this scope with the parent and
@@ -263,3 +277,102 @@ For the reviewed single-command distinction, append
 Here `--m1-preparation stock` supplies explicit initial M1 admission; the exact
 plan selects both lanes at verified request boundaries. All subsequent lane
 choices are recorded in the plan, raw client records and dispatch ledger.
+
+## Fresh eecfc13 GPU result
+
+Measured source was `eecfc13e1be9aaf4e361888d5f4c65ad22fb41c4`, tree
+`3c9e248405d2f97677223759e86174f09f068d08`, including integrated main
+`5a32504b5ccb209a779b8a110eb2ebc56d72e373`. All 21 eager/native runtime inputs
+were byte-identical to independently reviewed `dfd77d8`; all 214 source files
+and private adapter copies were rechecked after both runs. This result update
+changes documentation and scalar evidence only. Prefill GPU work was not run.
+
+The fresh bridge build took 6.112 seconds with 731,148,288-byte aggregate compiler
+RSS. Compiled lease and binding controls passed, installed pins stayed unchanged,
+and binary SHA-256 was
+`f5a11f7d1e95de40abc0b58e017403a60c7789226e954c2bece10945b0389371`.
+Each fresh server passed six native/reference startup fixtures: 30 registered
+adapters, 54 equal original tensor captures, zero BF16 maximum absolute
+difference, 18 native SM120 dense launches and six GELU launches. Their startup
+profiles precede the client and are outside the timed request phase.
+
+The separate eight-request pilot passed before the fresh 32-request comparison.
+Both used eager synchronous corrected native execution, BF16 KV and concurrency
+one. The comparison used two warmups per context/lane, six adjacent randomized
+pairs per context and three of each first-lane order. Every 256-token pair had
+identical IDs and usage, with actual input transcripts and native backend counts
+verified. Comparison totals were 122,400 stock decode calls, 122,400 fused decode
+calls and 19,200 stock prefill fallback calls; the final drain was untimed.
+Observer, process probe, request profiler, preparation NPZ and call-capture
+artifacts were absent. All 40 requests across both runs, including warmups, had
+zero natural correction selected-row counts. The forced fixtures do not turn
+that result into natural correction coverage or full-model quality acceptance.
+
+All table latencies are request medians. Decode ITL is the amortized interval
+from first to last delivered token over 255 intervals. Positive reduction means
+fused is faster; uncertainty resamples matched request pairs, using 2,000
+bootstrap resamples with seed 9471.
+
+| Input context | Stock / fused TTFT (ms) | Stock / fused decode ITL (ms) | Fused ITL reduction, 95% interval | Stock / fused complete response (s) |
+|---|---:|---:|---:|---:|
+| 2,048 | 259.110 / 259.287 | 43.592 / 43.960 | -0.844%; [-1.230%, +0.154%] | 11.375 / 11.472 |
+| 8,192 | 1040.345 / 1031.006 | 43.695 / 43.908 | -0.489%; [-1.205%, +0.308%] | 12.175 / 12.235 |
+
+Both contexts had single-token SSE chunks, permitting the receipt's separate
+individual-ITL tail summaries. The measured critical path includes all retained
+route/descriptor copies, synchronization, owner/lease checks and stream handoffs,
+along with prefill, head, sampler, KV, supervision and local streaming. It does
+not isolate kernel time. Six pairs remain below the unchanged 30-pair minimum;
+neither a speedup nor a statistically established regression is claimed.
+
+Both comparison lanes reached the same sampled device peak of 21,377 MiB,
+with minimum sampled free memory 10,765 MiB. Pilot peak/free values were
+21,719/10,423 MiB. The host 8-GiB guard never failed; no exact host minimum or
+transient device peak was recorded. The 8-MiB additional scratch contract stayed
+unchanged. The RTX 5090 used driver 610.43.02 and a 575-W power limit.
+
+The pilot observed five compiler-tool identities and the comparison one. All
+had actual PID/start, exact help argv, executable path and pinned file-version
+evidence, positive metadata samples and no unknown/work history. Final binary
+and caller hashes matched preflight. Resource accounting included every tool:
+pilot peak aggregate compiler RSS/shared elapsed budget were 34,603,008 bytes /
+29.355 seconds; comparison values were 19,660,800 bytes / 0.030 seconds. The
+50-ms process scan can miss brief processes; this is sampled evidence. No new
+timing exception or warmup-relative compiler boundary was introduced.
+
+Driver, client and run exits were zero for both fresh runs. Automated cleanup
+passed without errors. Independent final readback checked all 604 retained
+identities as absent or reused, found no vLLM/compiler/GPU compute processes,
+and confirmed port 18000 closed and GPU idle at 41 MiB used / 32,101 MiB free.
+The exact-source CPU CI passed 164 scaffold tests on Python 3.10 and 3.12,
+470 independent numerical tests and 4,064 finite representation products.
+
+The [scalar receipt](evidence/m1-eager-eecfc13-gpu-scalars.json) retains source,
+plan, binary, audit and result hashes, latency distributions and scope limits.
+Raw prompts, tokens, tensors, profiles and host logs remain private. Earlier
+startup/cleanup failures remain rejected and preserved. G1, broader quality,
+the legacy benchmark gate and CUDA graph admission remain open.
+
+### Source-based next measurement hypothesis
+
+The first attribution target is retained descriptor validation:
+[`setupTmaWarpSpecializedInputs`](../probes/m1_live_bridge.cu) copies seven
+128-expert tables to host and fences for each of FC1 and FC2. This is fourteen
+copies and two stream fences per eligible layer call, plus host allocation and
+SF-carrier enumeration. Across thirty eligible decode layers, source counting
+predicts 420 descriptor copies and sixty fences per token. Route eligibility in
+[`candidate_eligible`](../kernels/m1_installed_preparation.cuh) also copies the
+eight route IDs and fences. The map hook checks once in either lane; fused
+`prepare` checks again, adding one copy/fence per eligible fused layer call.
+
+These are likely important costs at concurrency one, but this run did not
+measure their duration or fraction of decode latency. Other candidates include
+[`LivePreparation`](../src/megartx/m1_live.py) token/position CPU copies,
+producer-to-owned and owned-to-caller waits, owner/lease checks and allocator
+stream recording, plus the correction adapter's data-dependent
+[`torch.nonzero`](../src/megartx/vllm_scale_plugin.py) even on zero-hit requests.
+The candidate point estimate being slightly higher does not show that the fused
+kernel itself is slower. The next useful step is separately reviewed, untimed
+host/stream attribution on the same eager scope. Any proposed validation
+amortization needs fresh evidence for dynamic routes, descriptors, lifetimes
+and unchanged failure behavior; deleting checks is not a supported conclusion.
