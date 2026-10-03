@@ -177,8 +177,9 @@ def intake(plan):
     for cell in plan["workloads"]:
         if cell["prompt_token_ids_sha256"] is None:
             blockers.append(cell["id"] + ": prompt identity pending")
-        if cell["status"] == "deferred_fit":
+        if cell["fit_receipt_sha256"] is None or cell["status"] == "deferred_fit":
             blockers.append(cell["id"] + ": resident peak fit including output reserve pending")
+        if cell["status"] == "deferred_fit":
             continue
         for chunk in cell["chunk_tokens"]:
             spans = chunk_spans(cell["prompt_tokens"], chunk)

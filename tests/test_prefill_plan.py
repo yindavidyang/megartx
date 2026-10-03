@@ -29,6 +29,12 @@ class PlanTests(unittest.TestCase):
         self.assertIn("sole_owner_handoff_reference", report["blockers"])
         self.assertEqual({c["prompt_tokens"] for c in report["planned_cells"]}, {2048, 8192})
         self.assertEqual(next(c for c in report["planned_cells"] if c["id"] == "p2048" and c["chunk_tokens"] == 255)["final_chunk_m"], 8)
+        for workload in self.plan["workloads"]:
+            self.assertIn(workload["id"] + ": resident peak fit including output reserve pending",
+                          report["blockers"])
+        for cell in report["planned_cells"]:
+            with self.subTest(prompt=cell["prompt_tokens"], chunk=cell["chunk_tokens"]):
+                self.assertEqual(cell["capacity_tokens"], cell["prompt_tokens"] + 256)
 
     def test_unsupported_scope_or_lane_fails_closed(self):
         changes = [("gpu_enabled", True), ("scope", "gpu_profile"), ("extra", 1)]
