@@ -47,7 +47,7 @@ class LauncherResourceTests(unittest.TestCase):
                     "sys":sys,"signal":signal,"json":json,"output":self.output,
                     "eager_benchmark":True,"args":SimpleNamespace(client="m1-eager-benchmark",
                     m1_external_observer=False,m1_eager_benchmark_plan=Path("private-plan"),
-                    profile=False,activation_only=False,routing_diagnostic=False,router_score_only=False),
+                    profile=False,m1_decode_profile=False,activation_only=False,routing_diagnostic=False,router_score_only=False),
                     "base":Path("private-runtime"),"project":LAUNCHER.parents[1],"env":{},
                     "benchmark_plan":{"plan_sha256":"p"},"result":SimpleNamespace(returncode=0),
                     "server":SimpleNamespace(pid=20,returncode=0,poll=lambda:0),
@@ -106,6 +106,24 @@ class LauncherResourceTests(unittest.TestCase):
         self.assertIn("aggregate RSS", cleanup["failure"])
         self.assertEqual((self.output / "run.exit").read_text(), "1\n")
         self.assertIsNone(self.env["guard_failure"])
+        self.summary.assert_not_called()
+
+    def test_actual_final_profile_path_requires_both_windows_and_never_summarizes(self):
+        self.env["args"].m1_decode_profile = True
+        self.env["benchmark_plan"]["source_head"] = "a" * 40
+        profile = self.output / "decode-profile"
+        profile.mkdir()
+        for lane in ("stock", "fused"):
+            (profile / (lane + "-scalars.json")).write_text(json.dumps({
+                "lane": lane, "decode_steps": 4, "source_head": "a" * 40,
+                "plan_sha256": "p", "timing_qualified": False}))
+            (profile / (lane + ".json")).write_text('{}')
+        self.final([{}, {}, {}])
+        self.summary.assert_not_called()
+        (profile / "fused.json").unlink()
+        with self.assertRaisesRegex(RuntimeError, "window/source"):
+            self.final([{}, {}, {}])
+        self.assertEqual((self.output / "run.exit").read_text(), "1\n")
         self.summary.assert_not_called()
 
     def test_clean_final_admission_still_summarizes(self):
