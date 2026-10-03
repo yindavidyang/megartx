@@ -69,6 +69,8 @@ Inputs: Uninstrumented baseline records and separate profiler runs.
 
 3. Choose the first hotspot and smallest experiment that can resolve it. Record expected mechanism, measurements, effort range after this discovery, stop condition and the incumbent revision to recheck at the next gate.
 
+4. Keep full-prompt prefill attribution separate from the decode token ledger. Hand qualified baseline/shape/cache inputs to [A7.1/A7.2](wp7.md); tuning chunking, SM120 attention and multirow projections belongs to WP7/G7. This does not defer the active decode-first hotspot decision or open a GPU slot.
+
 Deliver: results/wp1/token_ledger.csv; results/wp1/traces/manifest.json; docs/gates/G1.md; docs/hypotheses/H001.md.
 
 Exit and review: G1: golden semantics, oracle, tuned compatible incumbent and a recoverable full-model budget justify WP2.

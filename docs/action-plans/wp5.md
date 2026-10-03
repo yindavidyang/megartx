@@ -3,6 +3,8 @@
 [Master plan](../master-plan.md) · [Action plan index](../action-plans/README.md)
 Planned later entry: begin without DSpark or draft training; complete WP1 and establish a stable accepted WP3 or WP4 path first. One request may contain several verifier positions; that is not dynamic request batching.
 
+The [WP7 full-prompt prefill branch](wp7.md#evidence-and-workload-boundaries) is a separate workload, not a WP5 prerequisite. Share attention/GEMM/epilogue kernels only when shape and numerical contracts match; benchmark verifier route unions, draft/rejected work and I06 transactions separately from WP7 prompt throughput and I03 handoff. Neither G7 nor this roadmap authorizes actual training or a GPU experiment.
+
 ### A5.1 Establish draft compatibility and budget
 
 WP5  R07 R10  I06  |  Owner: Model and correctness lead  |  Entry: Stable target path accepted

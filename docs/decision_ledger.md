@@ -1,6 +1,6 @@
 # Decision ledger
 
-Updated 1 October 2026. Stable IDs follow the [master plan](master-plan.md). Proposed values are not frozen acceptance criteria.
+Updated 3 October 2026 for the prefill planning revision and separately approved draft publication. Stable IDs follow the [master plan](master-plan.md). Proposed values are not frozen acceptance criteria.
 
 | ID | Status | Decision and remaining evidence |
 | --- | --- | --- |
@@ -14,6 +14,7 @@ Updated 1 October 2026. Stable IDs follow the [master plan](master-plan.md). Pro
 | D08 | Authorized | Isolated target-host setup, compatible stack/model download and compatibility/baseline tests; investigate/fix six gate/up scale mismatches, implement a minimal scale-preserving adapter, independent numerical checks, rerun baseline when qualified, and publish a sanitized draft PR. Training, wider custom megakernels, merge and deployment remain outside scope |
 | D09 | Observed, separately qualified | Pinned FlashInfer uses layerwide activation calibration maxima, distinct from the checkpoint per-expert quantizer. Original-scale weight preservation does not establish full quantizer/quality equivalence; deterministic eager correction is a separate lane |
 | D10 | Authorized diagnostic; bounded live evidence | Five fixed 33-input GPU passes at all 30 layers establish observed original-weight projection and within-path paired stage/logit/KV agreement, with a matched full-path wrong-alpha control. Full-versus-cached divergence starts upstream of the scale correction; expansion stops at that boundary. Controlled coverage cannot satisfy natural quality or performance gates. See [controlled integration evidence and next experiment](controlled-scale-integration.md) |
+| D11 | Planning and draft publication authorized; execution gated | Append [WP7/G7 and A7.1–A7.6](action-plans/wp7.md) for full-prompt prefill: 2K/8K profiles, conditional 32K fit, chunking/SM120 attention, dense/grouped-expert GEMMs and measured hotspot fusion. Preserve decode-first, exact lane/oracle/cache contracts and separate WP5 verifier evidence. Separate owner approval relayed on 3 October 2026 covers an isolated documentation commit/push and public draft PR; merge and SSH/GPU/package/runtime changes remain excluded. PR15 remediation stays separate and `01a10079-c8d1-752e-991a-4e76b523704e` remains sole GPU owner |
 
 ## Current gate state
 
@@ -22,6 +23,8 @@ G0–G6 remain unaccepted. Actual resident execution and native SM120 dispatch w
 ## Review record
 
 The Markdown conversion preserves requirements R01–R12, decisions D01–D08, interfaces I01–I06, packages WP0–WP6, gates G0–G6, all 28 action tasks and source links. D08 and obsolete planning-only language were updated to reflect the authorized repository initialization/scaffold. Page references were replaced with Markdown links. No proposed performance or workload default was promoted to a confirmed decision.
+
+The prefill revision appends R13, D11, WP7/G7 and six tasks without renumbering existing records. G7 is unaccepted. Its minimum useful gain, tail/TTFT, quality, memory and decode regression criteria require owner freeze; no prefill result or new numeric threshold is invented. The [bounded M1 normal-routing checks](m1-normal-correctness.md) and [PR14 lifecycle record](evidence/m1-pr14-gpu-lifecycle.md) retain their exact scope: no speedup, broad G1 quality or graph qualification. PR15 benchmark remediation remains outside this planning revision; its outcome is not presumed. The initial local-only boundary was followed by the owner's separate draft-publication approval; neither approval authorizes GPU execution or merge.
 
 Use the [decision template](templates/records.md#decision-ledger-entry) for future decisions. Append new IDs without renumbering existing records. A scope decision is not a technical gate pass.
 
