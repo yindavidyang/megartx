@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from megartx.speculative_native_probe import digest, inspect_sources
+from megartx.speculative_native_probe import ADAPTER_FILES, digest, inspect_sources
 
 
 def main(argv=None):
@@ -21,6 +21,7 @@ def main(argv=None):
               "protocol_sha256": digest(protocol), "gpu_enabled": False,
               "implementation_sha256": digest(root / "src/megartx/speculative_native_probe.py"),
               "driver_sha256": digest(Path(__file__)),
+              "adapter_source_sha256": {name: digest(root / "src/megartx" / name) for name in ADAPTER_FILES},
               "sources": inspect_sources(args.installed_root) if args.installed_root else None,
               "blocking_extension": "reviewed owned lifecycle EngineCore utility + Worker extension",
               "native_executed": False}

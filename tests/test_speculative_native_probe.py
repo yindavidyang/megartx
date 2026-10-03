@@ -7,10 +7,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from megartx.speculative_native_probe import (
     BASE, GPU_CAP, HEAD_PEAK, P, PagePlan, ProbeError, OwnedNativeProbe,
-    allocation_lower_bound, check_admission, consumed_table, host_frame,
+    allocation_lower_bound, allocator_limit, check_admission, consumed_table, forward_budget, host_frame,
     inspect_sources, plan_pages, run_engine_core_probe, select_greedy, source_manifest,
 )
 
@@ -103,17 +105,45 @@ class SelectionAndAllocation(unittest.TestCase):
             with self.assertRaises(ProbeError):
                 select_greedy(99, candidates, rows, budget)
 
-    def test_softcap_coexistence_is_two_fp32_rows(self):
+    def test_softcap_coexistence_follows_actual_head_dtype(self):
         self.assertEqual(HEAD_PEAK, 2097152)
         a = allocation_lower_bound((25 * 16 * 8192, 5 * 16 * 4096), 1024)
         self.assertEqual(a["private_page_bytes"], 3604480)
-        self.assertEqual(a["known_bytes"], 3604480 + 2097152 + 11264 + 1024)
+        self.assertEqual(a["known_bytes"], 3604480 + 1048576 + 11264 + 1024)
+        fp32 = allocation_lower_bound((25 * 16 * 8192, 5 * 16 * 4096), 1024, head_element_bytes=4)
+        self.assertEqual(fp32["head_peak_bytes"], 2097152)
         self.assertLess(a["known_bytes"], GPU_CAP)
         self.assertNotIn("fit_admitted", a)
 
-    def test_b32_lower_bound_already_infeasible_without_padding(self):
+    def test_b32_actual_bf16_head_remains_unadmitted_and_fp32_is_infeasible(self):
+        bf16 = allocation_lower_bound((25 * 32 * 8192, 5 * 32 * 4096), 0)
+        self.assertEqual(bf16["known_bytes"], 8268800)
+        self.assertEqual(bf16["remaining_for_native_scratch_and_allocator"], 119808)
         with self.assertRaisesRegex(ProbeError, "exceeds 8 MiB"):
-            allocation_lower_bound((25 * 32 * 8192, 5 * 32 * 4096), 0)
+            allocation_lower_bound((25 * 32 * 8192, 5 * 32 * 4096), 0, head_element_bytes=4)
+
+    def test_allocator_caching_slack_is_measured_and_charged(self):
+        a = allocation_lower_bound((3604480,), 1024)
+        padding, limit = allocator_limit(a, 100 << 20, 101 << 20, 128 << 10)
+        self.assertEqual(padding, 1 << 20)
+        self.assertEqual(limit, (100 << 20) + GPU_CAP - 3604480 - (128 << 10))
+        with self.assertRaises(ProbeError):
+            allocator_limit(a, 100 << 20, 110 << 20, 0)
+        with self.assertRaises(ProbeError):
+            allocator_limit(a, 101 << 20, 100 << 20, 0)
+
+    def test_invalid_head_size_is_not_an_allocation_assumption(self):
+        for width in (1, 8, True):
+            with self.assertRaises(ProbeError):
+                allocation_lower_bound((1,), 0, head_element_bytes=width)
+
+    def test_global_forward_budget_includes_startup_and_accepts_exact_cap(self):
+        self.assertEqual(forward_budget(85, 11), 96)
+        self.assertEqual(forward_budget(84, 11, submitting=True), 95)
+        with self.assertRaises(ProbeError):
+            forward_budget(85, 11, submitting=True)
+        with self.assertRaises(ProbeError):
+            forward_budget(86, 11)
 
     def test_actual_allocator_padding_is_charged(self):
         logical = (25 * 16 * 8192, 5 * 16 * 4096)
@@ -124,6 +154,31 @@ class SelectionAndAllocation(unittest.TestCase):
 
 
 class SourceAndDefaultOff(unittest.TestCase):
+    def test_post_forward_transaction_fault_poison_and_drain_control(self):
+        # Error-boundary unit spy only. from_runner rejects this constructed
+        # object as a runtime owner; no model/cache/provider execution occurs.
+        obj = OwnedNativeProbe.__new__(OwnedNativeProbe)
+        drains = []
+        obj.torch = SimpleNamespace(cuda=SimpleNamespace(synchronize=lambda device: drains.append(device)))
+        obj.runner = SimpleNamespace(device="CPU_fault_control_only")
+        obj.failed = False
+        with patch.object(obj, "_cycle", side_effect=ProbeError("suffix disposal failed")):
+            with self.assertRaisesRegex(ProbeError, "suffix disposal failed"):
+                obj.cycle(None, ())
+        self.assertTrue(obj.failed)
+        self.assertEqual(drains, ["CPU_fault_control_only"])
+
+    def test_cleanup_failure_preserves_primary_transaction_error(self):
+        obj = OwnedNativeProbe.__new__(OwnedNativeProbe)
+        def fail(_):
+            raise ProbeError("drain failure")
+        obj.torch = SimpleNamespace(cuda=SimpleNamespace(synchronize=fail))
+        obj.runner = SimpleNamespace(device="CPU_fault_control_only")
+        with patch.object(obj, "_cycle", side_effect=ProbeError("primary selection fault")):
+            with self.assertRaisesRegex(ProbeError, "primary selection fault"):
+                obj.cycle(None, ())
+        self.assertTrue(obj.failed)
+
     def test_native_defaults_fail_before_access_or_import(self):
         with self.assertRaisesRegex(ProbeError, "default-off"):
             OwnedNativeProbe.from_runner(object(), {}, {})
@@ -185,6 +240,9 @@ class SourceAndDefaultOff(unittest.TestCase):
                      "builder.build(0, commons[gid])", "self.model.compute_logits(hidden[row:row + 1])"):
             self.assertIn(call, source)
         self.assertNotIn("provider", [a.arg for a in from_runner.args.args])
+        self.assertIn("with torch.inference_mode():", source)
+        self.assertIn("binding(layer, adapter)", source)
+        self.assertNotIn("t.cuda.empty_cache()", source)
 
 
 if __name__ == "__main__":

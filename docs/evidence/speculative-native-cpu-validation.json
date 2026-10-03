@@ -6,17 +6,18 @@
   "GPU_jobs": 0,
   "shared_files_changed": [],
   "source_sha256": {
-    "src/megartx/speculative_native_probe.py": "a43d9412b433ceb40163d5c91e58f9cc67936690c710b2c54114004ac72a7f4a",
-    "scripts/run_speculative_native_probe.py": "e276bd8afcd895eb54f55e99428cdb9cb0e2dbbbf2adb88da46b7197c7124b62",
-    "tests/test_speculative_native_probe.py": "2ff3a4efb28c75fbf31f6a89cdc710e7c36ea828e553c1700c898ae0ff722fda",
-    "docs/design/speculative-native-protocol.json": "92d8bb4e60164d3124707aabb1901cce72de3adfa62ae58560276077ee67ac41",
+    "src/megartx/speculative_native_probe.py": "725076e3a10786d912da939c44851cbfb2e39c9bce17d59c47e22c96c998d649",
+    "scripts/run_speculative_native_probe.py": "81623f6f9c4b3803dda1e96c1a34d304fa324ef06f7a220206e455f8ff2ca4aa",
+    "tests/test_speculative_native_probe.py": "db564dbcee22f37b319773c773d862d40c936b46c85e8beb952e48b0cfb1beec",
+    "docs/design/speculative-native-protocol.json": "cef85994ddeeba8663bfc0c1e0362c18a2ada6262989718f0d54012517f9acfb",
     "docs/evidence/speculative-native-source-binding.json": "9f3bc95cab7003e29aef1723bbc86ca3f85f3588a36151b5522f8e549ee16c5f"
   },
   "checks": {
-    "native_CPU_tests": 25,
-    "scaffold_tests": 234,
+    "native_CPU_tests": 30,
+    "scaffold_tests": 239,
     "scaffold_skipped": 1,
-    "reference_tests": 508
+    "reference_tests": 508,
+    "scaffold_passed": 238
   },
   "environment": {
     "python": "3.12.8",
@@ -29,7 +30,23 @@
     "unregistered_owned_lifecycle_EngineCore_utility_and_Worker_extension",
     "actual_page_padding_and_scratch_fit",
     "source_bound_external_CUDA_workspace_coverage",
-    "live_allocator_padding_coverage",
-    "independent_review_and_parent_admission_and_sole_GPU_slot"
+    "measured_allocator_slack_and_peak_coverage",
+    "final_independent_review_and_parent_admission_and_sole_GPU_slot"
+  ],
+  "adapter_source_sha256": {
+    "vllm_scale_plugin.py": "5bbdd7ba1b6777eb48cafae742ba7d808b28ef166292f8a1c2e79df2d621b54a",
+    "nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
+    "nvfp4_activation.py": "61960de988385e09e4772060ea8338983139ca4b12afd1c4a735eff691e5eb97",
+    "nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757"
+  },
+  "superseded_review_head": "38247bc46ed988f38c0bf313f1dc14d1c88bb04e",
+  "repairs": [
+    "deferred_inference_mode_over_entire_worker_lifetime",
+    "preserved_actual_native_head_dtype_host_FP32_trace_after_copy",
+    "actual_loaded_corrected_callback_owner_registry_and_proof_identity",
+    "whole_transaction_fault_poison_and_drain",
+    "allocator_guard_setup_and_restoration_same_error_boundary",
+    "measured_allocator_slack_charged_without_empty_cache",
+    "startup_frames_in_global_96_forward_bound"
   ]
 }
