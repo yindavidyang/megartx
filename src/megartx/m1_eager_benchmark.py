@@ -4,11 +4,14 @@ Dynamic token/position copies, native guards and stream handoffs stay on the
 measured path. Counters stay in memory until a separate, untimed drain request.
 """
 import json
+import os
 from pathlib import Path
 
 from .m1_normal_plan import REVISION, digest
 
 SCHEMA = "megartx-m1-eager-benchmark-v1"
+PROFILE_SCHEMA = "megartx-m1-decode-profile-plan-v1"
+PROFILE_RULE = "compiler_accounted_operation_diagnostic_v1"
 CONTEXTS = (2048, 8192)
 OUTPUTS = 256
 DRIVER_SOURCES = ("scripts/m1_eager_benchmark_client.py", "scripts/prepare_m1_eager_benchmark.py",
@@ -16,6 +19,7 @@ DRIVER_SOURCES = ("scripts/m1_eager_benchmark_client.py", "scripts/prepare_m1_ea
                   "scripts/m1_private_aot.py", "scripts/check_m1_private_aot.py",
                   "scripts/m1_aot_cache/sitecustomize.py",
                   "scripts/m1_aot_cache/flashinfer_jit_cache/__init__.py")
+PROFILE_DRIVER_SOURCES = (*DRIVER_SOURCES, "scripts/m1_decode_profile.py")
 
 
 def validate_plan(plan, source_hashes=None):
@@ -23,7 +27,10 @@ def validate_plan(plan, source_hashes=None):
     required = {"schema", "checkpoint_revision", "source_head", "controller_source_hashes", "driver_source_hashes",
                 "outputs", "prefill_chunk", "warmups", "trials", "seed", "cases",
                 "schedule", "plan_sha256", "metadata_help_timing"}
-    if (set(plan) != required or plan["schema"] != SCHEMA
+    diagnostic = plan.get("schema") == PROFILE_SCHEMA
+    if diagnostic:
+        required.add("diagnostic_admission")
+    if (set(plan) != required or plan["schema"] not in (SCHEMA, PROFILE_SCHEMA)
             or plan["checkpoint_revision"] != REVISION or type(plan["outputs"]) is not int
             or plan["outputs"] != OUTPUTS or type(plan["prefill_chunk"]) is not int
             or plan["prefill_chunk"] != 256 or type(plan["metadata_help_timing"]) is not bool):
@@ -32,6 +39,10 @@ def validate_plan(plan, source_hashes=None):
             or type(plan["trials"]) is not int or not 1 <= plan["trials"] <= 6
             or type(plan["seed"]) is not int or not 0 <= plan["seed"] < 2**31):
         raise RuntimeError("eager benchmark trial budget differs")
+    if diagnostic and (plan["diagnostic_admission"] != PROFILE_RULE
+                       or plan["trials"] != 1 or plan["warmups"] != 1
+                       or plan["metadata_help_timing"] is not True):
+        raise RuntimeError("decode diagnostic admission rule/budget differs")
     hashes = plan["controller_source_hashes"]
     def sha(value, length=64):
         return isinstance(value, str) and len(value) == length and all(c in "0123456789abcdef" for c in value)
@@ -40,7 +51,8 @@ def validate_plan(plan, source_hashes=None):
             or (source_hashes is not None and hashes != source_hashes)):
         raise RuntimeError("eager benchmark source identity differs")
     drivers = plan["driver_source_hashes"]
-    if not isinstance(drivers, dict) or set(drivers) != set(DRIVER_SOURCES) or not all(sha(h) for h in drivers.values()):
+    expected_drivers = PROFILE_DRIVER_SOURCES if diagnostic else DRIVER_SOURCES
+    if not isinstance(drivers, dict) or set(drivers) != set(expected_drivers) or not all(sha(h) for h in drivers.values()):
         raise RuntimeError("eager benchmark driver identity differs")
     cases = plan["cases"]
     if not isinstance(cases, list) or len(cases) != 2:
@@ -91,17 +103,24 @@ def load_plan(path, source_hashes=None):
     return validate_plan(json.loads(path.read_text()), source_hashes)
 
 
+def require_profile_intent(plan, enabled):
+    validate_plan(plan)
+    if type(enabled) is not bool or (plan["schema"] == PROFILE_SCHEMA) != enabled:
+        raise RuntimeError("decode profile intent differs from the source-bound plan")
+
+
 def marker(plan, row):
-    return {"schema": SCHEMA, "plan_sha256": plan["plan_sha256"], "id": row["id"]}
+    return {"schema": plan["schema"], "plan_sha256": plan["plan_sha256"], "id": row["id"]}
 
 
 def drain_marker(plan):
-    return {"schema": SCHEMA, "plan_sha256": plan["plan_sha256"], "id": "drain"}
+    return {"schema": plan["schema"], "plan_sha256": plan["plan_sha256"], "id": "drain"}
 
 
 class EagerBenchmark:
     """CPU ledger of real synchronous model frames, separate from collectors."""
     def __init__(self, plan, directory, lane):
+        require_profile_intent(plan, bool(os.environ.get("MEGARTX_M1_DECODE_PROFILE_DIR")))
         self.plan, self.directory, self.lane = plan, Path(directory), lane
         self.index, self.frame = -1, 0
         self.records, self.tokens = [], []
@@ -137,9 +156,11 @@ class EagerBenchmark:
             for record, transcript in zip(self.records, self.completed_transcripts):
                 record["input_transcript_sha256"] = digest(transcript)
             self.directory.mkdir(parents=True, exist_ok=True)
-            report = {"schema": SCHEMA, "plan_sha256": self.plan["plan_sha256"],
+            report = {"schema": self.plan["schema"], "plan_sha256": self.plan["plan_sha256"],
                       "source_head": self.plan["source_head"], "records": self.records,
                       "observer_off": True, "quality_qualified": False, "graphs_qualified": False}
+            if self.plan["schema"] == PROFILE_SCHEMA:
+                report["diagnostic_admission"] = PROFILE_RULE
             with (self.directory / "dispatch.json").open("x") as stream:
                 json.dump(report, stream, indent=2)
             self.completed_transcripts.clear()

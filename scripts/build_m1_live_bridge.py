@@ -72,6 +72,7 @@ def build(args):
                "scripts/m1_eager_benchmark_client.py", "scripts/prepare_m1_eager_benchmark.py",
                "scripts/run_scale_validation.py",
                "scripts/m1_owned_processes.py", "scripts/m1_private_aot.py",
+               "scripts/m1_decode_profile.py",
                "scripts/check_m1_private_aot.py", "scripts/m1_aot_cache/sitecustomize.py",
                "scripts/m1_aot_cache/flashinfer_jit_cache/__init__.py",
                )

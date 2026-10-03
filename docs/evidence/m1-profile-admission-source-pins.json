@@ -1,0 +1,61 @@
+{
+  "schema": "megartx-m1-profile-admission-source-pins-v1",
+  "parent_head": "3f06df192f1792ac4ddaaa58ee27628ac5665e57",
+  "parent_ledger_sha256": "469d7877c33957d29af29ee82b40f8f7f424528f673043d4b6814bf7da2e27dd",
+  "integrated_main_head": "7d1a33d1761a1719fc26c84f5b4f2a3410c31a16",
+  "composition_patch_sha256": "faa832f2828835699a7e0df427f837e38a1c3ea11e7e3e4d7681e09e83c1beaf",
+  "scope": "User-approved prospective compiler-accounted operation diagnostics only; clean timing quiescence and failed3f rejection preserved.",
+  "status": "implementation_pending_independent_source_review",
+  "diagnostic_admission": "compiler_accounted_operation_diagnostic_v1",
+  "superseded_sources": [
+    {
+      "path": "scripts/build_m1_live_bridge.py",
+      "prior_sha256": "8028dad5f745dd8c1188d8ca7bdef7f5915c5fa598ba007cab7ea00b6542efb6",
+      "current_sha256": "e9339b3a981db057fe96d94b997ad0d745075dc589dae3dd3d76293970aa268f"
+    },
+    {
+      "path": "scripts/m1_eager_benchmark_client.py",
+      "prior_sha256": "7a19f27434fc871e6d75f4a4a926036b572281d6ea7c8e77b152333c90329653",
+      "current_sha256": "4485ffef9ee31c768a321d125eec7878c3138fbd88c9eace8c53949709b2c2b1"
+    },
+    {
+      "path": "scripts/m1_owned_processes.py",
+      "prior_sha256": "bdd7dad3656e899e8cbc4ca9438c8a3500acc1436a8a19745b82e0e028a43bd2",
+      "current_sha256": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b"
+    },
+    {
+      "path": "scripts/prepare_m1_eager_benchmark.py",
+      "prior_sha256": "8d7b7203284daad286f61f69933a7e02370a782e17ed06371be7e50eebe8333e",
+      "current_sha256": "6800d24940719d10469afcb7407e5f5b35a4e842580e77a2fbfd4723b6fd5e9f"
+    },
+    {
+      "path": "scripts/run_scale_validation.py",
+      "prior_sha256": "fae6a3ac950a2121e5288b19dc78bf6fa3f532ae26479289c9cacb2c7df3d6b4",
+      "current_sha256": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8"
+    },
+    {
+      "path": "src/megartx/m1_eager_benchmark.py",
+      "prior_sha256": "63c4d6ed740fb3c5ea5e92268dc639a63b2c560b912e8da5b359f166930bfede",
+      "current_sha256": "d695c66cf1d8ebefd2a750ca684b79afa600129fa65297be4d5c4326cee2ea47"
+    },
+    {
+      "path": "tests/test_m1_launcher_resources.py",
+      "prior_sha256": "ea7dc0b4b8cf8b183d290fa0be9da50871efe24d6269da453cbcbd1695a19adf",
+      "current_sha256": "eb42025f4df25001a912ddc389beebc9e2f6ea64d0225da2c875e12875ac86e2"
+    },
+    {
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "prior_sha256": "baa8a30eb300fdfc87ce3c1bc7fd4a26e84b2a1072bbe9037910a2cf5f98d704",
+      "current_sha256": "877c53197e30eb322864a70b7f25027fc5649661ff88893ecaf78c75764717e0"
+    }
+  ],
+  "added_source_hashes": {
+    "scripts/m1_decode_profile.py": "6eab1d34355db9fc00092ea739a52e677b60d365766135f5a53cd5e5381ae028",
+    "tests/test_m1_profile_admission.py": "20134179f572fed2c595a422eef5eaddd297f930577ba9d4ffa863c0c41cc0b4",
+    "docs/m1-profile-only-admission.md": "95f2bdf1085e22a7c5d127da2b63d734d3b0a971ebcb414309f92aeecf849fd2"
+  },
+  "gpu_execution_verified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false
+}

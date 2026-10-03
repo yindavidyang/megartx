@@ -9,7 +9,8 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from megartx.m1_eager_benchmark import OUTPUTS, drain_marker, load_plan, marker
+from megartx.m1_eager_benchmark import (OUTPUTS, PROFILE_SCHEMA, PROFILE_RULE, drain_marker,
+                                      load_plan, marker, require_profile_intent)
 from megartx.m1_normal_plan import digest
 from megartx.stats import paired_median_reduction, quantile
 
@@ -73,7 +74,9 @@ def payload(tokens, row, outputs=OUTPUTS):
 
 
 def validate_dispatch(plan, report, records):
-    if (report.get("plan_sha256") != plan["plan_sha256"] or report.get("source_head") != plan["source_head"]
+    if (report.get("schema") != plan["schema"]
+            or (plan["schema"] == PROFILE_SCHEMA and report.get("diagnostic_admission") != PROFILE_RULE)
+            or report.get("plan_sha256") != plan["plan_sha256"] or report.get("source_head") != plan["source_head"]
             or report.get("observer_off") is not True or len(report.get("records", [])) != len(records)
             or len(records) != len(plan["schedule"])):
         raise RuntimeError("dispatch report identity/count differs")
@@ -102,6 +105,8 @@ def summarize_run(directory):
             (launch.is_file() and json.loads(launch.read_text()).get("m1_decode_profile_requested"))):
         raise RuntimeError("instrumented decode attribution cannot admit performance timings")
     plan = load_plan(directory / "eager-benchmark-plan.json")
+    if plan["schema"] == PROFILE_SCHEMA:
+        raise RuntimeError("diagnostic plan permanently excludes performance timings")
     records = [json.loads(line) for line in (directory / "eager-requests.jsonl").read_text().splitlines()]
     dispatch = json.loads((directory / "eager-benchmark/dispatch.json").read_text())
     validate_dispatch(plan, dispatch, records)
@@ -159,6 +164,9 @@ def main():
         parser.error("timing requires the owned host-local server")
     plan = load_plan(args.plan)
     launch = json.loads((args.output / "launch-manifest.json").read_text())
+    require_profile_intent(plan, launch.get("m1_decode_profile_requested", False))
+    if plan["schema"] == PROFILE_SCHEMA and launch.get("diagnostic_admission") != PROFILE_RULE:
+        raise RuntimeError("launch diagnostic admission differs")
     env = launch["environment_overrides"]
     if (launch.get("eager_benchmark_plan_sha256") != plan["plan_sha256"]
             or launch.get("m1_external_observer_requested") is not False
@@ -179,7 +187,8 @@ def main():
                 record = {**row, **completion(session, args.url, payload(cases[row["case"]]["prompt_token_ids"], row))}
                 raw.write(json.dumps(record) + "\n")
                 records.append(record)
-                print(json.dumps({k: record[k] for k in ("id", "lane", "ttft_ms", "amortized_itl_ms", "response_ms")}), flush=True)
+                fields = ("id", "lane") if plan["schema"] == PROFILE_SCHEMA else ("id", "lane", "ttft_ms", "amortized_itl_ms", "response_ms")
+                print(json.dumps({k: record[k] for k in fields}), flush=True)
         # Only this separate one-token control request serializes the in-memory
         # server ledger. Its timing and allocation are absent from measurements.
         marker_path.write_text(json.dumps(drain_marker(plan)))

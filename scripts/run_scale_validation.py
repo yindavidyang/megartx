@@ -54,7 +54,7 @@ metadata_timing = None
 if eager_benchmark:
     if any(os.environ.get(key) for key in ("FLASHINFER_DISABLE_JIT", "FLASHINFER_DISABLE_VERSION_CHECK")):
         parser.error("private AOT requires ordinary FlashInfer version/JIT policy")
-    from megartx.m1_eager_benchmark import load_plan
+    from megartx.m1_eager_benchmark import load_plan, require_profile_intent
     if (args.m1_eager_benchmark_plan is None or args.m1_private_aot is None or args.m1_preparation not in {"stock", "fused"}
             or args.mode != "native" or args.m1_execution != "capture-free"
             or args.m1_bridge is None or args.m1_build_receipt is None
@@ -66,8 +66,10 @@ if eager_benchmark:
             or args.kv != "bfloat16" or args.backend != "flashinfer_cutlass"):
         parser.error("eager benchmark requires its bounded native capture-free observer-off plan and bridge")
     benchmark_plan = load_plan(args.m1_eager_benchmark_plan)
-    if args.m1_decode_profile and (benchmark_plan["trials"] != 1 or benchmark_plan["warmups"] != 1):
-        parser.error("decode attribution requires the exact one-pair eager pilot")
+    try:
+        require_profile_intent(benchmark_plan, args.m1_decode_profile)
+    except RuntimeError as error:
+        parser.error(str(error))
     if args.m1_timing_metadata_help != benchmark_plan["metadata_help_timing"]:
         parser.error("metadata timing opt-in differs from the source-bound eager plan")
     from m1_private_aot import MODULE_PINS, sha, validate_cache
@@ -387,6 +389,7 @@ launch_manifest = {
     "trials_per_context": benchmark_plan["trials"] if benchmark_plan else (0 if args.client in {"controlled", "normal"} else args.trials),
     "eager_benchmark_plan_sha256": benchmark_plan["plan_sha256"] if benchmark_plan else None,
     "m1_decode_profile_requested": args.m1_decode_profile,
+    "diagnostic_admission": benchmark_plan.get("diagnostic_admission") if benchmark_plan else None,
     "controlled_request_count": 1 if args.client == "controlled" else None,
     "normal_request_count": 2 if normal_plan else None,
     "normal_plan_sha256": normal_plan["plan_sha256"] if normal_plan else None,
@@ -647,17 +650,14 @@ finally:
     if eager_benchmark and cleanup_complete and sys.exc_info()[1] is None:
         try:
             require_resources()
-            ownership.require_compiler_quiescence()
             if args.m1_decode_profile:
-                for lane in ("stock", "fused"):
-                    record = json.loads((output / "decode-profile" / (lane + "-scalars.json")).read_text())
-                    if (record["lane"] != lane or record["decode_steps"] != 4
-                            or record["source_head"] != benchmark_plan["source_head"]
-                            or record["plan_sha256"] != benchmark_plan["plan_sha256"]
-                            or record["timing_qualified"] is not False
-                            or not (output / "decode-profile" / (lane + ".json")).is_file()):
-                        raise RuntimeError("decode attribution window/source evidence differs")
+                ownership.require_diagnostic_integrity()
+                from m1_decode_profile import validate_profile_run
+                receipt = validate_profile_run(output, benchmark_plan, ownership_report)
+                with (output / "decode-diagnostic-admission.json").open("x") as stream:
+                    json.dump(receipt, stream, indent=2)
             else:
+                ownership.require_compiler_quiescence()
                 from m1_eager_benchmark_client import summarize_run
                 summarize_run(output)
         except BaseException:

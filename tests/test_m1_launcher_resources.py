@@ -109,22 +109,57 @@ class LauncherResourceTests(unittest.TestCase):
         self.summary.assert_not_called()
 
     def test_actual_final_profile_path_requires_both_windows_and_never_summarizes(self):
-        self.env["args"].m1_decode_profile = True
-        self.env["benchmark_plan"]["source_head"] = "a" * 40
-        profile = self.output / "decode-profile"
-        profile.mkdir()
-        for lane in ("stock", "fused"):
-            (profile / (lane + "-scalars.json")).write_text(json.dumps({
-                "lane": lane, "decode_steps": 4, "source_head": "a" * 40,
-                "plan_sha256": "p", "timing_qualified": False}))
-            (profile / (lane + ".json")).write_text('{}')
+        self.prepare_profile()
         self.final([{}, {}, {}])
         self.summary.assert_not_called()
-        (profile / "fused.json").unlink()
-        with self.assertRaisesRegex(RuntimeError, "window/source"):
+        receipt = json.loads((self.output / "decode-diagnostic-admission.json").read_text())
+        self.assertTrue(receipt["diagnostic_admission_passed"])
+        self.assertFalse(receipt["timing_qualified"])
+        (self.output / "decode-profile/fused.json").unlink()
+        with self.assertRaisesRegex(RuntimeError, "bounded regular JSON"):
             self.final([{}, {}, {}])
         self.assertEqual((self.output / "run.exit").read_text(), "1\n")
         self.summary.assert_not_called()
+
+    def prepare_profile(self):
+        from test_m1_profile_admission import write_profile_packet
+        self.env["args"].m1_decode_profile = True
+        policy, sample, binary = self.metadata_owner()
+        self.env["benchmark_plan"], inventories = write_profile_packet(self.output)
+        for patcher in (patch("m1_decode_profile.OPERATION_DIGESTS", inventories),
+                        patch("m1_decode_profile.verify_runtime_files")):
+            patcher.start(); self.addCleanup(patcher.stop)
+        return policy, sample, binary
+
+    def test_diagnostic_accepts_accounted_unknown_work_and_descendants_keeps_timing_rejection(self):
+        policy, sample, binary = self.prepare_profile()
+        zombie = replace(sample, state="Z", rss_bytes=0, compiler_argv=None,
+                         compiler_executable=None, compiler_file_version=None)
+        nvcc = Process(40,40,20,1024,"nvcc",age_seconds=.01)
+        descendant = Process(50,50,40,2048,"worker")
+        self.owner.observe({20:self.root,30:zombie,40:nvcc,50:descendant},100)
+        self.final([{},{},{}])
+        cleanup = json.loads((self.output / "eager-benchmark-cleanup.json").read_text())
+        self.assertEqual(cleanup["sampled_peak_compiler_rss_bytes"],3072)
+        self.assertEqual(len(cleanup["timing_unknown_or_work_identities"]),3)
+        self.assertTrue(all(h["first_unknown_or_work_sample"] is not None for h in cleanup["timing_classification_history"]))
+        self.summary.assert_not_called()
+        with self.assertRaisesRegex(RuntimeError,"compiler activity"):self.owner.require_compiler_quiescence()
+
+    def test_diagnostic_resource_breach_during_cleanup_still_rejects(self):
+        self.prepare_profile()
+        compiler = Process(30,30,20,(2 << 30)+1,"nvcc")
+        with self.assertRaisesRegex(RuntimeError,"aggregate RSS"):self.final([{20:self.root,30:compiler},{},{}])
+        self.assertFalse((self.output / "decode-diagnostic-admission.json").exists())
+        self.assertEqual((self.output / "run.exit").read_text(),"1\n")
+        self.summary.assert_not_called()
+
+    def test_diagnostic_metadata_final_failure_still_rejects(self):
+        policy,sample,binary = self.prepare_profile()
+        binary.write_bytes(b"unreviewed binary")
+        with self.assertRaisesRegex(RuntimeError,"Metadata timing"):self.final([{},{},{}])
+        self.assertEqual((self.output / "run.exit").read_text(),"1\n")
+        self.assertFalse((self.output / "decode-diagnostic-admission.json").exists())
 
     def test_clean_final_admission_still_summarizes(self):
         self.final([{}, {}, {}])
