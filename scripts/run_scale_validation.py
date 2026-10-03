@@ -23,6 +23,8 @@ parser.add_argument("--label", required=True)
 parser.add_argument("--trials", type=int, default=30)
 parser.add_argument("--prefill-chunk", type=int, default=256)
 parser.add_argument("--profile", action="store_true")
+parser.add_argument("--m1-decode-profile", action="store_true",
+                    help="Untimed four-step CPU/CUDA attribution per 2K lane in the exact one-pair eager pilot")
 parser.add_argument("--mode", choices=("native", "reference", "control", "paired_reference", "gate_only_negative_control"), required=True)
 parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal", "m1-eager-benchmark"), default="quality")
 parser.add_argument("--m1-eager-benchmark-plan", type=pathlib.Path)
@@ -52,7 +54,7 @@ metadata_timing = None
 if eager_benchmark:
     if any(os.environ.get(key) for key in ("FLASHINFER_DISABLE_JIT", "FLASHINFER_DISABLE_VERSION_CHECK")):
         parser.error("private AOT requires ordinary FlashInfer version/JIT policy")
-    from megartx.m1_eager_benchmark import load_plan
+    from megartx.m1_eager_benchmark import load_plan, require_profile_intent
     if (args.m1_eager_benchmark_plan is None or args.m1_private_aot is None or args.m1_preparation not in {"stock", "fused"}
             or args.mode != "native" or args.m1_execution != "capture-free"
             or args.m1_bridge is None or args.m1_build_receipt is None
@@ -64,6 +66,10 @@ if eager_benchmark:
             or args.kv != "bfloat16" or args.backend != "flashinfer_cutlass"):
         parser.error("eager benchmark requires its bounded native capture-free observer-off plan and bridge")
     benchmark_plan = load_plan(args.m1_eager_benchmark_plan)
+    try:
+        require_profile_intent(benchmark_plan, args.m1_decode_profile)
+    except RuntimeError as error:
+        parser.error(str(error))
     if args.m1_timing_metadata_help != benchmark_plan["metadata_help_timing"]:
         parser.error("metadata timing opt-in differs from the source-bound eager plan")
     from m1_private_aot import MODULE_PINS, sha, validate_cache
@@ -93,7 +99,7 @@ if eager_benchmark:
     if args.m1_timing_metadata_help:
         from m1_owned_processes import MetadataHelpTiming
         metadata_timing = MetadataHelpTiming(aot_manifest["flashinfer_root"], benchmark_plan["source_head"])
-elif args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None or args.m1_timing_metadata_help:
+elif args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None or args.m1_timing_metadata_help or args.m1_decode_profile:
     parser.error("eager benchmark plan requires --client m1-eager-benchmark")
 normal_plan = None
 if args.client == "normal":
@@ -177,7 +183,7 @@ for inherited in ("MEGARTX_M1_PREPARATION", "MEGARTX_M1_EXECUTION", "MEGARTX_M1_
                   "MEGARTX_M1_PROCESS_EXPECTED_METHOD", "MEGARTX_M1_PROCESS_PROBE_SHA256",
                   "MEGARTX_M1_API_PID_FILE", "MEGARTX_M1_PROCESS_PROBE_ACTIVE"):
     env.pop(inherited, None)
-for inherited in ("MEGARTX_M1_EAGER_BENCHMARK_PLAN", "MEGARTX_M1_EAGER_BENCHMARK_DIR"):
+for inherited in ("MEGARTX_M1_EAGER_BENCHMARK_PLAN", "MEGARTX_M1_EAGER_BENCHMARK_DIR", "MEGARTX_M1_DECODE_PROFILE_DIR"):
     env.pop(inherited, None)
 env.pop("MEGARTX_M1_PRIVATE_AOT", None)
 if args.m1_preparation:
@@ -214,6 +220,8 @@ if eager_benchmark:
     env["PYTHONPATH"] = str(aot / "python") + ":" + env["PYTHONPATH"]
     env["MEGARTX_M1_EAGER_BENCHMARK_PLAN"] = str(args.m1_eager_benchmark_plan.resolve())
     env["MEGARTX_M1_EAGER_BENCHMARK_DIR"] = str(output / "eager-benchmark")
+    if args.m1_decode_profile:
+        env["MEGARTX_M1_DECODE_PROFILE_DIR"] = str(output / "decode-profile")
     (output / "eager-benchmark-plan.json").write_text(json.dumps(benchmark_plan, indent=2))
 elif args.client == "normal":
     env["MEGARTX_LOGITS_DIR"] = str(output / "logits")
@@ -362,6 +370,7 @@ launch_env_keys = [
     "MEGARTX_M1_ROUTE_CONTROLS", "MEGARTX_M1_NORMAL_PLAN", "MEGARTX_M1_NORMAL_DIR",
     "MEGARTX_M1_EXTERNAL_OBSERVER_DIR",
     "MEGARTX_M1_EAGER_BENCHMARK_PLAN", "MEGARTX_M1_EAGER_BENCHMARK_DIR",
+    "MEGARTX_M1_DECODE_PROFILE_DIR",
     "MEGARTX_M1_PRIVATE_AOT",
 ]
 if args.m1_external_observer:
@@ -379,6 +388,8 @@ launch_manifest = {
     "trust_remote_code": False,
     "trials_per_context": benchmark_plan["trials"] if benchmark_plan else (0 if args.client in {"controlled", "normal"} else args.trials),
     "eager_benchmark_plan_sha256": benchmark_plan["plan_sha256"] if benchmark_plan else None,
+    "m1_decode_profile_requested": args.m1_decode_profile,
+    "diagnostic_admission": benchmark_plan.get("diagnostic_admission") if benchmark_plan else None,
     "controlled_request_count": 1 if args.client == "controlled" else None,
     "normal_request_count": 2 if normal_plan else None,
     "normal_plan_sha256": normal_plan["plan_sha256"] if normal_plan else None,
@@ -639,9 +650,16 @@ finally:
     if eager_benchmark and cleanup_complete and sys.exc_info()[1] is None:
         try:
             require_resources()
-            ownership.require_compiler_quiescence()
-            from m1_eager_benchmark_client import summarize_run
-            summarize_run(output)
+            if args.m1_decode_profile:
+                ownership.require_diagnostic_integrity()
+                from m1_decode_profile import validate_profile_run
+                receipt = validate_profile_run(output, benchmark_plan, ownership_report)
+                with (output / "decode-diagnostic-admission.json").open("x") as stream:
+                    json.dump(receipt, stream, indent=2)
+            else:
+                ownership.require_compiler_quiescence()
+                from m1_eager_benchmark_client import summarize_run
+                summarize_run(output)
         except BaseException:
             (output / "run.exit").write_text("1\n")
             raise

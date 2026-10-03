@@ -1,0 +1,76 @@
+{
+  "claim_boundary": "A separate exact full-file CPU catalog composes the existing reviewed attribution input lineage with PR23. It does not admit a GPU provider, reinterpret failed decode evidence, qualify dispatch, or change compiler/timing admission. Unknown inputs and fieldwise old/current mixtures reject; source hashes are not host attestation.",
+  "current_catalog": {
+    "live-attribution-binding.json": "115b289bd5721527daf6d0abf3a73770b2e9bdc1aa0988870035d21a88e72826",
+    "live-attribution-plan.json": "be5f0d78b255a324ec0bcddb6989eccd8419b1ceca7273c16baa7b4b4bedd5fa"
+  },
+  "decode_source_commit": "3f06df192f1792ac4ddaaa58ee27628ac5665e57",
+  "gpu_enabled": false,
+  "gpu_qualified": false,
+  "historical_catalog": {
+    "live-binding.json": "3f248451bbb47027066f38ebf672cbb4676c8993deeb25a5ea88b38b06cd4ab1",
+    "live-plan.json": "bd90bc12847eb60abe681088e6803e80a87d865d1306836c35a7dd0a9c785ca2"
+  },
+  "historical_main_commit": "7d1a33d1761a1719fc26c84f5b4f2a3410c31a16",
+  "immutable_input_changes": {
+    "docs/prefill/profile-plan.json": {
+      "current_sha256": "264aceb2d2247731041a80eb96563bb816ec9394d441bceabeef386ae77afd28",
+      "historical_sha256": "832daf1fb46c1c80240a4c890490e141c05da2122c6c2cafd8c6fc5df5016f06",
+      "semantic_paths": [
+        "/binding/source_manifest_sha256"
+      ]
+    },
+    "docs/prefill/runner-binding.json": {
+      "current_sha256": "a2020354a707d1419e08c4e3576ec032c19bfe191bde204cbbc9f1188d0c5547",
+      "historical_sha256": "bc57d5a8e303d8684e8c287545e45984d43c7eb46d81109a4492655d53f5d9b0",
+      "semantic_paths": [
+        "/repo_files/docs/prefill/README.md",
+        "/repo_files/docs/prefill/runner-protocol.md",
+        "/repo_files/src/megartx/prefill_plan.py",
+        "/repo_files/tests/test_prefill_runner.py"
+      ]
+    },
+    "docs/prefill/runner-plan.json": {
+      "current_sha256": "45e43c7a420112b6b81e527bb4173eb8eb2c9bd20a9ec0ca4421c43f7f9b7a96",
+      "historical_sha256": "da6f2aa003ba5b187e133b1518ffef6f78ab678159567e99210392e63ad355e1",
+      "semantic_paths": [
+        "/plan_sha256",
+        "/runner_binding_sha256"
+      ]
+    },
+    "docs/prefill/source-binding.json": {
+      "current_sha256": "953991a313d808069f52e8e75b64c826f1450cef8be09018bd5f689b34560fc6",
+      "historical_sha256": "ef9ece4b8ebd97b095f6a333681d8c2b3abca16ed7a89c59f05955cd06cc70d1",
+      "semantic_paths": [
+        "/attribution_review_sha256",
+        "/reviewed_source_overlays"
+      ]
+    }
+  },
+  "launcher_source_changes": {
+    "src/megartx/prefill_launch.py": {
+      "current_sha256": "b139883e1f12b6c91f8d3467b2870ce1c32b49849b1324629b1573b5b576b7c9",
+      "historical_sha256": "700846cad3b60b1cbf03c2511096424f3fa424a6e5fca22b3dede49f9e21aa70"
+    },
+    "tests/test_prefill_launch.py": {
+      "current_sha256": "1d3ea31f5337af36ffa6ebe4a28ac123f28ee3806b579b12c4c30c16ab187778",
+      "historical_sha256": "5f3d45ab3ce0a4d5416ee9ba439292db75f97b8b9b4b2685ba0857d01aa7eda2"
+    }
+  },
+  "performance_qualified": false,
+  "repository_base_commit": "0581f09259d18044ffb5f9e1363d0760f37ddd4f",
+  "review_scope": "cpu_composition_proposal_only",
+  "review_status": "pending_parent_focused_review",
+  "schema": "megartx-prefill-live-catalog-reconciliation-v1",
+  "unchanged_contract": [
+    "all original catalog bytes",
+    "all eleven chunk cells",
+    "resource caps",
+    "workload controls",
+    "all receipts null",
+    "public execution always closed",
+    "historical source vectors",
+    "atomic controller/plugin overlays",
+    "native arithmetic and quantizer"
+  ]
+}

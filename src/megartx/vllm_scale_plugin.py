@@ -175,7 +175,8 @@ def install():
         accumulator = routed.float()
         captured = []
         for e in experts:
-            locations = torch.nonzero(topk_ids == e.index)
+            with profile_scope("megartx::correction_selection", m1 is not None and m1.profile_active()):
+                locations = torch.nonzero(topk_ids == e.index)
             if locations.shape[0] == 0:
                 continue
             rows, slots = locations[:, 0], locations[:, 1]
@@ -246,7 +247,8 @@ def install():
                 normal_observer.begin(input_ids, positions)
             if m1 is not None:
                 m1.begin_forward(input_ids, positions)
-            result = old_forward(self, input_ids, positions, *args, **kwargs)
+            with profile_scope("megartx::model_forward", m1 is not None and m1.profile_active()):
+                result = old_forward(self, input_ids, positions, *args, **kwargs)
             if router_observer is not None:
                 router_observer.end()
             if any(layer._megartx["dispatch_calls"] <= count for layer, count in zip(integration_layers, before)):
@@ -294,7 +296,13 @@ def install():
 
     def logits_forward(self, hidden_states, *args, **kwargs):
         nonlocal counter
-        result = old_logits(self, hidden_states, *args, **kwargs)
+        try:
+            with profile_scope("megartx::logits_head", m1 is not None and m1.profile_active()):
+                result = old_logits(self, hidden_states, *args, **kwargs)
+        except BaseException as error:
+            if m1 is not None:
+                m1.fail_attribution(error)
+            raise
         if not capture:
             return result
         marker = Path(capture).parent / "capture-request.json"
