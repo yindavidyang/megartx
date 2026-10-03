@@ -1,0 +1,215 @@
+{
+  "callable_sites": {
+    "attention": {
+      "attribute": "forward",
+      "binding": {
+        "file_sha256": "bc897e452f3aea603e353ca42a365d3be8836e9485d78cbf8cc4677baca2fb42",
+        "module": "vllm.model_executor.layers.attention.attention",
+        "qualname": "Attention.forward",
+        "site_sha256": "078d7e4125d7db3cb2d45220d6df14e40fed22dee87ae2749ce4a6a1c393dc36"
+      },
+      "component": "attention",
+      "scope": "combined_cache_writer_local_or_global_attention"
+    },
+    "dispatch": {
+      "attribute": "forward",
+      "binding": {
+        "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+        "module": "vllm.model_executor.models.gemma4",
+        "qualname": "Gemma4MoE.forward",
+        "site_sha256": "6cdcdc51f27647af016f69321a4643c3374ff5c775867f7ea4cd68d2d700c454"
+      },
+      "component": "dispatch",
+      "scope": "combined_natural_routing_stock_and_scale_correction"
+    },
+    "head": {
+      "attribute": "forward",
+      "binding": {
+        "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+        "module": "vllm.model_executor.models.gemma4",
+        "qualname": "Gemma4ForCausalLM.compute_logits",
+        "site_sha256": "22339e425fac822a1ef4c3e334fd7265dacb7235f7874e46ab49b66c58b62217"
+      },
+      "component": "head",
+      "scope": "combined_tied_head_softcap"
+    },
+    "k_norm": {
+      "attribute": "_forward_method",
+      "binding": {
+        "file_sha256": "4126258bf85aa3af54c78cfbf2a0f32000491e42be37661f2d1ac9f0beea00f3",
+        "module": "vllm.model_executor.layers.layernorm",
+        "qualname": "RMSNorm.forward_cuda",
+        "site_sha256": "c8a22a5db93f3105e4e69e672c9253cc823f6470e05ef036853dcfc34d199f28"
+      },
+      "component": "qk_norm",
+      "scope": "qk_weighted_or_v_unweighted_norm"
+    },
+    "o_projection": {
+      "attribute": "forward",
+      "binding": {
+        "file_sha256": "094fdf956c35bcfcb44b924a4ff60bb1768285963e4e1ae27f3022dd7e1e852d",
+        "module": "vllm.model_executor.layers.linear",
+        "qualname": "RowParallelLinear.forward",
+        "site_sha256": "c5195505541e67b81befee613c3ac061c14ac4db2b0b3eccfc865f33f00dc698"
+      },
+      "component": "o_projection",
+      "scope": "output_projection"
+    },
+    "q_norm": {
+      "attribute": "_forward_method",
+      "binding": {
+        "file_sha256": "4126258bf85aa3af54c78cfbf2a0f32000491e42be37661f2d1ac9f0beea00f3",
+        "module": "vllm.model_executor.layers.layernorm",
+        "qualname": "RMSNorm.forward_cuda",
+        "site_sha256": "c8a22a5db93f3105e4e69e672c9253cc823f6470e05ef036853dcfc34d199f28"
+      },
+      "component": "qk_norm",
+      "scope": "qk_weighted_or_v_unweighted_norm"
+    },
+    "qkv": {
+      "attribute": "forward",
+      "binding": {
+        "file_sha256": "094fdf956c35bcfcb44b924a4ff60bb1768285963e4e1ae27f3022dd7e1e852d",
+        "module": "vllm.model_executor.layers.linear",
+        "qualname": "ColumnParallelLinear.forward",
+        "site_sha256": "54a2092989e85d7bc75b067116bd950b6a68734b7d9e748dc6ae4e7fa130ca01"
+      },
+      "component": "qkv",
+      "scope": "qkv_projection"
+    },
+    "router": {
+      "attribute": "forward",
+      "binding": {
+        "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+        "module": "vllm.model_executor.models.gemma4",
+        "qualname": "Gemma4Router.forward",
+        "site_sha256": "5e67ae6412077e03cee743bf6cbb058cf24376cb49b2ceb125f4864e5e277221"
+      },
+      "component": "router",
+      "scope": "combined_router_norm_scale_projection"
+    },
+    "shared_mlp": {
+      "attribute": "forward",
+      "binding": {
+        "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+        "module": "vllm.model_executor.models.gemma4",
+        "qualname": "Gemma4MLP.forward",
+        "site_sha256": "061ec5ca82e3371333d77804d06dd4b7a11810a475900dc6d8e13c1a6da8de60"
+      },
+      "component": "shared_mlp",
+      "scope": "combined_shared_gate_up_activation_down"
+    },
+    "v_norm": {
+      "attribute": "_forward_method",
+      "binding": {
+        "file_sha256": "4126258bf85aa3af54c78cfbf2a0f32000491e42be37661f2d1ac9f0beea00f3",
+        "module": "vllm.model_executor.layers.layernorm",
+        "qualname": "RMSNorm.forward_cuda",
+        "site_sha256": "c8a22a5db93f3105e4e69e672c9253cc823f6470e05ef036853dcfc34d199f28"
+      },
+      "component": "qk_norm",
+      "scope": "qk_weighted_or_v_unweighted_norm"
+    }
+  },
+  "file_sha256": {
+    "vllm.model_executor.layers.attention.attention": "bc897e452f3aea603e353ca42a365d3be8836e9485d78cbf8cc4677baca2fb42",
+    "vllm.model_executor.layers.fused_moe.routed_experts": "68c48e5df0ea4a7cc1f04436b7b9153eb53802ecd9bb55d38db8738508daac6d",
+    "vllm.model_executor.layers.layernorm": "4126258bf85aa3af54c78cfbf2a0f32000491e42be37661f2d1ac9f0beea00f3",
+    "vllm.model_executor.layers.linear": "094fdf956c35bcfcb44b924a4ff60bb1768285963e4e1ae27f3022dd7e1e852d",
+    "vllm.model_executor.models.gemma4": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+    "vllm.model_executor.models.gemma4_mm": "ee77a4f9884524e35219e8230a65f73eef675f2a23540cb267a25bf7029ea9b7",
+    "vllm.v1.attention.backends.flashinfer": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f"
+  },
+  "gpu_qualified": false,
+  "schema": "megartx-prefill-runtime-sites-v1",
+  "semantic_sites": {
+    "FlashInferImpl.do_kv_cache_update": {
+      "file_sha256": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f",
+      "first_line": 2577,
+      "last_line": 2614,
+      "module": "vllm.v1.attention.backends.flashinfer",
+      "source_range_sha256": "bfee76131f53a9c1710c939e54d804a8147088c1e2e7da41a08b28e71da197da"
+    },
+    "FlashInferImpl.forward": {
+      "file_sha256": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f",
+      "first_line": 1952,
+      "last_line": 2575,
+      "module": "vllm.v1.attention.backends.flashinfer",
+      "source_range_sha256": "b5479fc8d87636b9383e7fd691399b4280f1bd2d731dcb01c9052b0d4cb64da7"
+    },
+    "Gemma4Attention.forward": {
+      "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "first_line": 535,
+      "last_line": 571,
+      "module": "vllm.model_executor.models.gemma4",
+      "source_range_sha256": "fcbf6a0a04882e8976cb23a0bd6e2f64d0368531d0ff277442a02ac7c1242a27"
+    },
+    "Gemma4DecoderLayer.forward": {
+      "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "first_line": 717,
+      "last_line": 782,
+      "module": "vllm.model_executor.models.gemma4",
+      "source_range_sha256": "01cdc766cd2efb42892f6870e5f6ae43e9430dc4478a0c15fb8aad60ac6bd6b1"
+    },
+    "Gemma4ForCausalLM.compute_logits": {
+      "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "first_line": 1638,
+      "last_line": 1642,
+      "module": "vllm.model_executor.models.gemma4",
+      "source_range_sha256": "a9a6877d212ac0ac3faf666959dc342a1563b0bbb853917277c1bbe2e6290e9e"
+    },
+    "Gemma4ForConditionalGeneration.compute_logits": {
+      "file_sha256": "ee77a4f9884524e35219e8230a65f73eef675f2a23540cb267a25bf7029ea9b7",
+      "first_line": 2153,
+      "last_line": 2173,
+      "module": "vllm.model_executor.models.gemma4_mm",
+      "source_range_sha256": "d4feb6d6609d7c0c595f337f359ff9bddf4a4519ba5806f0370945cee50a529f"
+    },
+    "Gemma4ForConditionalGeneration.forward": {
+      "file_sha256": "ee77a4f9884524e35219e8230a65f73eef675f2a23540cb267a25bf7029ea9b7",
+      "first_line": 2117,
+      "last_line": 2151,
+      "module": "vllm.model_executor.models.gemma4_mm",
+      "source_range_sha256": "93464c877f0485fd76e5b07a005e2c5aa31573393f99d78aeb42b19ace1c54ad"
+    },
+    "Gemma4MLP.forward": {
+      "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "first_line": 251,
+      "last_line": 255,
+      "module": "vllm.model_executor.models.gemma4",
+      "source_range_sha256": "7e00f1ca2e2334a8c7d17a1f47a181230d47095fc1afaf89cdd7f64463024cfe"
+    },
+    "Gemma4MoE.forward": {
+      "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "first_line": 375,
+      "last_line": 376,
+      "module": "vllm.model_executor.models.gemma4",
+      "source_range_sha256": "45af51eafb1ae791eace43ad1dbbfbd530d67b1b3d2db1239124d81589e9ff2c"
+    },
+    "Gemma4Model.forward": {
+      "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "first_line": 1308,
+      "last_line": 1389,
+      "module": "vllm.model_executor.models.gemma4",
+      "source_range_sha256": "4462a1c4d8732679ace68fb8cae10c0baff8c38ae86eb2c7e630f69ea338e541"
+    },
+    "Gemma4Router.forward": {
+      "file_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "first_line": 299,
+      "last_line": 305,
+      "module": "vllm.model_executor.models.gemma4",
+      "source_range_sha256": "4aab74511d00f4a4b2a280c0068e9854d61dc4b9fe3f3c3e225c5b7a16154f32"
+    }
+  },
+  "source_provenance": "Immutable upstream source read; matches historical installed pins where available, not a fresh host/binary attestation",
+  "target_receipt": null,
+  "unresolved_native_attribution": [
+    "absolute_rope_and_rotary_dispatch",
+    "kernel_to_scope_CUPTI_correlation",
+    "actual_scheduled_expert_M_and_padding",
+    "stock_fused_substages_and_suppressed_work",
+    "original_scale_correction_quantize_FC1_activation_FC2_combine",
+    "head_sampling_stream_client_boundary"
+  ],
+  "upstream_vllm_commit": "ced6857afa0ea7b2e3f0846a62e1394e90f15607"
+}
