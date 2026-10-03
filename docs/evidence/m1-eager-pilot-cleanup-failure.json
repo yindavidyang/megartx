@@ -64,7 +64,7 @@
     "fresh_identity_read_errno": 2,
     "scope": "Real CPU-only owned child exit/reaping failure mechanism; original pilot operation was unlocalized, so this is not proof of its exact historical cause.",
     "kernel": "6.8.0-142-generic",
-    "kernel_source": "https://github.com/torvalds/linux/blob/v6.8/kernel/fork.c#L2053-L2057"
+    "kernel_source": "https://github.com/torvalds/linux/blob/v6.8/kernel/fork.c#L2178-L2183"
   },
   "private_receipt_sha256": {
     "build.json": "04e9da48db5a0513ce833a11423c08958326cac33b3ad944f3b458a15f3237cd",

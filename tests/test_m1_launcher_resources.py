@@ -4,6 +4,7 @@ Only external processes, GPU queries and /proc snapshots are substituted.
 The launcher control flow and retained ownership implementation are unchanged.
 """
 import ast
+from dataclasses import replace
 import json
 from pathlib import Path
 import signal
@@ -17,6 +18,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from m1_owned_processes import OwnedProcesses, Process
+from test_m1_timing_metadata import metadata_fixture
 
 LAUNCHER = Path(__file__).resolve().parents[1] / "scripts/run_scale_validation.py"
 TREE = ast.parse(LAUNCHER.read_text())
@@ -134,6 +136,61 @@ class LauncherResourceTests(unittest.TestCase):
         self.assertEqual(cleanup["cleanup_error_details"][0]["errno"], 22)
         self.assertEqual((self.output / "run.exit").read_text(), "1\n")
         self.summary.assert_not_called()
+
+    def metadata_owner(self):
+        policy,sample,binary,caller = metadata_fixture(self)
+        self.owner = OwnedProcesses(Process(10,10,1),metadata_timing=policy)
+        self.owner.register(self.root); self.env["ownership"] = self.owner
+        return policy,sample,binary
+
+    def test_verified_metadata_actual_final_path_hashes_and_admits(self):
+        policy,sample,binary = self.metadata_owner()
+        self.owner.observe({20:self.root,30:sample},100)
+        self.final([{},{},{}])
+        self.summary.assert_called_once_with(self.output)
+        final = json.loads((self.output / "timing-metadata-final.json").read_text())
+        self.assertTrue(final["final"]["passed"])
+        cleanup = json.loads((self.output / "eager-benchmark-cleanup.json").read_text())
+        self.assertTrue(cleanup["cleanup_complete"])
+        self.assertEqual(cleanup["sampled_peak_compiler_rss_bytes"],10)
+
+    def test_same_identity_unknown_or_work_history_rejects_actual_final_path(self):
+        for work_first in (False,True):
+            with self.subTest(work_first=work_first):
+                policy,sample,binary = self.metadata_owner()
+                unknown = replace(sample,compiler_argv=None)
+                work = replace(sample,compiler_argv=(policy.EXECUTABLE,"input.tileir"))
+                for p in ((unknown,sample) if work_first else (sample,work,sample)):
+                    self.owner.observe({20:self.root,30:p},100)
+                with self.assertRaisesRegex(RuntimeError,"compiler activity"):
+                    self.final([{},{},{}])
+                self.summary.assert_not_called()
+                self.assertEqual((self.output / "run.exit").read_text(),"1\n")
+
+    def test_metadata_resource_bounds_still_block_actual_client_dispatch(self):
+        nodes = RUN.body[index("other = []"):index("benchmark.exit")]
+        for change in ({"rss_bytes":(2 << 30)+1},{"age_seconds":301}):
+            with self.subTest(change=change):
+                policy,sample,binary = self.metadata_owner()
+                sample = replace(sample,**change)
+                with patch("m1_owned_processes.snapshot",return_value={20:self.root,30:sample}), \
+                     self.assertRaisesRegex(RuntimeError,"Owned .*compiler"):
+                    exec(code(nodes),self.env)
+                self.client_run.assert_not_called()
+
+    def test_final_file_drift_invalidates_timing_with_clean_cleanup_and_preserves_primary(self):
+        policy,sample,binary = self.metadata_owner()
+        self.owner.observe({20:self.root,30:sample},100)
+        binary.write_bytes(b"X" + binary.read_bytes()[1:])
+        with self.assertRaisesRegex(RuntimeError,"file-version drift"):
+            self.final([{},{},{}])
+        self.summary.assert_not_called()
+        self.assertEqual((self.output / "run.exit").read_text(),"1\n")
+        self.assertTrue(json.loads((self.output / "eager-benchmark-cleanup.json").read_text())["cleanup_complete"])
+        self.assertFalse(json.loads((self.output / "timing-metadata-final.json").read_text())["final"]["passed"])
+        primary = ValueError("primary model request failed")
+        with self.assertRaises(ValueError) as raised:self.final([{},{},{}],primary)
+        self.assertIs(raised.exception,primary)
 
     def test_cleanup_first_breach_preserves_existing_primary_exception(self):
         primary = ValueError("primary client failure")

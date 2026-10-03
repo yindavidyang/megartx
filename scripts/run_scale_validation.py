@@ -27,6 +27,8 @@ parser.add_argument("--mode", choices=("native", "reference", "control", "paired
 parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal", "m1-eager-benchmark"), default="quality")
 parser.add_argument("--m1-eager-benchmark-plan", type=pathlib.Path)
 parser.add_argument("--m1-private-aot", type=pathlib.Path)
+parser.add_argument("--m1-timing-metadata-help", action="store_true",
+                    help="Enable only the reviewed hash/identity/argv-bound tileiras --help timing distinction")
 parser.add_argument("--controlled-plan", type=pathlib.Path)
 parser.add_argument("--controlled-path", choices=("full", "cached", "chunked"))
 parser.add_argument("--layer0-boundaries", action="store_true")
@@ -46,6 +48,7 @@ parser.add_argument("--m1-external-observer", action="store_true",
 args = parser.parse_args()
 eager_benchmark = args.client == "m1-eager-benchmark"
 benchmark_plan = None
+metadata_timing = None
 if eager_benchmark:
     if any(os.environ.get(key) for key in ("FLASHINFER_DISABLE_JIT", "FLASHINFER_DISABLE_VERSION_CHECK")):
         parser.error("private AOT requires ordinary FlashInfer version/JIT policy")
@@ -61,6 +64,8 @@ if eager_benchmark:
             or args.kv != "bfloat16" or args.backend != "flashinfer_cutlass"):
         parser.error("eager benchmark requires its bounded native capture-free observer-off plan and bridge")
     benchmark_plan = load_plan(args.m1_eager_benchmark_plan)
+    if args.m1_timing_metadata_help != benchmark_plan["metadata_help_timing"]:
+        parser.error("metadata timing opt-in differs from the source-bound eager plan")
     from m1_private_aot import MODULE_PINS, sha, validate_cache
     aot = args.m1_private_aot.resolve()
     aot_manifest = validate_cache(aot, benchmark_plan["source_head"])
@@ -85,7 +90,10 @@ if eager_benchmark:
             or any(build.get("source_hashes", {}).get(p) != h
                    for p, h in benchmark_plan["driver_source_hashes"].items())):
         parser.error("eager benchmark build/source identity differs")
-elif args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None:
+    if args.m1_timing_metadata_help:
+        from m1_owned_processes import MetadataHelpTiming
+        metadata_timing = MetadataHelpTiming(aot_manifest["flashinfer_root"], benchmark_plan["source_head"])
+elif args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None or args.m1_timing_metadata_help:
     parser.error("eager benchmark plan requires --client m1-eager-benchmark")
 normal_plan = None
 if args.client == "normal":
@@ -383,6 +391,7 @@ launch_manifest = {
     "owned_startup_containment": "subreaper_pid_start_time_pidfd" if eager_benchmark else None,
     "compiler_aggregate_rss_limit_bytes": 2 << 30 if eager_benchmark else None,
     "shared_compiler_budget_seconds": 300 if eager_benchmark else None,
+    "timing_metadata_preflight": metadata_timing.report() if metadata_timing is not None else None,
     "private_aot_manifest_sha256": sha(aot / "manifest.json") if eager_benchmark else None,
     "private_aot_cpu_dry_run_sha256": sha(aot / "cpu-dry-run.json") if eager_benchmark else None,
     "qualification": "Experimental separate-projection original-weight correction; numerical qualification evaluated in separate reports. Eager execution and deterministic finalization are distinct from the original exploratory graph lane.",
@@ -402,7 +411,7 @@ client.trust_env = False
 try:
     if eager_benchmark:
         from m1_owned_processes import OwnedProcesses, enable_subreaper, read_process
-        ownership = OwnedProcesses(enable_subreaper())
+        ownership = OwnedProcesses(enable_subreaper(), metadata_timing=metadata_timing)
         available_kib = int(next(l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:")))
         if available_kib < 8 * 1024 * 1024:
             raise RuntimeError("Host available RAM below 8 GiB before launch")
@@ -543,6 +552,10 @@ finally:
         sample_thread.join(timeout=10)
     if ownership is not None:
         ownership_report = ownership.cleanup(gpu_jobs, server.poll if server is not None else lambda: None)
+        metadata_final = ownership.finalize_metadata()
+        if metadata_final is not None:
+            (output / "timing-metadata-final.json").write_text(json.dumps(metadata_final, indent=2))
+            ownership_report.update(ownership.report())
         (output / "owned-processes.json").write_text(json.dumps(ownership_report, indent=2))
     if server is not None and ownership is None:
         phase("owned_server_stop")

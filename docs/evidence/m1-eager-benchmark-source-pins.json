@@ -10,7 +10,7 @@
     {
       "path": "docs/m1-capture-free-execution.md",
       "parent_sha256": "e9cd666719a55ecfebcdc57e6af4e9790ff463230a56585e287410e327aa3044",
-      "current_sha256": "6acc6546e68dbb0141ea2c4be117b40dc31429c00faa7980fb95077c60a3ba6d"
+      "current_sha256": "5981fc539ec7ea4dfe38f779294f0f827bba63cde252152d2d4c28bf7f8df680"
     },
     {
       "path": "numerical_reference/compare_m1_live.py",
@@ -35,7 +35,7 @@
     {
       "path": "scripts/run_scale_validation.py",
       "parent_sha256": "a0a9b57991d3b78db3d0617408dd3e8720bf139832fad37a9eeb018ca6f24b52",
-      "current_sha256": "7b90107cb6fc9aa49e5a4ff9a56204af79336764beed76c548921d171b21e9d1"
+      "current_sha256": "a62e4b405f00a256aa8bdee71df006197fe8b2145868f9d7c57ca22d244bc205"
     },
     {
       "path": "src/megartx/m1_execution.py",
@@ -59,12 +59,12 @@
     }
   ],
   "added_source_hashes": {
-    "src/megartx/m1_eager_benchmark.py": "947f74a71bbb93194a4d1229bfdbaf771f74267e1b7a244605bdcc4fcf6a287f",
+    "src/megartx/m1_eager_benchmark.py": "63c4d6ed740fb3c5ea5e92268dc639a63b2c560b912e8da5b359f166930bfede",
     "scripts/m1_eager_benchmark_client.py": "a7b871b71d7b1d19a7813405602592f9562e7e0269e48d78a50950f49f20d34d",
-    "scripts/prepare_m1_eager_benchmark.py": "8d27bdd36809aa111386d54a961711e1f495c45585480709904119db793bfa77",
-    "tests/test_m1_eager_benchmark.py": "a161e5dc04f638b776f418bd98c35ab3a03ad1fd6101da2e8c370acce5d7d093",
-    "docs/m1-matched-eager-benchmark.md": "c59e3b52ebc79d009f9e8d8084ffcd6efb2adda6a565700db8c54726ff41e666",
-    "scripts/m1_owned_processes.py": "f83867e6b270c15704b8d5ca6e0b3e5f9ca13109a44b2f404df3e505bee46222",
+    "scripts/prepare_m1_eager_benchmark.py": "8d7b7203284daad286f61f69933a7e02370a782e17ed06371be7e50eebe8333e",
+    "tests/test_m1_eager_benchmark.py": "ca2a6cd6ca24fa2de3cb0ef837fc92bcbb7e3b7f5d0055fb425ba36cc12a5fc4",
+    "docs/m1-matched-eager-benchmark.md": "ee68b1a0b3958e1af6d51d535fdaf6b605dbc6f368b1224ed85d9ff7522c20c7",
+    "scripts/m1_owned_processes.py": "eac1f7d983e324e9ec38d7a646163a530dfaa7ccf17262a42e06886c0d9f46bd",
     "scripts/m1_private_aot.py": "2369dfac5f41c5c07dd6a0f9dcac8af4aa5b11a819f5d6add1cf11d64d8ddbee",
     "scripts/check_m1_private_aot.py": "9e1e94b0c9859f05fd69d8ae3e9cd632f46006f89cfc22f513f3ab525ccb5f62",
     "scripts/m1_aot_cache/sitecustomize.py": "3ee856677318aeba2ac6554376a4bb01151144087c4a8930dd59d50b6be5238d",
@@ -72,8 +72,9 @@
     "tests/test_m1_owned_processes.py": "2f8f31f6bd23d4f3b87f547c70782410f74f51046cc2159ed58bb217d4cadd89",
     "tests/test_m1_private_aot.py": "c706d94af6e87308185de75682fff4b76b622d7716748b7184276addfc76effb",
     "docs/evidence/m1-eager-startup-failure.json": "d86bdd94f9d15a0fa97ae7857cb3a6810803e28ab2e3c1b2fd70674ac3626adb",
-    "tests/test_m1_launcher_resources.py": "7f0406b75ae641ee1b254765cbcf81774f9528b9e37bcfbbc9c6efd244cbd766",
-    "docs/evidence/m1-eager-pilot-cleanup-failure.json": "d96a7f243c8f7278f91ccdb698aecefbce88b97c9a1533e736fc7083612c9ee4"
+    "tests/test_m1_launcher_resources.py": "8e49ede1826478d933ae6f3c61b21b5cd8b535022845ea70916d7f97bb53d54b",
+    "docs/evidence/m1-eager-pilot-cleanup-failure.json": "7d84ca190ab5c1a6465279e17e9f624c32738e53e598a4b8af6a6cbac0b4ef11",
+    "tests/test_m1_timing_metadata.py": "062afb277cd073bf21adca53c2dae5dddfc2ee14dee81ff23a8a3bd249ca1f12"
   },
   "timing_review_fix": {
     "blocked_head": "aba466e3cb6f0298fb6e9978faa1f112d6c8de28",
@@ -90,5 +91,12 @@
   "cleanup_einval_and_compiler_receipt_fix": {
     "failed_runtime_head": "6d8f1662d9de401f7b685a92a3f6630edf483607",
     "scope": "Fresh identity proof for pidfd_open EINVAL after CPU-only reaping reproduction; unknown cleanup errors stay blocking. Add tileiras and compiler-only argv receipts with conservative probe classification; enforce existing lifetime quiescence before summary. Native, AOT, arithmetic, controller and client sources unchanged."
+  },
+  "pinned_metadata_timing_distinction": {
+    "reviewed_base_head": "93360b9778047b3d1c1090dc4a8e9fbd3dc72070",
+    "proposal_sha256": "fecc1f67f9bbac374235ffbf82e0ce83d362ce3269237bfa2a8761e5ef027d1a",
+    "default_enabled": false,
+    "scope": "Eager-plan-bound exact tileiras --help argv/path/binary/caller hashes, actual process identity and stable file versions; permanent unknown/work history; untimed preflight/final hashing. Resource accounting, cleanup and timing interval boundaries retained. No GPU execution or pilot-2 acceptance.",
+    "historical_receipt_edit": "Correct Linux v6.8 pidfd_prepare permalink only; prior pilot measurements, rejection and cleanup receipts unchanged."
   }
 }

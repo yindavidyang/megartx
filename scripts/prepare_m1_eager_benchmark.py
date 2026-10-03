@@ -14,7 +14,8 @@ from megartx.m1_execution import CONTROLLER_SOURCES
 from megartx.m1_normal_plan import REVISION, digest
 
 
-def make_plan(prompts, source_head, controller_hashes, driver_hashes, trials=6, warmups=2, seed=9471):
+def make_plan(prompts, source_head, controller_hashes, driver_hashes, trials=6, warmups=2, seed=9471,
+              metadata_help_timing=False):
     rng = random.Random(seed)
     schedule = []
     for phase, count in (("warmup", warmups), ("measurement", trials)):
@@ -35,7 +36,7 @@ def make_plan(prompts, source_head, controller_hashes, driver_hashes, trials=6, 
             "outputs": OUTPUTS, "prefill_chunk": 256, "warmups": warmups, "trials": trials,
             "seed": seed, "cases": [{"id": str(n), "prompt_token_ids": prompts[n],
                                        "prompt_sha256": digest(prompts[n])} for n in CONTEXTS],
-            "schedule": schedule}
+            "schedule": schedule, "metadata_help_timing": metadata_help_timing}
     plan["plan_sha256"] = digest(plan)
     return validate_plan(plan)
 
@@ -61,6 +62,7 @@ def main():
     parser.add_argument("--trials", type=int, default=6)
     parser.add_argument("--warmups", type=int, default=2)
     parser.add_argument("--seed", type=int, default=9471)
+    parser.add_argument("--m1-timing-metadata-help", action="store_true")
     args = parser.parse_args()
     if subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip():
         raise RuntimeError("freeze and commit source before preparing a GPU plan")
@@ -70,7 +72,8 @@ def main():
     plan = make_plan({n: exact_prompt(tokenizer, n) for n in CONTEXTS},
         subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         {n: sha(ROOT / "src/megartx" / n) for n in CONTROLLER_SOURCES},
-        {n: sha(ROOT / n) for n in DRIVER_SOURCES}, args.trials, args.warmups, args.seed)
+        {n: sha(ROOT / n) for n in DRIVER_SOURCES}, args.trials, args.warmups, args.seed,
+        args.m1_timing_metadata_help)
     with args.output.open("x") as stream:
         json.dump(plan, stream, indent=2)
     print(json.dumps({"plan_sha256": plan["plan_sha256"], "source_head": plan["source_head"],

@@ -143,7 +143,7 @@ evidence are in
 
 A CPU-only owned child exit/reaping test reproduced `pidfd_open(pid, 0)` returning
 `EINVAL`, followed by an absent `/proc` identity. Linux 6.8's
-[pidfd_prepare implementation](https://github.com/torvalds/linux/blob/v6.8/kernel/fork.c#L2053-L2057)
+[pidfd_prepare implementation](https://github.com/torvalds/linux/blob/v6.8/kernel/fork.c#L2178-L2183)
 can return that error after the TGID task disappears. This proves a compatible
 mechanism; the original pilot did not record its exact failing operation.
 The narrow cleanup fix accepts that `pidfd_open` error only when a fresh read
@@ -158,9 +158,44 @@ unavailable arguments stay unknown. This classification supplies evidence and
 does not exempt probes from resource accounting or timing admission. The pinned
 FlashInfer `cutile/cutile_common.py` caller SHA-256 is
 `8b80053b84ad68fee19cc66f2b9a8f3e55df2c10be77a71e892da6aa22e35bae`.
-Final summary admission enforces the existing stricter
-all-server-lifetime gate, including zero-RSS zombie compiler observations.
-No compiler probe exemption or broader timing scope is introduced.
+Without the separately reviewed opt-in below, final summary admission enforces
+the existing stricter all-server-lifetime gate, including zero-RSS zombie
+compiler observations. The descriptive `--version` label supplies no exemption.
+
+### One pinned metadata command, default off
+
+`--m1-timing-metadata-help` must be supplied to both plan preparation and the
+eager launcher. Its Boolean value is part of the source-bound plan digest;
+omission retains strict compiler rejection. Other clients reject this flag.
+It distinguishes only argv `[/usr/local/cuda/bin/tileiras, --help]`, resolved
+executable `/usr/local/cuda-13.3/bin/tileiras`, and binary SHA-256
+`88737a8be5c56bf73fb885a567a950f247a8cfa1d146dbc7a65eff77e7d62bf0`.
+The pinned [official FlashInfer caller](https://github.com/flashinfer-ai/flashinfer/blob/v0.6.18.post1/flashinfer/cutile/cutile_common.py)
+uses that command to inspect architecture support. The reviewed proposal is
+SHA-256 `fecc1f67f9bbac374235ffbf82e0ce83d362ce3269237bfa2a8761e5ef027d1a`.
+Its separate CPU syscall receipt corroborates only this pinned command; it is
+not a universal proof of proprietary tool behavior or acceptance of pilot 2.
+
+Before launch and after owned cleanup, untimed stable-file hashing verifies the
+binary and caller against their pinned hashes. Between those hashes, file
+versions include device, inode, size, mtime_ns and ctime_ns; same-inode content
+drift invalidates admission. Compiler samples recheck actual `/proc/PID/exe`
+path and file version, exact cmdline, PID and start ticks. Missing or unstable
+evidence, path aliases, extra args, `--version` and initial zombies fail closed.
+A verified terminal zombie can retain earlier help evidence only for the same
+PID/start identity. Every observed unknown/work transition stays permanently
+blocking, even if the same identity later returns to help. Descendants receive
+no exemption. Successful final file verification is required before summary.
+
+This distinction affects timing admission only. All tool and descendant RSS,
+the shared 300-second budget, ownership identities, error handling and cleanup
+remain accounted for. File/version and process sampling costs remain in both
+guarded lanes; command execution during request intervals stays inside latency.
+Nothing is subtracted or shifted beyond the existing interval boundaries.
+Sampling can miss an entire brief process or a transition between samples;
+these receipts establish sampled classification, not an instruction trace.
+The lifetime gate remains strict for every nonmetadata or unknown compiler,
+including startup activity. There is no new warmup-relative boundary.
 
 Private mount isolation was unavailable on the assigned host. Instead, eight
 exact prebuilt module hashes are promoted through FlashInfer's supported private
@@ -196,13 +231,12 @@ idle/owned processes and bounds before each launch; run one server at a time.
    Its scalar checks are not a CUDA trace, tensor oracle or quality proof.
    Timing receipts must establish compiler quiescence after warmups. For the
    initial bounded comparison, reject timing if the ownership receipt shows any
-   sampled compiler activity during the server lifetime; this stricter condition
-   avoids accepting an unlocalized compilation interval. Ordinary other specs
-   may compile, but those runs supply no accepted timing result under this plan.
-   This is enforced before summary publication, separately from resource bounds
-   and successful cleanup. Metadata-only compiler invocations are conservatively
-   included; any future exemption or narrower warmup-relative scope needs new
-   source-bound evidence and review.
+   sampled compiler activity during the server lifetime, except the exact
+   metadata command under the opt-in and evidence requirements above. Ordinary
+   other specs may compile, but those runs supply no accepted timing result under
+   this plan. This is enforced before summary publication, separately from
+   resource bounds and successful cleanup. Any additional exemption or narrower
+   warmup-relative scope needs new source-bound evidence and review.
 3. Only after the affected source/build and pilot gates pass, prepare the six-pair plan
    and execute one fresh observer-off warm server. Any failed gate blocks timing.
    Publish only sanitized scalar results and source/test hashes, never prompts,
@@ -222,6 +256,9 @@ Exact next timing invocations, after source approval and the above gates:
 python scripts/prepare_m1_eager_benchmark.py --model-path "$MODEL" --output "$PRIVATE_PLAN" --trials 6 --warmups 2 --seed 9471
 python scripts/run_scale_validation.py --mode native --client m1-eager-benchmark --m1-eager-benchmark-plan "$PRIVATE_PLAN" --m1-private-aot "$PRIVATE_AOT" --m1-preparation stock --m1-execution capture-free --m1-bridge "$BUILD/m1_live_bridge.so" --m1-build-receipt "$BUILD/build.json" --label m1-guarded-eager-pairs6
 ```
+
+For the reviewed single-command distinction, append
+`--m1-timing-metadata-help` to **both** commands. A mismatch fails before launch.
 
 Here `--m1-preparation stock` supplies explicit initial M1 admission; the exact
 plan selects both lanes at verified request boundaries. All subsequent lane

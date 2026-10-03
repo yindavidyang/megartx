@@ -4,6 +4,9 @@ The next default-off [guarded matched eager benchmark](m1-matched-eager-benchmar
 adds a separate bounded natural-request plan. Its source/fidelity and timing
 gates are independent of the historical evidence below; no existing G1 or
 graph gate is opened. All native validation and stream handoffs remain measured.
+Its additional default-off metadata timing option recognizes one pinned
+`tileiras --help` command with file and process identity evidence; tool resource
+limits, permanent unknown/work history and cleanup still govern admission.
 
 Base: PR10 main `cc82e59c8053a72af37d9e06a76405d1ef31181e`.
 

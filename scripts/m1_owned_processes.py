@@ -6,6 +6,7 @@ pidfds close the identity-check/signal PID-reuse race. No GPU imports.
 import ctypes
 from dataclasses import asdict, dataclass
 import errno
+import hashlib
 import os
 from pathlib import Path
 import signal
@@ -20,6 +21,84 @@ def is_compiler(name):
     return name in COMPILERS or name.endswith(("-gcc", "-g++", "-clang", "-clang++"))
 
 
+def file_version(stat):
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+
+def hash_file_version(path):
+    """Untimed hash of a stable opened file, including path replacement checks."""
+    with Path(path).open("rb") as stream:
+        before = file_version(os.fstat(stream.fileno()))
+        digest = hashlib.sha256()
+        for data in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(data)
+        if file_version(os.fstat(stream.fileno())) != before or file_version(Path(path).stat()) != before:
+            raise RuntimeError("Metadata timing file changed during hashing")
+    return digest.hexdigest(), before
+
+
+class MetadataHelpTiming:
+    """One reviewed command; all tool resource accounting stays independent."""
+    EXECUTABLE = "/usr/local/cuda/bin/tileiras"
+    RESOLVED = "/usr/local/cuda-13.3/bin/tileiras"
+    BINARY_SHA = "88737a8be5c56bf73fb885a567a950f247a8cfa1d146dbc7a65eff77e7d62bf0"
+    CALLER_SHA = "8b80053b84ad68fee19cc66f2b9a8f3e55df2c10be77a71e892da6aa22e35bae"
+    PROPOSAL_SHA = "fecc1f67f9bbac374235ffbf82e0ce83d362ce3269237bfa2a8761e5ef027d1a"
+
+    def __init__(self, flashinfer_root, source_head):
+        self.caller = Path(flashinfer_root) / "cutile/cutile_common.py"
+        self.source_head = source_head
+        self.argv = (self.EXECUTABLE, "--help")
+        if str(Path(self.EXECUTABLE).resolve()) != self.RESOLVED:
+            raise RuntimeError("Metadata timing executable path differs")
+        binary_sha, self.binary_version = hash_file_version(self.EXECUTABLE)
+        caller_sha, self.caller_version = hash_file_version(self.caller)
+        if (binary_sha, caller_sha) != (self.BINARY_SHA, self.CALLER_SHA):
+            raise RuntimeError("Metadata timing executable/caller hash differs")
+        if error := self.version_error():
+            raise RuntimeError(error)
+        self.final = None
+
+    def version_error(self):
+        try:
+            if (str(Path(self.EXECUTABLE).resolve()) != self.RESOLVED
+                    or file_version(Path(self.EXECUTABLE).stat()) != self.binary_version
+                    or file_version(self.caller.stat()) != self.caller_version):
+                return "Metadata timing executable/caller file-version drift"
+        except OSError as error:
+            return "Metadata timing file evidence unavailable: " + str(error)
+        return None
+
+    def qualifies(self, process):
+        return (process.pid > 0 and process.compiler_identity_verified
+                and process.executable == "tileiras" and process.state != "Z"
+                and process.compiler_executable == self.RESOLVED
+                and process.compiler_file_version == self.binary_version
+                and process.compiler_argv == self.argv)
+
+    def report(self):
+        return {"policy": "pinned_tileiras_help_v1", "proposal_sha256": self.PROPOSAL_SHA,
+                "source_head": self.source_head, "argv": self.argv, "resolved_executable": self.RESOLVED,
+                "binary_sha256": self.BINARY_SHA, "caller_sha256": self.CALLER_SHA,
+                "binary_file_version": self.binary_version, "caller_file_version": self.caller_version,
+                "file_version_fields": ["dev", "ino", "size", "mtime_ns", "ctime_ns"], "final": self.final}
+
+    def finalize(self):
+        errors = [error] if (error := self.version_error()) else []
+        hashes = {}
+        for name, path, expected, version in (("binary", self.EXECUTABLE, self.BINARY_SHA, self.binary_version),
+                                              ("caller", self.caller, self.CALLER_SHA, self.caller_version)):
+            try:
+                digest, current = hash_file_version(path)
+                hashes[name] = digest
+                if digest != expected or current != version:
+                    errors.append("Metadata timing final " + name + " hash/version differs")
+            except (OSError, RuntimeError) as error:
+                errors.append("Metadata timing final " + name + " verification failed: " + str(error))
+        self.final = {"passed": not errors, "hashes": hashes, "errors": errors}
+        return self.final
+
+
 @dataclass(frozen=True)
 class Process:
     pid: int
@@ -30,6 +109,9 @@ class Process:
     state: str = "S"
     age_seconds: float = 0
     compiler_argv: tuple | None = None
+    compiler_executable: str | None = None
+    compiler_file_version: tuple | None = None
+    compiler_identity_verified: bool = False
 
     @property
     def identity(self):
@@ -52,23 +134,54 @@ def read_process(pid, uptime=None):
     stat = (directory / "stat").read_text()
     fields = stat[stat.rindex(")") + 2:].split()
     executable = stat[stat.index("(") + 1:stat.rindex(")")]
+    executable_path = None
     try:
-        executable = Path(os.readlink(directory / "exe")).name
+        executable_path = os.readlink(directory / "exe")
+        executable = Path(executable_path).name
     except (FileNotFoundError, PermissionError, ProcessLookupError):
         pass
     argv = None
+    version = None
+    verified = False
     if is_compiler(executable):
+        try:
+            version = file_version((directory / "exe").stat())
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            pass
         try:
             data = (directory / "cmdline").read_bytes()
             if data:
                 argv = tuple(os.fsdecode(arg) for arg in data.rstrip(b"\0").split(b"\0"))
         except (FileNotFoundError, PermissionError, ProcessLookupError):
             pass  # Unknown argv stays conservative; no metadata-only exemption.
+        stable_executable = False
+        if version is not None and argv is not None:
+            try:
+                later_argv = (directory / "cmdline").read_bytes()
+                stable_executable = (os.readlink(directory / "exe") == executable_path
+                    and file_version((directory / "exe").stat()) == version
+                    and tuple(os.fsdecode(arg) for arg in later_argv.rstrip(b"\0").split(b"\0")) == argv)
+            except (FileNotFoundError, PermissionError, ProcessLookupError):
+                pass
+        try:
+            later = (directory / "stat").read_text()
+            later_fields = later[later.rindex(")") + 2:].split()
+            same_identity = (int(stat.split("(", 1)[0]) == int(pid)
+                             and int(later.split("(", 1)[0]) == int(pid)
+                             and int(later_fields[19]) == int(fields[19]))
+            if same_identity and later_fields[0] == "Z":
+                fields[0] = "Z"
+                verified = True  # Terminal identity only; never qualifies itself.
+            elif same_identity:
+                verified = stable_executable
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            pass
     start = int(fields[19])
     if uptime is None:
         uptime = float(Path("/proc/uptime").read_text().split()[0])
     return Process(int(pid), start, int(fields[1]), int(fields[21]) * os.sysconf("SC_PAGE_SIZE"),
-                   executable, fields[0], max(0, uptime - start / os.sysconf("SC_CLK_TCK")), argv)
+                   executable, fields[0], max(0, uptime - start / os.sysconf("SC_CLK_TCK")), argv,
+                   executable_path, version, verified)
 
 
 def snapshot():
@@ -135,11 +248,16 @@ def signal_identity(process, signum):
 
 
 class OwnedProcesses:
-    def __init__(self, supervisor, *, rss_limit=2 << 30, compiler_seconds=300):
+    def __init__(self, supervisor, *, rss_limit=2 << 30, compiler_seconds=300, metadata_timing=None):
         self.supervisor = supervisor
         self.remembered = {}
         self.compiler_identities = set()
         self.compiler_samples = {}
+        self.metadata_timing = metadata_timing
+        self.metadata_timing_invalid = False
+        self.metadata_identities = set()
+        self.non_metadata_identities = set()
+        self.timing_history = {}
         self.root_identity = None
         self.rss_limit = rss_limit
         self.compiler_seconds = compiler_seconds
@@ -157,6 +275,10 @@ class OwnedProcesses:
 
     def observe(self, processes, now):
         with self.lock:
+            if self.metadata_timing is not None:
+                if error := self.metadata_timing.version_error():
+                    self.fail(error)
+                    self.metadata_timing_invalid = True
             parents = {p.pid: p for p in processes.values()
                        if p.identity in self.remembered or p.identity == self.supervisor.identity}
             changed = True
@@ -174,10 +296,11 @@ class OwnedProcesses:
             for process in alive:
                 self.remembered[process.identity] = process
                 name = process.executable
-                if is_compiler(name):
+                if is_compiler(name) or process.identity in self.compiler_identities:
                     self.compiler_identities.add(process.identity)
                     if process.identity not in self.compiler_samples or process.compiler_argv is not None:
                         self.compiler_samples[process.identity] = process
+                    self.classify_timing(process, now)
             changed = True
             while changed:
                 changed = False
@@ -185,7 +308,10 @@ class OwnedProcesses:
                 for process in alive:
                     if process.ppid in parents and process.identity not in self.compiler_identities:
                         self.compiler_identities.add(process.identity)
+                        self.classify_timing(process, now, descendant=True)
                         changed = True
+                    elif process.ppid in parents:
+                        self.classify_timing(process, now, descendant=True)
             compiling = [p for p in alive if p.identity in self.compiler_identities and p.state != "Z"]
             rss = sum(p.rss_bytes for p in compiling)
             self.peak_compiler_rss = max(self.peak_compiler_rss, rss)
@@ -199,6 +325,22 @@ class OwnedProcesses:
                     self.fail(reason, {"compiler_rss_bytes": rss, "compiler_elapsed_seconds": self.compiler_elapsed,
                                        "compiler_identities": [asdict(p) for p in compiling]})
             return alive
+
+    def classify_timing(self, process, now, descendant=False):
+        history = self.timing_history.setdefault(process.identity, {"first_sample": now, "last_sample": now,
+                    "metadata_samples": 0, "first_unknown_or_work_sample": None})
+        history["last_sample"] = now
+        qualifies = (not descendant and not self.metadata_timing_invalid and self.metadata_timing is not None
+                     and self.metadata_timing.qualifies(process))
+        terminal = (not descendant and process.state == "Z" and process.compiler_identity_verified
+                    and process.identity in self.metadata_identities)
+        if qualifies:
+            self.metadata_identities.add(process.identity)
+            history["metadata_samples"] += 1
+        elif not terminal:
+            self.non_metadata_identities.add(process.identity)
+            if history["first_unknown_or_work_sample"] is None:
+                history["first_unknown_or_work_sample"] = {"time": now, "descendant": descendant, **asdict(process)}
 
     def fail(self, reason, sample=None):
         with self.lock:
@@ -223,13 +365,36 @@ class OwnedProcesses:
                     "sampled_compiler_identities": [asdict(self.remembered[i]) for i in sorted(self.compiler_identities)],
                     "sampled_compiler_invocations": [{**asdict(p), "classification": p.compiler_invocation}
                                                      for p in self.compiler_samples.values()],
+                    "timing_metadata_policy": self.metadata_timing.report() if self.metadata_timing is not None else None,
+                    "timing_metadata_policy_invalid": self.metadata_timing_invalid,
+                    "timing_metadata_only_identities": sorted(self.metadata_identities - self.non_metadata_identities),
+                    "timing_unknown_or_work_identities": sorted(self.non_metadata_identities),
+                    "timing_classification_history": [{"identity": i, **h} for i,h in self.timing_history.items()],
                     "remembered_identities": [asdict(p) for p in self.remembered.values()]}
 
     def require_compiler_quiescence(self):
         """Enforce the reviewed, stricter all-server-lifetime timing gate."""
         with self.lock:
-            if self.compiler_identities or self.peak_compiler_rss or self.compiler_elapsed:
+            if self.metadata_timing is not None:
+                if self.metadata_timing_invalid:
+                    raise RuntimeError(self.failure or "Metadata timing retained file evidence failure")
+                if error := self.metadata_timing.version_error():
+                    self.fail(error)
+                    raise RuntimeError(error)
+                if self.metadata_timing.final is None or not self.metadata_timing.final["passed"]:
+                    raise RuntimeError("Metadata timing requires successful final file verification")
+                if self.compiler_identities - (self.metadata_identities - self.non_metadata_identities):
+                    raise RuntimeError("Owned compiler activity invalidates eager timing")
+            elif self.compiler_identities or self.peak_compiler_rss or self.compiler_elapsed:
                 raise RuntimeError("Owned compiler activity invalidates eager timing")
+
+    def finalize_metadata(self):
+        with self.lock:
+            if self.metadata_timing is not None:
+                report = self.metadata_timing.finalize()
+                if not report["passed"]:
+                    self.fail(report["errors"][0])
+                return self.metadata_timing.report()
 
     def cleanup(self, gpu_query, root_poll, *, term_seconds=10, kill_seconds=10):
         errors = []

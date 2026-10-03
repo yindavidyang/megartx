@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -34,6 +35,37 @@ def finish(obj, row, generated=7):
 
 
 class PlanTests(unittest.TestCase):
+    def test_metadata_timing_opt_in_is_default_off_and_digest_bound(self):
+        p = plan();self.assertIs(p["metadata_help_timing"],False)
+        p["metadata_help_timing"] = True
+        with self.assertRaisesRegex(RuntimeError,"digest"):validate_plan(p)
+        p["plan_sha256"] = digest({k:v for k,v in p.items() if k!="plan_sha256"})
+        self.assertIs(validate_plan(p)["metadata_help_timing"],True)
+        p["metadata_help_timing"] = 1
+        with self.assertRaisesRegex(RuntimeError,"scope"):validate_plan(p)
+
+    def test_real_launcher_rejects_metadata_flag_outside_eager_and_plan_flag_drift(self):
+        script = Path(__file__).resolve().parents[1] / "scripts/run_scale_validation.py"
+        for client in ("quality","controlled","normal","benchmark"):
+            r = subprocess.run([sys.executable,str(script),"--mode","native","--label","cpu-only",
+                "--client",client,"--m1-timing-metadata-help"],capture_output=True,text=True,timeout=10)
+            self.assertEqual(r.returncode,2,r.stderr)
+            self.assertIn("requires --client m1-eager-benchmark",r.stderr)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "plan.json"
+            for enabled in (False,True):
+                p = plan();p["metadata_help_timing"] = enabled
+                p["plan_sha256"] = digest({k:v for k,v in p.items() if k!="plan_sha256"})
+                path.write_text(json.dumps(p))
+                cmd = [sys.executable,str(script),"--mode","native","--label","cpu-only",
+                    "--client","m1-eager-benchmark","--m1-eager-benchmark-plan",str(path),
+                    "--m1-private-aot","not-read","--m1-preparation","stock","--m1-execution","capture-free",
+                    "--m1-bridge","not-read","--m1-build-receipt","not-read"]
+                if not enabled:cmd.append("--m1-timing-metadata-help")
+                r = subprocess.run(cmd,capture_output=True,text=True,timeout=10)
+                self.assertEqual(r.returncode,2,r.stderr)
+                self.assertIn("opt-in differs",r.stderr)
+
     def test_bounded_randomized_adjacent_balanced_pairs_and_warmups(self):
         p = plan(6, 2)
         self.assertEqual(len(p["schedule"]), 32)

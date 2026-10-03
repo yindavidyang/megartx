@@ -22,11 +22,11 @@ def validate_plan(plan, source_hashes=None):
     from .m1_execution import CONTROLLER_SOURCES
     required = {"schema", "checkpoint_revision", "source_head", "controller_source_hashes", "driver_source_hashes",
                 "outputs", "prefill_chunk", "warmups", "trials", "seed", "cases",
-                "schedule", "plan_sha256"}
+                "schedule", "plan_sha256", "metadata_help_timing"}
     if (set(plan) != required or plan["schema"] != SCHEMA
             or plan["checkpoint_revision"] != REVISION or type(plan["outputs"]) is not int
             or plan["outputs"] != OUTPUTS or type(plan["prefill_chunk"]) is not int
-            or plan["prefill_chunk"] != 256):
+            or plan["prefill_chunk"] != 256 or type(plan["metadata_help_timing"]) is not bool):
         raise RuntimeError("eager benchmark scope differs")
     if (type(plan["warmups"]) is not int or not 1 <= plan["warmups"] <= 2
             or type(plan["trials"]) is not int or not 1 <= plan["trials"] <= 6
