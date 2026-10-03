@@ -626,6 +626,7 @@ finally:
     if eager_benchmark and cleanup_complete and sys.exc_info()[1] is None:
         try:
             require_resources()
+            ownership.require_compiler_quiescence()
             from m1_eager_benchmark_client import summarize_run
             summarize_run(output)
         except BaseException:

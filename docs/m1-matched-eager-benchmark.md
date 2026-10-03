@@ -128,6 +128,40 @@ detected during successful cleanup invalidates the run while cleanup remains
 separately reportable as complete.
 Ownership and resource supervision costs remain in both measured lanes.
 
+The next pilot at runtime `6d8f166` passed its fresh bridge controls, six startup
+fixtures, and all eight stock/fused requests plus untimed drain. Matched outputs,
+usage, actual input transcripts and native backend counts passed. Final cleanup
+retained an unlocalized `EINVAL` error and correctly rejected the run, even
+though a separate readback found all 180 retained identities absent and the GPU
+idle. There is no accepted timing summary. Its compiler classifier also omitted
+three `tileiras` identities; zero counters therefore did not establish
+quiescence. Executable names cannot distinguish compilation from metadata
+probes, and pinned FlashInfer contains a `tileiras --help` architecture probe.
+No retrospective acceptance is made. Sanitized failure and CPU reproduction
+evidence are in
+[m1-eager-pilot-cleanup-failure.json](evidence/m1-eager-pilot-cleanup-failure.json).
+
+A CPU-only owned child exit/reaping test reproduced `pidfd_open(pid, 0)` returning
+`EINVAL`, followed by an absent `/proc` identity. Linux 6.8's
+[pidfd_prepare implementation](https://github.com/torvalds/linux/blob/v6.8/kernel/fork.c#L2053-L2057)
+can return that error after the TGID task disappears. This proves a compatible
+mechanism; the original pilot did not record its exact failing operation.
+The narrow cleanup fix accepts that `pidfd_open` error only when a fresh read
+proves the retained PID/start identity absent or replaced. Same-identity errors,
+unreadable identity checks, failed signals and other unknown errors still block
+cleanup, even if final identities disappear. Receipts now identify the operation,
+cleanup stage, identity and errno. Primary errors remain authoritative.
+The compiler classifier includes `tileiras`, reads argv only for compiler
+executables, and retains sampled compiler invocations after exit. Exact
+`tileiras --help` / `--version` argv is labeled as a metadata probe; extra or
+unavailable arguments stay unknown. This classification supplies evidence and
+does not exempt probes from resource accounting or timing admission. The pinned
+FlashInfer `cutile/cutile_common.py` caller SHA-256 is
+`8b80053b84ad68fee19cc66f2b9a8f3e55df2c10be77a71e892da6aa22e35bae`.
+Final summary admission enforces the existing stricter
+all-server-lifetime gate, including zero-RSS zombie compiler observations.
+No compiler probe exemption or broader timing scope is introduced.
+
 Private mount isolation was unavailable on the assigned host. Instead, eight
 exact prebuilt module hashes are promoted through FlashInfer's supported private
 `flashinfer_jit_cache` provider. All four installed loader files byte-match the
@@ -165,6 +199,10 @@ idle/owned processes and bounds before each launch; run one server at a time.
    sampled compiler activity during the server lifetime; this stricter condition
    avoids accepting an unlocalized compilation interval. Ordinary other specs
    may compile, but those runs supply no accepted timing result under this plan.
+   This is enforced before summary publication, separately from resource bounds
+   and successful cleanup. Metadata-only compiler invocations are conservatively
+   included; any future exemption or narrower warmup-relative scope needs new
+   source-bound evidence and review.
 3. Only after the affected source/build and pilot gates pass, prepare the six-pair plan
    and execute one fresh observer-off warm server. Any failed gate blocks timing.
    Publish only sanitized scalar results and source/test hashes, never prompts,

@@ -5,14 +5,19 @@ pidfds close the identity-check/signal PID-reuse race. No GPU imports.
 """
 import ctypes
 from dataclasses import asdict, dataclass
+import errno
 import os
 from pathlib import Path
 import signal
 import threading
 import time
 
-COMPILERS = {"ninja", "nvcc", "cicc", "ptxas", "gcc", "g++", "cc", "c++",
+COMPILERS = {"ninja", "nvcc", "cicc", "ptxas", "tileiras", "gcc", "g++", "cc", "c++",
              "cc1", "cc1plus", "clang", "clang++", "ld", "ld.gold", "ld.lld", "collect2"}
+
+
+def is_compiler(name):
+    return name in COMPILERS or name.endswith(("-gcc", "-g++", "-clang", "-clang++"))
 
 
 @dataclass(frozen=True)
@@ -24,10 +29,22 @@ class Process:
     executable: str = ""
     state: str = "S"
     age_seconds: float = 0
+    compiler_argv: tuple | None = None
 
     @property
     def identity(self):
         return self.pid, self.start_ticks
+
+    @property
+    def compiler_invocation(self):
+        # Evidence classification only: metadata probes are NOT exempt from
+        # resource accounting or the stricter timing-quiescence admission.
+        if self.executable == "tileiras" and self.compiler_argv is not None:
+            if self.compiler_argv[1:] == ("--help",):
+                return "tileiras_help_probe"
+            if self.compiler_argv[1:] == ("--version",):
+                return "tileiras_version_probe"
+        return "compiler_work_or_unknown"
 
 
 def read_process(pid, uptime=None):
@@ -39,11 +56,19 @@ def read_process(pid, uptime=None):
         executable = Path(os.readlink(directory / "exe")).name
     except (FileNotFoundError, PermissionError, ProcessLookupError):
         pass
+    argv = None
+    if is_compiler(executable):
+        try:
+            data = (directory / "cmdline").read_bytes()
+            if data:
+                argv = tuple(os.fsdecode(arg) for arg in data.rstrip(b"\0").split(b"\0"))
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            pass  # Unknown argv stays conservative; no metadata-only exemption.
     start = int(fields[19])
     if uptime is None:
         uptime = float(Path("/proc/uptime").read_text().split()[0])
     return Process(int(pid), start, int(fields[1]), int(fields[21]) * os.sysconf("SC_PAGE_SIZE"),
-                   executable, fields[0], max(0, uptime - start / os.sysconf("SC_CLK_TCK")))
+                   executable, fields[0], max(0, uptime - start / os.sysconf("SC_CLK_TCK")), argv)
 
 
 def snapshot():
@@ -71,21 +96,42 @@ def enable_subreaper():
     return read_process(os.getpid())
 
 
+def _signal_operation(operation, function, *args):
+    try:
+        return function(*args)
+    except OSError as error:
+        error.megartx_operation = operation
+        raise
+
+
 def signal_identity(process, signum):
     """Signal exactly the retained identity; reused PID is never signalled."""
     try:
-        fd = os.pidfd_open(process.pid)
+        fd = _signal_operation("pidfd_open", os.pidfd_open, process.pid)
     except ProcessLookupError:
         return False
-    try:
-        if read_process(process.pid).identity != process.identity:
+    except OSError as error:
+        if error.errno != errno.EINVAL or process.pid <= 0:
+            raise
+        # Linux 6.8 can lose the TGID task between find_get_pid() and
+        # pidfd_prepare(), returning EINVAL instead of ESRCH during reaping.
+        # Only fresh evidence that this identity is gone permits a no-op.
+        try:
+            current = _signal_operation("pidfd_error_identity_read", read_process, process.pid)
+        except (FileNotFoundError, ProcessLookupError):
             return False
-        signal.pidfd_send_signal(fd, signum)
+        if current.identity != process.identity:
+            return False
+        raise
+    try:
+        if _signal_operation("pidfd_identity_read", read_process, process.pid).identity != process.identity:
+            return False
+        _signal_operation("pidfd_send_signal", signal.pidfd_send_signal, fd, signum)
         return True
     except (FileNotFoundError, ProcessLookupError):
         return False
     finally:
-        os.close(fd)
+        _signal_operation("pidfd_close", os.close, fd)
 
 
 class OwnedProcesses:
@@ -93,6 +139,7 @@ class OwnedProcesses:
         self.supervisor = supervisor
         self.remembered = {}
         self.compiler_identities = set()
+        self.compiler_samples = {}
         self.root_identity = None
         self.rss_limit = rss_limit
         self.compiler_seconds = compiler_seconds
@@ -127,8 +174,10 @@ class OwnedProcesses:
             for process in alive:
                 self.remembered[process.identity] = process
                 name = process.executable
-                if name in COMPILERS or name.endswith(("-gcc", "-g++", "-clang", "-clang++")):
+                if is_compiler(name):
                     self.compiler_identities.add(process.identity)
+                    if process.identity not in self.compiler_samples or process.compiler_argv is not None:
+                        self.compiler_samples[process.identity] = process
             changed = True
             while changed:
                 changed = False
@@ -171,28 +220,51 @@ class OwnedProcesses:
                     "sampled_peak_compiler_rss_bytes": self.peak_compiler_rss,
                     "shared_compiler_elapsed_seconds": self.compiler_elapsed,
                     "failure": self.failure, "failure_sample": self.failure_sample,
+                    "sampled_compiler_identities": [asdict(self.remembered[i]) for i in sorted(self.compiler_identities)],
+                    "sampled_compiler_invocations": [{**asdict(p), "classification": p.compiler_invocation}
+                                                     for p in self.compiler_samples.values()],
                     "remembered_identities": [asdict(p) for p in self.remembered.values()]}
+
+    def require_compiler_quiescence(self):
+        """Enforce the reviewed, stricter all-server-lifetime timing gate."""
+        with self.lock:
+            if self.compiler_identities or self.peak_compiler_rss or self.compiler_elapsed:
+                raise RuntimeError("Owned compiler activity invalidates eager timing")
 
     def cleanup(self, gpu_query, root_poll, *, term_seconds=10, kill_seconds=10):
         errors = []
+        details = []
+        operation, identity = None, None
+        def record_error(error):
+            errors.append(str(error))
+            details.append({"operation": getattr(error, "megartx_operation", operation),
+                            "cleanup_stage": operation, "identity": identity,
+                            "error_type": type(error).__name__, "errno": getattr(error, "errno", None),
+                            "error": str(error)})
         alive = list(self.remembered.values())
         for signum, seconds in ((signal.SIGTERM, term_seconds), (signal.SIGKILL, kill_seconds)):
             deadline = time.monotonic() + seconds
             while True:
                 try:
+                    operation, identity = "observe_snapshot", None
                     alive = self.observe(snapshot(), time.monotonic())
+                    operation = "root_poll"
                     root_poll()
                     for process in alive:
+                        identity = process.identity
                         if process.state == "Z" and process.identity != self.root_identity:
                             try:
+                                operation = "waitpid"
                                 os.waitpid(process.pid, os.WNOHANG)
                             except ChildProcessError:
                                 pass
                         else:
+                            operation = "signal_identity"
                             signal_identity(process, signum)
+                    operation, identity = "remaining_snapshot", None
                     alive = self.current_owned(snapshot())
                 except Exception as error:
-                    errors.append(str(error))
+                    record_error(error)
                     break
                 if not alive or time.monotonic() >= deadline:
                     break
@@ -200,16 +272,20 @@ class OwnedProcesses:
             if not alive:
                 break
         try:
+            operation, identity = "gpu_query", None
             queried_gpu_pids = gpu_query()
+            operation = "final_snapshot"
             processes = snapshot()
+            operation = "final_observe"
             remaining = self.observe(processes, time.monotonic())
             # Query PID then check current start time: a reused unrelated GPU PID
             # is not considered owned and is never selected for termination.
             gpu_pids = [pid for pid in queried_gpu_pids if pid in processes and processes[pid].identity in self.remembered]
         except Exception as error:
-            errors.append(str(error)); remaining = list(self.remembered.values()); gpu_pids = []
+            record_error(error); remaining = list(self.remembered.values()); gpu_pids = []
         return {**self.report(), "owned_identities_remaining": [asdict(p) for p in remaining],
                 "owned_gpu_pids_remaining": gpu_pids, "cleanup_errors": errors,
+                "cleanup_error_details": details,
                 "cleanup_complete": not remaining and not gpu_pids and not errors}
 
 

@@ -81,10 +81,10 @@ class LauncherResourceTests(unittest.TestCase):
         self.assertEqual((self.output / "run.exit").read_text(), "1\n")
         self.assertFalse(any(a[0] == "bounded_eager_benchmark_complete" for a,k in self.events))
 
-    def final(self, snapshots, primary=None):
+    def final(self, snapshots, primary=None, signal_error=None):
         (self.output / "run.exit").write_text("0\n" if primary is None else "1\n")
         with patch("m1_owned_processes.snapshot", side_effect=snapshots), \
-             patch("m1_owned_processes.signal_identity"), patch.object(signal,"signal"), \
+             patch("m1_owned_processes.signal_identity", side_effect=signal_error), patch.object(signal,"signal"), \
              patch("m1_eager_benchmark_client.summarize_run",self.summary):
             if primary is None:
                 exec(code(RUN.finalbody), self.env)
@@ -110,6 +110,30 @@ class LauncherResourceTests(unittest.TestCase):
         self.final([{}, {}, {}])
         self.summary.assert_called_once_with(self.output)
         self.assertEqual((self.output / "run.exit").read_text(), "0\n")
+
+    def test_below_bound_compiler_activity_preserves_cleanup_but_rejects_timing(self):
+        for name in ("tileiras", "nvcc"):
+            with self.subTest(name=name):
+                self.owner = OwnedProcesses(Process(10,10,1)); self.owner.register(self.root)
+                self.env["ownership"] = self.owner
+                compiler = Process(30,30,20,1024,name,age_seconds=.01)
+                with self.assertRaisesRegex(RuntimeError, "compiler activity"):
+                    self.final([{20:self.root,30:compiler},{},{}])
+                cleanup = json.loads((self.output / "eager-benchmark-cleanup.json").read_text())
+                self.assertTrue(cleanup["cleanup_complete"])
+                self.assertIsNone(cleanup["failure"])
+                self.assertEqual((self.output / "run.exit").read_text(), "1\n")
+                self.summary.assert_not_called()
+
+    def test_unknown_cleanup_error_rejects_summary_even_when_all_identities_disappear(self):
+        with self.assertRaisesRegex(RuntimeError, "cleanup did not complete"):
+            self.final([{20:self.root},{},{},{}], signal_error=OSError(22,"unknown cleanup fault"))
+        cleanup = json.loads((self.output / "eager-benchmark-cleanup.json").read_text())
+        self.assertFalse(cleanup["cleanup_complete"])
+        self.assertEqual(cleanup["owned_identities_remaining"], [])
+        self.assertEqual(cleanup["cleanup_error_details"][0]["errno"], 22)
+        self.assertEqual((self.output / "run.exit").read_text(), "1\n")
+        self.summary.assert_not_called()
 
     def test_cleanup_first_breach_preserves_existing_primary_exception(self):
         primary = ValueError("primary client failure")
