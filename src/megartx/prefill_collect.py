@@ -8,6 +8,7 @@ import copy
 import math
 import time
 from contextlib import contextmanager
+from functools import wraps
 
 from . import prefill_runner as runner
 
@@ -35,6 +36,18 @@ def _bounded(value):
     return size
 
 
+def _poison_on_failure(method):
+    """A failed callback burns its request, including interruptions in finalization."""
+    @wraps(method)
+    def guarded(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        except BaseException:
+            self.abort()
+            raise
+    return guarded
+
+
 class CacheLedger:
     """I03 read-lifetime observations, separate from I06 tentative transactions.
 
@@ -52,6 +65,7 @@ class CacheLedger:
         self.index, self.active, self.poisoned = 0, None, False
         self.owners, self.frames = {}, []
 
+    @_poison_on_failure
     def begin(self, start, end):
         if self.poisoned or self.active is not None or self.index >= len(self.spans):
             self.abort()
@@ -63,6 +77,7 @@ class CacheLedger:
             raise ValueError("Cache frame differs from exact absolute schedule")
         self.active = {"start": start, "end": end, "layers": {}}
 
+    @_poison_on_failure
     def observe(self, value):
         try:
             if self.active is None or self.poisoned:
@@ -101,6 +116,7 @@ class CacheLedger:
             self.abort()
             raise
 
+    @_poison_on_failure
     def end(self):
         if self.active is None or self.poisoned or set(self.active["layers"]) != set(range(30)):
             self.abort()
@@ -114,6 +130,7 @@ class CacheLedger:
         self.index += 1
         return release
 
+    @_poison_on_failure
     def handoff(self, value, job):
         if self.poisoned or self.active is not None or self.index != len(self.spans):
             self.abort()
@@ -160,7 +177,19 @@ class PrefillCollector:
         self.last_ns = -1
         self.handoff_record = None
         self.bootstrap_record = None
+        self._writer = None
 
+    @_poison_on_failure
+    def attach_writer(self, writer):
+        """The one native writer ledger shares this request's poison lifetime."""
+        if self.failed or self._writer is not None:
+            writer.abort()
+            raise ValueError("Cannot attach a writer to a poisoned/already bound request")
+        self._writer = writer
+        if writer.poisoned:
+            raise ValueError("Cannot attach an already poisoned native writer")
+
+    @_poison_on_failure
     def _now(self):
         value = self.clock()
         runner.integer(value, 0, 2**63 - 1, "host monotonic time")
@@ -170,6 +199,7 @@ class PrefillCollector:
         self.last_ns = value
         return value
 
+    @_poison_on_failure
     def mark(self, boundary):
         sequence = ("request_accept", "input_ready", "prompt_begin", "prompt_complete", "kv_ready", "first_token")
         if self.failed or boundary not in sequence or boundary in self.timestamps:
@@ -186,6 +216,7 @@ class PrefillCollector:
             raise ValueError("KV readiness requires all-layer handoff")
         self.timestamps[boundary] = self._now()
 
+    @_poison_on_failure
     def begin_forward(self, tokens, positions, phase="prompt"):
         try:
             if self.failed or self.active is not None:
@@ -223,6 +254,7 @@ class PrefillCollector:
             self.abort()
             raise
 
+    @_poison_on_failure
     def layer_complete(self, layer, cache_observation=None):
         try:
             if self.failed or self.active is None:
@@ -241,6 +273,7 @@ class PrefillCollector:
             self.abort()
             raise
 
+    @_poison_on_failure
     def record_routes(self, layer, ids, weights, scheduled_m, correction_hits, suppressed_stock_rows):
         """Consume observed natural IDs, weights and provider-measured scheduled M.
 
@@ -285,6 +318,7 @@ class PrefillCollector:
             self.abort()
             raise
 
+    @_poison_on_failure
     def end_forward(self):
         if self.failed or self.active is None or self.active["layers"] != set(range(30)):
             self.abort()
@@ -310,6 +344,7 @@ class PrefillCollector:
         self.active = None
         return release
 
+    @_poison_on_failure
     def handoff(self, value):
         try:
             if self.failed or self.active is not None or self.handoff_record is not None:
@@ -319,6 +354,7 @@ class PrefillCollector:
             self.abort()
             raise
 
+    @_poison_on_failure
     def bootstrap(self, value):
         """Bind final prompt logits and the first emitted, still-uncached anchor.
 
@@ -395,6 +431,7 @@ class PrefillCollector:
             self.abort()
             raise
 
+    @_poison_on_failure
     def finish_events(self, device_clock):
         if self.failed or self.active is not None or self.index != len(self.job["spans"]):
             raise ValueError("Cannot resolve events for incomplete/poisoned prompt")
@@ -421,6 +458,8 @@ class PrefillCollector:
         self.failed = True
         self.active = None
         self.cache.abort()
+        if self._writer is not None:
+            self._writer.abort()
 
 
 class CudaEventClock:

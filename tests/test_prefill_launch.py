@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from megartx import prefill_launch as l
 from megartx import prefill_runner as r
+from megartx.prefill_kv import WriterLedger
 from test_prefill_runner import inputs, synthetic_records, DIGEST
 from test_prefill_collect import observation, bootstrap, FakeEvents
 
@@ -245,6 +246,74 @@ class PipelineTests(unittest.TestCase):
             l.SerializedLauncher(packet)._collect_admitted(protocol, prompts, provider, provider.clock)
         self.assertEqual(provider.calls.count("cleanup"), 1)
         self.assertEqual(sum(x[0] == "startup" for x in provider.calls if isinstance(x, tuple)), 1)
+
+    def test_interruption_aborts_retained_collector_writer_and_preserves_primary(self):
+        protocol,prompts=synthetic_protocol()
+        provider=FakeProvider(protocol,prompts)
+        retained=[]
+        def interrupted(job,payload,collector):
+            writer=WriterLedger();collector.attach_writer(writer)
+            retained.append((collector,writer))
+            start,end=job["spans"][0]
+            collector.begin_forward(payload["prompt"][start:end],list(range(start,end)))
+            raise KeyboardInterrupt("EngineCore interrupted")
+        provider.observe_request=interrupted
+        original_cleanup=provider.cleanup
+        def cleanup():
+            original_cleanup()
+            if retained: raise RuntimeError("cleanup secondary")
+            return {"sha256":DIGEST,"owned_only":True,"cleanup_complete":True}
+        provider.cleanup=cleanup
+        with self.assertRaisesRegex(KeyboardInterrupt,"EngineCore interrupted"):
+            l.SerializedLauncher({"caps":l.CAPS})._collect_admitted(protocol,prompts,provider,provider.clock)
+        self.assertEqual(provider.calls[-1],"cleanup")
+        self.assertEqual(provider.calls.count("poison"),1)
+        collector,writer=retained[0]
+        self.assertTrue(collector.failed and collector.cache.poisoned and writer.poisoned)
+        self.assertIsNone(collector.active)
+        with self.assertRaises(ValueError): collector.end_forward()
+
+    def test_successful_observation_then_cleanup_interrupt_burns_evidence(self):
+        protocol,prompts=synthetic_protocol()
+        protocol["jobs"]=[j for j in protocol["jobs"] if j["mode"]=="profile" and j["region"]=="head"]
+        protocol["request_count"]=1
+        provider=FakeProvider(protocol,prompts)
+        original=provider.observe_request
+        retained=[]
+        def observed(job,payload,collector):
+            writer=WriterLedger();collector.attach_writer(writer)
+            retained.append((collector,writer))
+            return original(job,payload,collector)
+        provider.observe_request=observed
+        provider.cleanup=lambda:(_ for _ in ()).throw(KeyboardInterrupt("cleanup interrupted"))
+        with self.assertRaisesRegex(KeyboardInterrupt,"cleanup interrupted"):
+            l.SerializedLauncher({"caps":l.CAPS})._collect_admitted(protocol,prompts,provider,provider.clock)
+        collector,writer=retained[0]
+        self.assertTrue(collector.failed and collector.cache.poisoned and writer.poisoned)
+        self.assertIn("poison",provider.calls)
+        with self.assertRaises(ValueError): collector.finish_events(provider.event_clock)
+
+    def test_post_cleanup_record_failure_aborts_completed_collector(self):
+        protocol,prompts=synthetic_protocol()
+        protocol["jobs"]=[j for j in protocol["jobs"] if j["mode"]=="profile" and j["region"]=="head"]
+        protocol["request_count"]=1
+        provider=FakeProvider(protocol,prompts)
+        original=provider.observe_request
+        retained=[]
+        def observed(job,payload,collector):
+            writer=WriterLedger();collector.attach_writer(writer)
+            retained.append((collector,writer))
+            record=original(job,payload,collector)
+            record["profile"]["trace_bytes"]=l.CAPS["max_trace_bytes"]+1
+            return record
+        provider.observe_request=observed
+        with self.assertRaises(ValueError):
+            l.SerializedLauncher({"caps":l.CAPS})._collect_admitted(protocol,prompts,provider,provider.clock)
+        collector,writer=retained[0]
+        self.assertTrue(collector.failed and collector.cache.poisoned and writer.poisoned)
+        self.assertIn("cleanup",provider.calls)
+        self.assertIn("poison",provider.calls)
+        with self.assertRaises(ValueError): collector.bootstrap(bootstrap(collector.job,collector.tokens))
 
 
 if __name__ == "__main__": unittest.main()

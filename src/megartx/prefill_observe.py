@@ -10,6 +10,7 @@ import inspect
 from pathlib import Path
 
 from . import prefill_runner as runner
+from .prefill_collect import _poison_on_failure
 
 
 class OwnedHooks:
@@ -21,6 +22,7 @@ class OwnedHooks:
         self.collector, self.clock, self.bindings = collector, event_clock, bindings
         self.hooks, self.closed = [], False
 
+    @_poison_on_failure
     def wrap(self, owner, attribute, site_id, layer, component, shape):
         """shape(args, kwargs) returns actual M/N/K without tensor copies.
 
@@ -69,24 +71,41 @@ class OwnedHooks:
         return observed
 
     def close(self):
-        conflicts = []
+        conflicts, error = [], None
         for owner, attribute, observed, local, original in reversed(self.hooks):
-            if getattr(owner, attribute) is not observed:
-                conflicts.append(attribute)
-                continue
-            if local:
-                setattr(owner, attribute, original)
-            else:
-                delattr(owner, attribute)
+            try:
+                if getattr(owner, attribute) is not observed:
+                    conflicts.append(attribute)
+                    continue
+                if local:
+                    setattr(owner, attribute, original)
+                else:
+                    delattr(owner, attribute)
+            except BaseException as caught:
+                if error is None:
+                    error = caught
+                elif hasattr(error, "add_note"):
+                    error.add_note("Hook restoration also failed: " + str(caught))
         self.closed = True
         if conflicts:
+            conflict = "Hook ownership changed; foreign replacement preserved: " + ",".join(conflicts)
+            if error is None:
+                error = ValueError(conflict)
+            elif hasattr(error, "add_note"):
+                error.add_note(conflict)
+        if error is not None:
             self.collector.abort()
-            raise ValueError("Hook ownership changed; foreign replacement preserved: " + ",".join(conflicts))
+            raise error
+
+    def abort(self):
+        self.collector.abort()
 
     def __enter__(self):
         return self
 
     def __exit__(self, kind, value, traceback):
+        if kind is not None:
+            self.collector.abort()
         try:
             self.close()
         except BaseException as cleanup:
@@ -162,8 +181,13 @@ class GemmaCallableObserver:
                         continue
                     self.hooks.wrap(site["owner"], site["attribute"], site["site_id"], site["layer"],
                         site["component"], self._shape(site, collector))
-        except BaseException:
-            self.hooks.close()
+        except BaseException as error:
+            collector.abort()
+            try:
+                self.hooks.close()
+            except BaseException as cleanup:
+                if hasattr(error, "add_note"):
+                    error.add_note("Hook setup cleanup failed: " + str(cleanup))
             raise
 
     @staticmethod

@@ -1,13 +1,13 @@
 {
   "cpu_results": {
     "base_scaffold_tests": 189,
-    "candidate_scaffold_tests": 224,
+    "candidate_scaffold_tests": 237,
     "compilation_passed": true,
     "config_manifests": 8,
     "diff_check_passed": true,
     "finite_products": 4064,
     "independent_numerical_tests": 508,
-    "prefill_tests": 74,
+    "prefill_tests": 87,
     "products_not_exact_in_bf16": 0,
     "scaffold_errors": 0,
     "scaffold_failures": 0,
@@ -35,5 +35,5 @@
   },
   "repository_base_commit": "0581f09259d18044ffb5f9e1363d0760f37ddd4f",
   "schema": "megartx-prefill-cpu-validation-v1",
-  "source_binding_sha256": "e3d118fe569b5ec6e9d1ef098983fe533472f0b09db5d2f08ef02f4e571acaf7"
+  "source_binding_sha256": "3f248451bbb47027066f38ebf672cbb4676c8993deeb25a5ea88b38b06cd4ab1"
 }

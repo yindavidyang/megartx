@@ -1,17 +1,22 @@
 """Synthetic CPU observers exercise the live collector; no device qualification."""
 
 import copy
+import ast
+from contextlib import nullcontext
 import hashlib
 import inspect
+import sys
+import textwrap
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
+from types import SimpleNamespace, ModuleType
 from unittest.mock import patch
 
 from megartx import prefill_collect as c
 from megartx import prefill_observe as o
 from megartx import prefill_kv as kv
 from megartx import prefill_runner as r
+from megartx import controlled_kv_capture as historical
 from test_prefill_runner import inputs, synthetic_records, DIGEST
 
 
@@ -516,6 +521,204 @@ class NativeInterfaceTests(unittest.TestCase):
         self.assertEqual(result["committed_length"],2048)
         self.assertNotEqual(result["layers"][5]["processed_k_sha256"],result["layers"][5]["processed_v_sha256"])
         self.assertEqual(collector.handoff_record,result)
+
+
+class TorchDTypeFixture:
+    """CPU-only dtype identity with Torch's canonical string representation."""
+    def __init__(self, name): self.name = name
+    def __str__(self): return "torch." + self.name
+
+
+class TensorFixture:
+    def __init__(self, values, dtype):
+        self.values, self.dtype = values, dtype
+        self.ndim, self.shape = 1, (len(values),)
+    def tolist(self): return self.values.copy()
+    def detach(self): return self
+    def cpu(self): return self
+
+
+class NativeDTypeTests(unittest.TestCase):
+    def frame(self):
+        job, tokens, _, _ = job_for()
+        collector = c.PrefillCollector(job, tokens, DIGEST)
+        collector.begin_forward(tokens[:256], list(range(256)))
+        int64, int32, boolean, bf16 = [TorchDTypeFixture(n) for n in ("int64", "int32", "bool", "bfloat16")]
+        torch = SimpleNamespace(Tensor=TensorFixture, int64=int64, int32=int32, bool=boolean,
+            bfloat16=bf16, equal=lambda a,b:a.tolist()==b.tolist())
+        observer = object.__new__(kv.PrefillKVObserver)
+        observer.collector, observer.writer, observer.torch = collector, kv.WriterLedger(), torch
+        collector.attach_writer(observer.writer)
+        observer.storage_identities = None
+        observer.layers, observer.descriptors = {}, historical.nominal_layers()
+        context = SimpleNamespace(slot_mapping={},attn_metadata={},no_compile_layers={},ubatch_slices=None,
+            cudagraph_runtime_mode=SimpleNamespace(name="NONE"),is_padding=None)
+        for i, d in enumerate(observer.descriptors):
+            name = f"layer-{i}"
+            mapping = TensorFixture(list(range(256)),int64)
+            h, dim = d["kv_heads"], d["head_dim"]
+            shape = (144,h,16,2*dim)
+            strides = (h*16*2*dim,16*2*dim,2*dim,1)
+            cache = TensorFixture([],bf16)
+            cache.shape, cache.device = shape, SimpleNamespace(type="cuda")
+            cache.stride=lambda s=strides:s
+            cache.storage_offset=lambda:0
+            cache.untyped_storage=lambda i=i,s=shape:SimpleNamespace(data_ptr=lambda:i+1,
+                nbytes=lambda:s[0]*s[1]*s[2]*s[3]*2)
+            impl=SimpleNamespace(num_kv_heads=h,head_size=dim,window_left=1023 if d["window_size"] else -1,
+                cache_dtype="bfloat16",is_kvcache_nvfp4=False,kv_cache_layout=SimpleNamespace(name="BHNC"))
+            attn=SimpleNamespace(impl=impl,kv_cache=cache,num_kv_heads=h,head_size=dim,head_size_v=dim,
+                sliding_window=d["window_size"],kv_cache_dtype="bfloat16")
+            observer.layers[i]=(name,SimpleNamespace(attn=attn),attn,impl)
+            context.slot_mapping[name]=mapping
+            context.no_compile_layers[name]=attn
+            context.attn_metadata[name]=SimpleNamespace(num_actual_tokens=256,num_decodes=0,num_prefills=1,
+                num_decode_tokens=0,num_prefill_tokens=256,use_cascade=False,causal=True,slot_mapping=mapping)
+        module=ModuleType("vllm.forward_context")
+        module.get_forward_context=lambda:context
+        return observer, TensorFixture(list(range(256)),int64), TensorFixture(tokens[:256],int64), module, context
+
+    def test_canonical_torch_int64_objects_reach_all_cache_checks(self):
+        observer,positions,tokens,module,_=self.frame()
+        self.assertEqual(str(positions.dtype),"torch.int64")
+        with patch.dict(sys.modules,{"vllm.forward_context":module}), \
+             patch.object(kv,"_digest",return_value=historical.SOURCE_HASHES["vllm.forward_context"]):
+            observer.prepare(positions,tokens)
+        self.assertEqual(set(observer.writer.pending["positions"]),set(range(30)))
+        self.assertEqual(len(observer.native_bindings),30)
+        self.assertFalse(observer.collector.failed)
+
+    def test_int32_bool_string_alias_and_non_tensor_inputs_reject(self):
+        for value in ("int32","bool","int64_alias","torch_int64_alias","non_tensor"):
+            observer,positions,tokens,module,_=self.frame()
+            if value=="non_tensor": positions=SimpleNamespace(dtype=observer.torch.int64,ndim=1,tolist=positions.tolist)
+            elif value=="int64_alias": positions.dtype="int64"
+            elif value=="torch_int64_alias": positions.dtype="torch.int64"
+            else: tokens.dtype=getattr(observer.torch,value)
+            with self.subTest(value=value), patch.dict(sys.modules,{"vllm.forward_context":module}), \
+                 patch.object(kv,"_digest",return_value=historical.SOURCE_HASHES["vllm.forward_context"]), \
+                 self.assertRaisesRegex(RuntimeError,"I64 row identity"):
+                observer.prepare(positions,tokens)
+            self.assertTrue(observer.collector.failed)
+            self.assertTrue(observer.writer.poisoned)
+
+    def test_non_tensor_writer_metadata_rejects(self):
+        observer,positions,tokens,module,context=self.frame()
+        mapping=context.slot_mapping["layer-0"]
+        context.slot_mapping["layer-0"]=SimpleNamespace(dtype=observer.torch.int64,shape=mapping.shape)
+        with patch.dict(sys.modules,{"vllm.forward_context":module}), \
+             patch.object(kv,"_digest",return_value=historical.SOURCE_HASHES["vllm.forward_context"]), \
+             self.assertRaisesRegex(RuntimeError,"writer slot map"):
+            observer.prepare(positions,tokens)
+        self.assertTrue(observer.writer.poisoned)
+
+    def test_local_override_preserves_all_other_historical_frame_checks(self):
+        old=ast.parse(textwrap.dedent(inspect.getsource(historical.ControlledKV.read_frame))).body[0]
+        new=ast.parse(textwrap.dedent(inspect.getsource(kv.PrefillKVObserver.read_frame))).body[0]
+        self.assertEqual([ast.unparse(d) for d in new.decorator_list],["_poison_on_failure"])
+        new.decorator_list=[]
+        new.body[0],new.body[1]=copy.deepcopy(old.body[0]),copy.deepcopy(old.body[1])
+        # The only functional deltas are real Tensor/dtype checks. All source,
+        # metadata, registry, shape/stride/extent, geometry and slot reads remain.
+        old_dtype=next(n for n in old.body if isinstance(n,ast.If) and "positions.dtype" in ast.unparse(n.test))
+        new_dtype=next(n for n in new.body if isinstance(n,ast.If) and "positions.dtype" in ast.unparse(n.test))
+        expected=ast.parse("not isinstance(positions, torch.Tensor) or not isinstance(tokens, torch.Tensor) or positions.dtype != torch.int64 or tokens.dtype != torch.int64 or positions.ndim != 1 or tokens.ndim != 1",mode="eval").body
+        self.assertEqual(ast.dump(new_dtype.test),ast.dump(expected))
+        new_dtype.test=copy.deepcopy(old_dtype.test)
+        mapping=next(n for n in ast.walk(new) if isinstance(n,ast.If) and "mapping.dtype" in ast.unparse(n.test))
+        self.assertEqual(ast.unparse(mapping.test.values.pop(0)),"not isinstance(mapping, torch.Tensor)")
+        self.assertEqual(ast.dump(new),ast.dump(old))
+
+
+class FailureLifetimeTests(unittest.TestCase):
+    def events(self):
+        job,tokens,_,_=job_for(chunk=2048)
+        collector=c.PrefillCollector(job,tokens,DIGEST)
+        writer=kv.WriterLedger()
+        collector.attach_writer(writer)
+        collector.begin_forward(tokens,list(range(2048)))
+        events=FakeEvents()
+        for i in range(30):
+            with collector.stage("attention",i,"site",DIGEST,(2048,2048,256),events): pass
+        for i in range(30): collector.layer_complete(i,observation(0,2048,i))
+        collector.end_forward()
+        return collector,writer,events
+
+    def test_hook_context_interruption_poisoned_and_owned_hook_restored(self):
+        collector,hooks=HookTests().make()
+        writer=kv.WriterLedger();collector.attach_writer(writer)
+        owner=CallableOwner()
+        with self.assertRaisesRegex(KeyboardInterrupt,"between callables"):
+            with hooks:
+                hooks.wrap(owner,"forward","site",0,"attention",lambda a,k:(2048,2048,256))
+                owner.forward(object())
+                raise KeyboardInterrupt("between callables")
+        self.assertNotIn("forward",vars(owner))
+        self.assertTrue(collector.failed and collector.cache.poisoned and writer.poisoned)
+        with self.assertRaises(ValueError): collector.end_forward()
+
+    def test_hook_cleanup_failure_retains_primary_and_restores_other_owned_hook(self):
+        class FailingRestore(CallableOwner):
+            def __delattr__(self,name):
+                if name=="forward": raise RuntimeError("restoration secondary")
+                super().__delattr__(name)
+        collector,hooks=HookTests().make()
+        writer=kv.WriterLedger();collector.attach_writer(writer)
+        healthy,failing=CallableOwner(),FailingRestore()
+        with self.assertRaisesRegex(KeyboardInterrupt,"primary interruption"):
+            with hooks:
+                for owner in (healthy,failing):
+                    hooks.wrap(owner,"forward","site",0,"attention",lambda a,k:(2048,2048,256))
+                raise KeyboardInterrupt("primary interruption")
+        self.assertTrue(hooks.closed)
+        self.assertNotIn("forward",vars(healthy))
+        self.assertTrue(collector.failed and collector.cache.poisoned and writer.poisoned)
+
+    def test_event_resolution_failures_poison_and_retry_never_resolves(self):
+        for method,error in (("synchronize",KeyboardInterrupt("sync")),("resolve",RuntimeError("resolve"))):
+            collector,writer,events=self.events()
+            with self.subTest(method=method),patch.object(events,method,side_effect=error),self.assertRaises(type(error)):
+                collector.finish_events(events)
+            calls=events.calls.copy()
+            self.assertTrue(collector.failed and collector.cache.poisoned and writer.poisoned)
+            with self.assertRaisesRegex(ValueError,"poisoned"): collector.finish_events(events)
+            self.assertEqual(events.calls,calls)
+
+    def test_invalid_event_identity_and_evidence_bound_poison(self):
+        for mode in ("identity","bound"):
+            collector,writer,events=self.events()
+            if mode=="identity": events.resolve=lambda ticket:(17.0,"")
+            context=patch.object(c,"_bounded",side_effect=ValueError("bounded")) if mode=="bound" else nullcontext()
+            with self.subTest(mode=mode),context:
+                with self.assertRaises(ValueError): collector.finish_events(events)
+            self.assertTrue(collector.failed and writer.poisoned)
+            with self.assertRaises(ValueError): collector.finish_events(events)
+
+    def test_final_handoff_hash_interrupt_poison_and_retry_rejects(self):
+        job,tokens,_,_=job_for(chunk=2048)
+        collector=c.PrefillCollector(job,tokens,DIGEST);finish_prompt(collector)
+        observer=object.__new__(kv.PrefillKVObserver)
+        observer.collector,observer.writer=collector,kv.WriterLedger()
+        collector.attach_writer(observer.writer)
+        observer.writer.end=2048
+        with patch.object(observer,"_hash_positions",side_effect=KeyboardInterrupt("handoff hash")) as hashing:
+            with self.assertRaisesRegex(KeyboardInterrupt,"handoff hash"): observer.final_handoff(DIGEST)
+            with self.assertRaisesRegex(ValueError,"complete committed"): observer.final_handoff(DIGEST)
+        self.assertEqual(hashing.call_count,1)
+        self.assertTrue(collector.failed and collector.cache.poisoned and observer.writer.poisoned)
+        self.assertIsNone(collector.handoff_record)
+
+    def test_clock_interruption_after_layer_completion_burns_writer(self):
+        job,tokens,_,_=job_for(chunk=2048)
+        clock=lambda:1
+        collector=c.PrefillCollector(job,tokens,DIGEST,clock)
+        writer=kv.WriterLedger();collector.attach_writer(writer)
+        collector.begin_forward(tokens,list(range(2048)))
+        for i in range(30): collector.layer_complete(i,observation(0,2048,i))
+        collector.clock=lambda:(_ for _ in ()).throw(KeyboardInterrupt("clock interrupted"))
+        with self.assertRaises(KeyboardInterrupt): collector.end_forward()
+        self.assertTrue(collector.failed and collector.cache.poisoned and writer.poisoned)
+        with self.assertRaises(ValueError): collector.end_forward()
 
 
 if __name__ == "__main__":

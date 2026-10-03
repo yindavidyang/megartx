@@ -135,6 +135,28 @@ class SerializedLauncher:
         It returns records only after complete owned cleanup and PR19 validation.
         A caller-provided provider is not an authorization or source attestation.
         """
+        collectors, poisoned = [], False
+
+        def poison(error):
+            nonlocal poisoned
+            for collector in collectors:
+                collector.abort()
+            if not poisoned:
+                poisoned = True
+                try:
+                    provider.poison()
+                except BaseException as poison_error:
+                    if hasattr(error, "add_note"):
+                        error.add_note("Provider poison failed: " + str(poison_error))
+
+        try:
+            return self._collect_runs(protocol, private_prompts, provider, clock, collectors, poison)
+        except BaseException as error:
+            # Includes post-cleanup validation, event resolution and publication.
+            poison(error)
+            raise
+
+    def _collect_runs(self, protocol, private_prompts, provider, clock, collectors, poison):
         tokens = runner.validate_prompts(private_prompts, protocol)
         bounds = protocol["resource_bounds"]
         runner.keys(bounds, runner.plan_contract.RESOURCE_KEYS, "admitted resource bounds")
@@ -166,6 +188,7 @@ class SerializedLauncher:
                         raise ValueError("Timing job activated observation/trace")
                 else:
                     collector = PrefillCollector(job, tokens[job["workload"]], protocol["cache_layout"]["layout_sha256"], clock)
+                    collectors.append(collector)
                     record = provider.observe_request(job, runner.request_payload(job, tokens[job["workload"]]), collector)
                     if collector.failed or collector.active is not None or collector.index != len(job["spans"]):
                         raise ValueError("Provider returned incomplete/poisoned observed prompt")
@@ -195,11 +218,7 @@ class SerializedLauncher:
                 provider.drain()
             except BaseException as caught:
                 error = caught
-                try:
-                    provider.poison()
-                except BaseException as poison_error:
-                    if hasattr(caught, "add_note"):
-                        caught.add_note("Provider poison failed: " + str(poison_error))
+                poison(caught)
                 raise
             finally:
                 if attempted:
@@ -210,6 +229,7 @@ class SerializedLauncher:
                         runner.equal(cleanup["owned_only"], True, "owned cleanup")
                         runner.equal(cleanup["cleanup_complete"], True, "complete cleanup")
                     except BaseException as cleanup_error:
+                        poison(cleanup_error)
                         if error is not None:
                             if hasattr(error, "add_note"):
                                 error.add_note("Owned cleanup failed: " + str(cleanup_error))

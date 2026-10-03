@@ -34,6 +34,12 @@ remain byte-identical; this packet adds a separate source extension.
   in batches of at most two rows; no whole-cache copy or weight expansion occurs.
   Raw bits stay transient/private. Initial physical policy is **full_context**;
   a bounded ring is unsupported until its installed writer/layout is reviewed.
+  Its prefill-local `read_frame` requires actual tensor instances and compares
+  dtype objects to the supplied module's `torch.int64`. The historical controlled
+  helper still string-compares dtype to `int64`, which rejects canonical
+  `torch.int64`; that inherited bug remains outside this isolated repair. An AST
+  regression checks equivalence of every other frame/source/metadata/ownership
+  check, with additional non-tensor writer metadata rejection.
 - [prefill_launch.py](../../src/megartx/prefill_launch.py) implements serialized
   startup/request/drain/owned-cleanup orchestration through `LifecycleProvider`.
   It verifies the provider handshake and resource floors before startup, cleans
@@ -42,6 +48,13 @@ remain byte-identical; this packet adds a separate source extension.
   jobs compare their callback ledger against the PR19 normalized records, verify
   the 255 actual decode inputs against delivered tokens, then run PR19's strict
   record validator. Source/CUPTI/dispatch/fit/comparison evidence is never invented.
+
+The attached native writer shares the collector's failure lifetime. Any callback,
+hook-context exit, event synchronization/resolution, final-handoff hashing,
+launcher interruption, cleanup failure or record/publication failure burns that
+request. Retries cannot resolve events or publish a handoff. Owned hooks still
+restore their replacements; provider cleanup still runs and retains the primary
+exception when cleanup also fails.
 
 `CudaEventClock` operates on an already imported module supplied by an admitted
 provider. It records the actual current stream, rejects a stream change inside
