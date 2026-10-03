@@ -346,17 +346,29 @@ class LivePreparation:
         self.forward = None
         self.layer = None
         attribution = getattr(self, "attribution", None)
-        if self.native.megartx_m1_active():
-            self.failed = True
-            self.native.megartx_m1_end()
-            if attribution is not None:
-                attribution.abort()
-            raise RuntimeError("native lease escaped the routed call")
+        try:
+            if self.native.megartx_m1_active():
+                self.failed = True
+                self.native.megartx_m1_end()
+                raise RuntimeError("native lease escaped the routed call")
+            benchmark = getattr(self, "benchmark", None)
+            if benchmark is not None and not self.failed:
+                benchmark.end()
+        except BaseException as error:
+            self.fail_attribution(error)
+            raise
         if self.failed and attribution is not None:
             attribution.abort()
-        benchmark = getattr(self, "benchmark", None)
-        if benchmark is not None and not self.failed:
-            benchmark.end()
+
+    def fail_attribution(self, primary):
+        self.failed = True
+        attribution = getattr(self, "attribution", None)
+        if attribution is not None:
+            try:
+                attribution.abort()
+            except BaseException as cleanup:
+                if hasattr(primary, "add_note"):
+                    primary.add_note("Attribution cleanup failed: " + str(cleanup))
 
     def routed(self, incumbent, layer, *args):
         import torch

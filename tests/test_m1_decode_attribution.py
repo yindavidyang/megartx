@@ -1,5 +1,6 @@
 """Bounded profiler policy and failure cleanup, without CUDA or model loads."""
-import ctypes
+import ast
+from contextlib import nullcontext
 import json
 from pathlib import Path
 import sys
@@ -8,7 +9,9 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from megartx.m1_live import DecodeAttribution
+from megartx.m1_live import DecodeAttribution, LivePreparation
+from megartx.m1_eager_benchmark import EagerBenchmark, marker
+from megartx.m1_execution import profile_scope
 
 
 class Function:
@@ -18,7 +21,7 @@ class Function:
         self.calls.append(enabled)
         for i in range(count):
             counters[i] = 0 if enabled else i + 1
-        return 0
+        return int(not enabled and getattr(self, "fail_release", False))
 
 
 class AttributionTests(unittest.TestCase):
@@ -105,3 +108,63 @@ class AttributionTests(unittest.TestCase):
             (root/"decode-profile").mkdir()
             with self.assertRaisesRegex(RuntimeError, "instrumented"):
                 summarize_run(root)
+
+    def test_actual_model_ledger_and_logits_errors_abort_without_retry_or_error_replacement(self):
+        from test_m1_eager_benchmark import plan
+        path = Path(__file__).resolve().parents[1]/"src/megartx/vllm_scale_plugin.py"
+        for case in ("ledger", "head"):
+            for cleanup_fails in ("none", "stop", "reset", "both"):
+                with self.subTest(case=case, cleanup_fails=cleanup_fails), tempfile.TemporaryDirectory() as d:
+                    a, unused, native, p, torch = self.fixture(d)
+                    torch.profiler.record_function = lambda *args: nullcontext()
+                    b = EagerBenchmark(plan(), Path(d)/"ledger", "stock")
+                    b.index = next(i for i, r in enumerate(b.plan["schedule"])
+                                   if r["phase"] == "measurement" and r["case"] == "2048")
+                    b.frame = 8
+                    a.benchmark = b
+                    with patch.dict(sys.modules, {"torch": torch}):
+                        a.before_frame(SimpleNamespace(numel=lambda: 1))
+                    c = LivePreparation.__new__(LivePreparation)
+                    c.native, c.attribution, c.benchmark, c.failed = native, a, b, False
+                    c.forward = c.layer = None
+                    native.megartx_m1_active = lambda: 0
+                    c.begin_forward = lambda *args: None
+                    env = {"m1": c, "profile_scope": profile_scope, "capture": None,
+                           "counter": 0, "context": None}
+                    if case == "ledger":
+                        b.begin(marker(b.plan, b.plan["schedule"][b.index]), [7], [2048])
+                        layer = SimpleNamespace(_megartx={"dispatch_calls": 0})
+                        def forward(*args):
+                            layer._megartx["dispatch_calls"] += 1
+                            return object()
+                        old = Mock(side_effect=forward)
+                        env.update(integration_layers=[layer], integration_report={"natural_model_forward_verified": True},
+                                   router_observer=None, controlled_observer=None, normal_observer=None, old_forward=old)
+                        name, args, message = "model_forward", (None, None, None), "bypassed native dispatch"
+                    else:
+                        primary = RuntimeError("head fault")
+                        old = Mock(side_effect=primary)
+                        env["old_logits"] = old
+                        name, args, message = "logits_forward", (None, None), "head fault"
+                    function = next(n for n in ast.walk(ast.parse(path.read_text()))
+                                    if isinstance(n, ast.FunctionDef) and n.name == name)
+                    # Equivalent globals supply the production closure's nonlocals.
+                    function.body = [ast.Global(names=n.names) if isinstance(n, ast.Nonlocal) else n for n in function.body]
+                    exec(compile(ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[])), str(path), "exec"), env)
+                    if cleanup_fails in {"stop", "both"}:
+                        p.stop.side_effect = RuntimeError("cleanup stop fault")
+                    if cleanup_fails in {"reset", "both"}:
+                        native.megartx_m1_attribution_v1.fail_release = True
+                    with patch.dict(sys.modules, {"torch": torch}), self.assertRaisesRegex(RuntimeError, message) as caught:
+                        env[name](*args)
+                    if case == "head":
+                        self.assertIs(caught.exception, primary)
+                    if cleanup_fails != "none" and hasattr(caught.exception, "__notes__"):
+                        self.assertIn("cleanup", str(caught.exception.__notes__).lower())
+                    self.assertTrue(c.failed)
+                    self.assertFalse(a.active)
+                    self.assertEqual(p.stop.call_count, 1)
+                    self.assertEqual(native.megartx_m1_attribution_v1.calls, [1, 0])
+                    self.assertEqual(old.call_count, 1)
+                    self.assertEqual(a.completed, set())
+                    self.assertFalse((a.directory/(a.lane+"-scalars.json")).exists())

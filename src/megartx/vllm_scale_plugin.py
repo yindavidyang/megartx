@@ -296,8 +296,13 @@ def install():
 
     def logits_forward(self, hidden_states, *args, **kwargs):
         nonlocal counter
-        with profile_scope("megartx::logits_head", m1 is not None and m1.profile_active()):
-            result = old_logits(self, hidden_states, *args, **kwargs)
+        try:
+            with profile_scope("megartx::logits_head", m1 is not None and m1.profile_active()):
+                result = old_logits(self, hidden_states, *args, **kwargs)
+        except BaseException as error:
+            if m1 is not None:
+                m1.fail_attribution(error)
+            raise
         if not capture:
             return result
         marker = Path(capture).parent / "capture-request.json"
