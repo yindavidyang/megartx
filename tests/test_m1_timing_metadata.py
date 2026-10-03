@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from m1_owned_processes import MetadataHelpTiming, OwnedProcesses, Process, file_version, read_process
+from m1_owned_processes import MetadataHelpTiming, OwnedProcesses, Process, decode_cmdline, file_version, read_process
 
 
 def metadata_fixture(test):
@@ -96,6 +96,30 @@ class MetadataTimingTests(unittest.TestCase):
         owner.observe({20:self.root,30:self.sample},100)
         owner.observe({20:self.root,30:zombie},101); owner.finalize_metadata(); owner.require_compiler_quiescence()
         self.assertEqual(owner.report()["timing_metadata_only_identities"],[(30,30)])
+
+    def test_terminal_work_or_conflicting_evidence_cannot_erase_prior_help(self):
+        for change in ({"compiler_argv":(self.policy.EXECUTABLE,"input.tileir")},
+                       {"compiler_argv":(self.policy.EXECUTABLE,"--help","")},
+                       {"executable":"ptxas"}, {"compiler_executable":"/other/tileiras"},
+                       {"compiler_file_version":tuple([*self.policy.binary_version[:-1],0])},
+                       {"compiler_identity_verified":False}):
+            with self.subTest(change=change):
+                owner = OwnedProcesses(Process(10,10,1),metadata_timing=self.policy);owner.register(self.root)
+                owner.observe({20:self.root,30:self.sample},100)
+                owner.observe({20:self.root,30:replace(self.sample,state="Z",rss_bytes=0,**change)},101)
+                owner.observe({20:self.root,30:self.sample},102)
+                owner.finalize_metadata()
+                self.assertEqual(owner.report()["timing_metadata_only_identities"],[])
+                self.assertIsNotNone(owner.report()["timing_classification_history"][0]["first_unknown_or_work_sample"])
+                with self.assertRaisesRegex(RuntimeError,"compiler activity"):owner.require_compiler_quiescence()
+
+    def test_proc_cmdline_preserves_empty_arguments_and_requires_termination(self):
+        self.assertEqual(decode_cmdline(b"tool\0--help\0"),("tool","--help"))
+        self.assertEqual(decode_cmdline(b"tool\0--help\0\0"),("tool","--help",""))
+        self.assertEqual(decode_cmdline(b"tool\0--help\0\0\0"),("tool","--help","",""))
+        self.assertEqual(decode_cmdline(b"tool\0\0--help\0"),("tool","","--help"))
+        self.assertIsNone(decode_cmdline(b""))
+        self.assertIsNone(decode_cmdline(b"tool\0--help"))
 
     def test_reused_pid_terminal_or_missing_identity_cannot_inherit_help_evidence(self):
         self.observe(self.sample)

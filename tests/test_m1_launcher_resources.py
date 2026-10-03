@@ -17,7 +17,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from m1_owned_processes import OwnedProcesses, Process
+from m1_owned_processes import OwnedProcesses, Process, read_process
 from test_m1_timing_metadata import metadata_fixture
 
 LAUNCHER = Path(__file__).resolve().parents[1] / "scripts/run_scale_validation.py"
@@ -166,6 +166,61 @@ class LauncherResourceTests(unittest.TestCase):
                     self.final([{},{},{}])
                 self.summary.assert_not_called()
                 self.assertEqual((self.output / "run.exit").read_text(),"1\n")
+
+    def test_actual_reader_terminal_changes_and_empty_argument_reject_final_admission(self):
+        # The real /proc reader feeds the real launcher final block. External
+        # process reads/cleanup are substituted; no tool or GPU is executed.
+        for kind in ("work_at_exit","executable_at_exit","trailing_empty_argument",
+                     "argv_recheck_at_exit","executable_recheck_at_exit",
+                     "unreadable_recheck_at_exit","malformed_argv_at_exit",
+                     "empty_argument_recheck_at_exit"):
+            with self.subTest(kind=kind):
+                policy,sample,binary = self.metadata_owner()
+                if kind != "trailing_empty_argument":self.owner.observe({20:self.root,30:sample},100)
+                other=binary.parent/"ptxas";other.write_bytes(b"different CPU compiler fixture")
+                first_path=str(other if kind=="executable_at_exit" else binary)
+                last_path=str(other if kind=="executable_recheck_at_exit" else first_path)
+                first_args=(first_path,"input.tileir") if kind in {"work_at_exit","executable_at_exit"} else (first_path,"--help")
+                if kind=="trailing_empty_argument":first_args+= ("",)
+                last_args=(first_path,"input.tileir") if kind=="argv_recheck_at_exit" else first_args
+                if kind=="empty_argument_recheck_at_exit":last_args+= ("",)
+                encode=lambda args:b"\0".join(a.encode() for a in args)+b"\0"
+                first_bytes=encode(first_args);last_bytes=encode(last_args)
+                if kind=="malformed_argv_at_exit":first_bytes=first_bytes[:-1]
+                if kind=="unreadable_recheck_at_exit":last_bytes=PermissionError("CPU fixture unreadable cmdline")
+                fields=["S","20"]+["0"]*21;fields[19]="30";fields[21]="1"
+                before="30 (tileiras) "+" ".join(fields)
+                fields[0]="S" if kind=="trailing_empty_argument" else "Z"
+                after="30 (tileiras) "+" ".join(fields)
+                with patch.object(Path,"read_text",side_effect=[before,after]), \
+                     patch("m1_owned_processes.os.readlink",side_effect=[first_path,last_path]), \
+                     patch.object(Path,"stat",side_effect=[Path(first_path).stat(),Path(last_path).stat()]), \
+                     patch.object(Path,"read_bytes",side_effect=[first_bytes,last_bytes]):
+                    observed=read_process(30,uptime=100)
+                if kind=="trailing_empty_argument":self.assertEqual(observed.compiler_argv,first_args)
+                self.owner.observe({20:self.root,30:observed},101)
+                with self.assertRaisesRegex(RuntimeError,"compiler activity"):self.final([{},{},{}])
+                self.summary.assert_not_called()
+                self.assertEqual((self.output/"run.exit").read_text(),"1\n")
+                cleanup=json.loads((self.output/"eager-benchmark-cleanup.json").read_text())
+                self.assertTrue(cleanup["cleanup_complete"])
+                self.assertEqual(cleanup["timing_unknown_or_work_identities"],[[30,30]])
+                self.assertIsNotNone(cleanup["timing_classification_history"][0]["first_unknown_or_work_sample"])
+
+    def test_actual_reader_verified_help_then_information_loss_still_admits(self):
+        policy,sample,binary=self.metadata_owner()
+        self.owner.observe({20:self.root,30:sample},100)
+        fields=["S","20"]+["0"]*21;fields[19]="30";fields[21]="1"
+        before="30 (tileiras) "+" ".join(fields);fields[0]="Z"
+        after="30 (tileiras) "+" ".join(fields)
+        with patch.object(Path,"read_text",side_effect=[before,after]), \
+             patch("m1_owned_processes.os.readlink",side_effect=FileNotFoundError()), \
+             patch.object(Path,"stat",side_effect=FileNotFoundError()), \
+             patch.object(Path,"read_bytes",return_value=b""):
+            terminal=read_process(30,uptime=100)
+        self.owner.observe({20:self.root,30:terminal},101)
+        self.final([{},{},{}]);self.summary.assert_called_once_with(self.output)
+        self.assertEqual((self.output/"run.exit").read_text(),"0\n")
 
     def test_metadata_resource_bounds_still_block_actual_client_dispatch(self):
         nodes = RUN.body[index("other = []"):index("benchmark.exit")]

@@ -76,6 +76,15 @@ class MetadataHelpTiming:
                 and process.compiler_file_version == self.binary_version
                 and process.compiler_argv == self.argv)
 
+    def terminal_evidence_matches(self, process):
+        # Exit can remove /proc evidence, but cannot erase newly captured work
+        # or conflicting evidence. read_process also rejects unstable rechecks.
+        return (process.executable == "tileiras"
+                and all(observed is None or observed == expected for observed, expected in (
+                    (process.compiler_argv, self.argv),
+                    (process.compiler_executable, self.RESOLVED),
+                    (process.compiler_file_version, self.binary_version))))
+
     def report(self):
         return {"policy": "pinned_tileiras_help_v1", "proposal_sha256": self.PROPOSAL_SHA,
                 "source_head": self.source_head, "argv": self.argv, "resolved_executable": self.RESOLVED,
@@ -129,16 +138,27 @@ class Process:
         return "compiler_work_or_unknown"
 
 
+def decode_cmdline(data):
+    # /proc uses one terminating NUL per argument, including empty arguments.
+    # Remove exactly the final terminator; malformed nonempty data is unknown.
+    if not data or not data.endswith(b"\0"):
+        return None
+    return tuple(os.fsdecode(arg) for arg in data[:-1].split(b"\0"))
+
+
 def read_process(pid, uptime=None):
     directory = Path("/proc") / str(pid)
     stat = (directory / "stat").read_text()
     fields = stat[stat.rindex(")") + 2:].split()
     executable = stat[stat.index("(") + 1:stat.rindex(")")]
     executable_path = None
+    conflicting_evidence = False
     try:
         executable_path = os.readlink(directory / "exe")
         executable = Path(executable_path).name
-    except (FileNotFoundError, PermissionError, ProcessLookupError):
+    except PermissionError:
+        conflicting_evidence = True
+    except (FileNotFoundError, ProcessLookupError):
         pass
     argv = None
     version = None
@@ -146,23 +166,45 @@ def read_process(pid, uptime=None):
     if is_compiler(executable):
         try:
             version = file_version((directory / "exe").stat())
-        except (FileNotFoundError, PermissionError, ProcessLookupError):
+        except PermissionError:
+            conflicting_evidence = True
+        except (FileNotFoundError, ProcessLookupError):
             pass
         try:
             data = (directory / "cmdline").read_bytes()
-            if data:
-                argv = tuple(os.fsdecode(arg) for arg in data.rstrip(b"\0").split(b"\0"))
-        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            argv = decode_cmdline(data)
+            conflicting_evidence |= bool(data) and argv is None
+        except PermissionError:
+            conflicting_evidence = True
+        except (FileNotFoundError, ProcessLookupError):
             pass  # Unknown argv stays conservative; no metadata-only exemption.
         stable_executable = False
         if version is not None and argv is not None:
+            later_argv = later_path = later_version = None
             try:
-                later_argv = (directory / "cmdline").read_bytes()
-                stable_executable = (os.readlink(directory / "exe") == executable_path
-                    and file_version((directory / "exe").stat()) == version
-                    and tuple(os.fsdecode(arg) for arg in later_argv.rstrip(b"\0").split(b"\0")) == argv)
-            except (FileNotFoundError, PermissionError, ProcessLookupError):
+                later_data = (directory / "cmdline").read_bytes()
+                later_argv = decode_cmdline(later_data)
+                conflicting_evidence |= bool(later_data) and later_argv != argv
+            except PermissionError:
+                conflicting_evidence = True
+            except (FileNotFoundError, ProcessLookupError):
                 pass
+            try:
+                later_path = os.readlink(directory / "exe")
+                conflicting_evidence |= later_path != executable_path
+            except PermissionError:
+                conflicting_evidence = True
+            except (FileNotFoundError, ProcessLookupError):
+                pass
+            try:
+                later_version = file_version((directory / "exe").stat())
+                conflicting_evidence |= later_version != version
+            except PermissionError:
+                conflicting_evidence = True
+            except (FileNotFoundError, ProcessLookupError):
+                pass
+            stable_executable = (not conflicting_evidence and executable_path is not None
+                and later_path == executable_path and later_version == version and later_argv == argv)
         try:
             later = (directory / "stat").read_text()
             later_fields = later[later.rindex(")") + 2:].split()
@@ -171,7 +213,7 @@ def read_process(pid, uptime=None):
                              and int(later_fields[19]) == int(fields[19]))
             if same_identity and later_fields[0] == "Z":
                 fields[0] = "Z"
-                verified = True  # Terminal identity only; never qualifies itself.
+                verified = not conflicting_evidence  # Terminal identity/evidence only; never qualifies itself.
             elif same_identity:
                 verified = stable_executable
         except (FileNotFoundError, PermissionError, ProcessLookupError):
@@ -333,7 +375,9 @@ class OwnedProcesses:
         qualifies = (not descendant and not self.metadata_timing_invalid and self.metadata_timing is not None
                      and self.metadata_timing.qualifies(process))
         terminal = (not descendant and process.state == "Z" and process.compiler_identity_verified
-                    and process.identity in self.metadata_identities)
+                    and not self.metadata_timing_invalid and self.metadata_timing is not None
+                    and process.identity in self.metadata_identities
+                    and self.metadata_timing.terminal_evidence_matches(process))
         if qualifies:
             self.metadata_identities.add(process.identity)
             history["metadata_samples"] += 1

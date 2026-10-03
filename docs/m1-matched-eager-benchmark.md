@@ -7,10 +7,23 @@ It does not pass G1, qualify full-model quality, admit CUDA graphs, or reopen
 the old `--client benchmark` / `host_benchmark.py` gate. Historical graph and
 uncorrected baselines are not comparison inputs. CPU success is not GPU evidence.
 
-The fresh source-bound pilot and six-pair comparison at runtime `eecfc13` passed
-on 2026-10-03. The exploratory decode result establishes **no speedup**; both
-95% paired bootstrap intervals cross zero. See the [results below](#fresh-eecfc13-gpu-result)
-and [sanitized scalar receipt](evidence/m1-eager-eecfc13-gpu-scalars.json).
+**Review hold:** independent result review reproduced the scalar calculations
+but found two metadata timing-admission defects in measured runtime `eecfc13`:
+a terminal sample could erase newly observed work or changed executable evidence,
+and cmdline decoding could erase trailing empty arguments. Deterministic CPU
+counterexamples admit timing on that source and reject it with the narrow fix.
+The fixed source requires independent review and fresh source-bound validation;
+no GPU run has been made with this fix. See the
+[review overlay](evidence/m1-eager-metadata-admission-review.json).
+
+The original pilot and six-pair receipts from 2026-10-03 remain immutable
+historical measurements. Their scalar intervals show **no established speedup**.
+The retained histories show no terminal transition, but historical decoded argv
+cannot exclude trailing empty arguments because raw cmdline bytes were not
+retained. Neither contamination nor retrospective timing acceptance is proved.
+The [results below](#fresh-eecfc13-gpu-result) and
+[original scalar receipt](evidence/m1-eager-eecfc13-gpu-scalars.json) are preserved
+under this hold; they do not qualify current source readiness.
 
 ## Scope and retained work
 
@@ -188,9 +201,15 @@ drift invalidates admission. Compiler samples recheck actual `/proc/PID/exe`
 path and file version, exact cmdline, PID and start ticks. Missing or unstable
 evidence, path aliases, extra args, `--version` and initial zombies fail closed.
 A verified terminal zombie can retain earlier help evidence only for the same
-PID/start identity. Every observed unknown/work transition stays permanently
-blocking, even if the same identity later returns to help. Descendants receive
-no exemption. Successful final file verification is required before summary.
+PID/start identity, with every available captured argv/path/file version still
+matching the pinned command. Exit-related loss of evidence can retain the prior
+proof; newly captured work, changed evidence, malformed cmdline or unreadable
+rechecks permanently block timing. The reader removes exactly one terminating
+NUL, preserving empty argv fields. These are the pending fix's guarantees; the
+measured `eecfc13` reader did not enforce them. Every observed unknown/work
+transition stays permanently blocking, even if the same identity later returns
+to help. Descendants receive no exemption. Successful final file verification
+is required before summary.
 
 This distinction affects timing admission only. All tool and descendant RSS,
 the shared 300-second budget, ownership identities, error handling and cleanup
@@ -257,8 +276,10 @@ idle/owned processes and bounds before each launch; run one server at a time.
    tensors, full profiler data or host logs. Draft PR authorized; merging remains
    outside this milestone.
 
-The independent review accepts this minimum scope because native safety and
-arithmetic sources are unchanged. Do not repeat the complete historical
+The earlier independent source review accepted this minimum scope because
+native safety and arithmetic sources were unchanged. The subsequent metadata
+admission findings now block source readiness until the fix and affected
+validation receive review. Do not repeat the complete historical
 captured-controlled, external-observer or normal suites by default. A pilot
 mismatch or further relevant source changes require affected diagnostics and
 fresh review before timing proceeds. Historical numerical results retain their
@@ -280,12 +301,18 @@ choices are recorded in the plan, raw client records and dispatch ledger.
 
 ## Fresh eecfc13 GPU result
 
+These are historical receipts under the metadata admission review hold above.
+The original reports are unchanged; the fix does not retrospectively establish
+their timing admission or prove that either defect affected these runs.
+
 Measured source was `eecfc13e1be9aaf4e361888d5f4c65ad22fb41c4`, tree
 `3c9e248405d2f97677223759e86174f09f068d08`, including integrated main
 `5a32504b5ccb209a779b8a110eb2ebc56d72e373`. All 21 eager/native runtime inputs
 were byte-identical to independently reviewed `dfd77d8`; all 214 source files
-and private adapter copies were rechecked after both runs. This result update
-changes documentation and scalar evidence only. Prefill GPU work was not run.
+and private adapter copies were rechecked after both runs. The original result
+publication changed documentation and scalar evidence only. The pending fix
+changes process metadata admission; native arithmetic, driver, adapter and
+client timing sources remain unchanged. Prefill GPU work was not run.
 
 The fresh bridge build took 6.112 seconds with 731,148,288-byte aggregate compiler
 RSS. Compiled lease and binding controls passed, installed pins stayed unchanged,
@@ -296,7 +323,8 @@ adapters, 54 equal original tensor captures, zero BF16 maximum absolute
 difference, 18 native SM120 dense launches and six GELU launches. Their startup
 profiles precede the client and are outside the timed request phase.
 
-The separate eight-request pilot passed before the fresh 32-request comparison.
+The original launcher reported the eight-request pilot passing before the fresh
+32-request comparison, under the now-defective metadata admission implementation.
 Both used eager synchronous corrected native execution, BF16 KV and concurrency
 one. The comparison used two warmups per context/lane, six adjacent randomized
 pairs per context and three of each first-lane order. Every 256-token pair had
@@ -331,10 +359,12 @@ with minimum sampled free memory 10,765 MiB. Pilot peak/free values were
 transient device peak was recorded. The 8-MiB additional scratch contract stayed
 unchanged. The RTX 5090 used driver 610.43.02 and a 575-W power limit.
 
-The pilot observed five compiler-tool identities and the comparison one. All
-had actual PID/start, exact help argv, executable path and pinned file-version
-evidence, positive metadata samples and no unknown/work history. Final binary
-and caller hashes matched preflight. Resource accounting included every tool:
+The pilot observed five compiler-tool identities and the comparison one. The
+retained receipts show one verified D-state sample per identity, matching decoded
+help argv, executable path and pinned file version, with no recorded terminal or
+unknown/work transition. Final binary and caller hashes matched preflight. Raw
+cmdline bytes were not retained, so those decoded fields cannot exclude the
+empty-argument defect. Resource accounting included every tool:
 pilot peak aggregate compiler RSS/shared elapsed budget were 34,603,008 bytes /
 29.355 seconds; comparison values were 19,660,800 bytes / 0.030 seconds. The
 50-ms process scan can miss brief processes; this is sampled evidence. No new

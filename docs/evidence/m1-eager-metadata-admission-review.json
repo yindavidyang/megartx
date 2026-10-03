@@ -1,0 +1,85 @@
+{
+  "schema": "megartx.m1-eager-metadata-admission-review.v1",
+  "scope": "CPU metadata-admission correction and historical sampled-receipt audit; no new GPU run or timing acceptance",
+  "status": "blocked_pending_independent_fix_review_and_fresh_source_bound_validation",
+  "measured_source_head": "eecfc13e1be9aaf4e361888d5f4c65ad22fb41c4",
+  "measured_source_tree": "3c9e248405d2f97677223759e86174f09f068d08",
+  "publication_parent_head": "1d2f4defc3ace2fbe4fe7c957f3cda19f2beeef1",
+  "original_scalar_receipt": "docs/evidence/m1-eager-eecfc13-gpu-scalars.json",
+  "original_scalar_receipt_sha256": "dae4d4ca46ede1a66d6a274af27460d3ba9bf8d3733761d2d10b6bd263d4330e",
+  "original_scalar_receipt_unchanged": true,
+  "reviewer_counterexample_source_sha256": "cd0ca37c584f993daaf50cb498cef7ace94fc5f0a1826f604bd7c859e1d74481",
+  "reviewer_counterexample_result_sha256": "35bd70390916b7e962dcf84bb02296cff424007d891c7f6a78f6148b0ec580b1",
+  "replay_scope": "CPU deterministic mocked /proc with actual reader and launcher final AST; original top-level git assertion omitted and final RuntimeError captured",
+  "measured_admission_source_hashes": {
+    "scripts/m1_owned_processes.py": "eac1f7d983e324e9ec38d7a646163a530dfaa7ccf17262a42e06886c0d9f46bd",
+    "scripts/run_scale_validation.py": "a62e4b405f00a256aa8bdee71df006197fe8b2145868f9d7c57ca22d244bc205"
+  },
+  "fixed_admission_source_hashes": {
+    "scripts/m1_owned_processes.py": "bdd7dad3656e899e8cbc4ca9438c8a3500acc1436a8a19745b82e0e028a43bd2",
+    "scripts/run_scale_validation.py": "a62e4b405f00a256aa8bdee71df006197fe8b2145868f9d7c57ca22d244bc205"
+  },
+  "counterexamples": [
+    {
+      "case": "non_help_argv_at_exit",
+      "measured_source_run_exit": 0,
+      "measured_source_summary_called": true,
+      "fixed_source_run_exit": 1,
+      "fixed_source_summary_called": false,
+      "fixed_source_retains_unknown_work_identity": true,
+      "cleanup_complete_in_both": true
+    },
+    {
+      "case": "changed_compiler_executable",
+      "measured_source_run_exit": 0,
+      "measured_source_summary_called": true,
+      "fixed_source_run_exit": 1,
+      "fixed_source_summary_called": false,
+      "fixed_source_retains_unknown_work_identity": true,
+      "cleanup_complete_in_both": true
+    },
+    {
+      "case": "trailing_empty_argument",
+      "measured_source_run_exit": 0,
+      "measured_source_summary_called": true,
+      "fixed_source_run_exit": 1,
+      "fixed_source_summary_called": false,
+      "fixed_source_retains_unknown_work_identity": true,
+      "cleanup_complete_in_both": true
+    }
+  ],
+  "fix": "Preserve all argv empty fields by removing exactly one NUL terminator; retain terminal work/changed or unreadable/malformed recheck evidence as permanently blocking unknown history. Exit-only information loss may preserve earlier exact verified help for the same PID/start identity.",
+  "regression_scope": "Actual reader and actual launcher final admission with mocked external process/GPU operations, plus positive terminal evidence loss, initial/reused zombies, strict default, resource and cleanup controls.",
+  "historical_audit": {
+    "immutable_manifest_sha256": "ea6dab5c09cf84a6ee8cd73709ccad769e0adf8ea9537663088ecaf0e2563846",
+    "immutable_files_verified": 265,
+    "measured_source_files": 214,
+    "pilot_compiler_identities": 5,
+    "comparison_compiler_identities": 1,
+    "all_retained_compiler_views": "D-state, identity verified, decoded argv/path/file version match; one metadata sample and first_sample==last_sample for every history",
+    "terminal_history_defect": "No retained terminal or new work/conflict sample exercises this defect in the audited histories. This does not exclude transitions missed by sampling.",
+    "empty_argv_defect": "Indeterminate: historical rstrip decoding discarded trailing empty fields and raw cmdline bytes were not retained. Decoded exact argv and the pinned exact-list caller cannot prove sampled argv lacked empty trailing arguments.",
+    "audit_script_sha256": "2690a21117aae66791f2dab789c9b5e1757f47dce05a49da6746aa35e30107af",
+    "audit_receipt_sha256": "4cf7cdb3bee2289f8ac13d25d70420fd369292f0d5b45ac8dc470fc389e01592",
+    "receipt_hashes": {
+      "pilot": {
+        "owned-processes.json": "936039b6374b3a938fe5a5c32f9cc43392a261abb6e35ca4f9b4b0349b65fd50",
+        "eager-benchmark-cleanup.json": "9619e8080afdb43f3e72722662261bd89e9444f7b39f2e8a252ea3f529ec8530"
+      },
+      "pairs6": {
+        "owned-processes.json": "468f835a739384140b1af0091478b475f78c1957ba8ca047bee21e4eb7d99ec7",
+        "eager-benchmark-cleanup.json": "964b6f9c702cce410fb8fffa16b8340c5d68499afe0458d5e849271efb1e31b7"
+      }
+    }
+  },
+  "measured_contamination_proven": false,
+  "historical_timing_readiness_restored": false,
+  "new_gpu_execution": false,
+  "native_arithmetic_changed": false,
+  "resource_cleanup_bounds_changed": false,
+  "timing_interval_boundaries_changed": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false,
+  "privacy": "Only source hashes, scalar audit findings and synthetic CPU counterexample outcomes; historical private prompts/tensors/host logs are not republished."
+}
