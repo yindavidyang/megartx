@@ -8,7 +8,7 @@ native-build, plugin-registration or GPU execution path. `--execute-gpu` always
 fails before any device work. Draft publication is approved; independent review
 is tracked in [PR19](https://github.com/yindavidyang/megartx/pull/19).
 
-No existing file is modified. In particular, the stock prefill fallback,
+PR19 modified no existing file. In particular, the stock prefill fallback,
 `m1_live.py`, `vllm_scale_plugin.py`, quantizer and shared launcher are untouched.
 [WP7](../action-plans/wp7.md) and the [merged semantics](README.md) remain the
 source contract. Nothing here accepts G0/G1/G7, numerical equivalence, peak fit,
@@ -51,11 +51,43 @@ qualification flag remain explicit. It never turns fixture data into a gate.
 ## Admission inputs
 
 [runner-plan.json](runner-plan.json) is disabled and deliberately incomplete.
-The original [profile plan](profile-plan.json) is unchanged. Its exact bytes,
-historical source-binding bytes and the seven new/additional source pins in
+The [profile plan](profile-plan.json) includes PR15's reviewed source overlay.
+Its exact bytes, historical source-binding bytes and the seven additional pins in
 [runner-binding.json](runner-binding.json) are verified locally. The runner
 binding records the implementation base, not an assertion that the future target
 is running this code. Freeze the final Git head/tree and patch independently.
+
+### Merged-source compatibility repair
+
+PR19 head `d2744ce118950e13f576e65c2611877e69c600f8` was reviewed against
+`5a32504b5ccb209a779b8a110eb2ebc56d72e373`. After PR15 head
+`6b3b281cc201a69d727e84ef945389157b6247c7` merged, combined main
+`fd2adebadd28a0b450b8dca9b654ca50b5aa55fa` retained PR19's earlier runner pins.
+This repair binds that merged plan, README and prefill validator, without
+changing their bytes or adding another accepted source overlay.
+
+The plan's only delta from PR19 is `binding.source_manifest_sha256`, from
+`95198c984c935500c27925770b60e87ac65011d4d3f99d8c26be048d5f01831a` to
+`ef9ece4b8ebd97b095f6a333681d8c2b3abca16ed7a89c59f05955cd06cc70d1`.
+Its byte digest consequently changes from
+`93c2a6b9b300276649143668805bf59af48edb8c819266ab6d98e1e7be68fc7e` to
+`832daf1fb46c1c80240a4c890490e141c05da2122c6c2cafd8c6fc5df5016f06`.
+All prompt/chunk, controls, freeze, resource, cache and qualification fields
+are identical. The original twelve-file vector and historical review receipt
+remain unchanged. The README adds only the reviewed overlay's scope and limits.
+The validator delta accepts either the complete original vector or that vector
+with the exact atomic controller/plugin pair; every other source stays pinned.
+
+The accepted pair is still the one reviewed at
+`dfd77d8c80d333fc9531955795476f7e9c0cbab2`: both files are byte-identical at the
+final PR15 head and combined main. The existing AST and fallback regressions
+retain the reviewed math/capture boundaries and benchmark-only 256-row guard.
+This accepts CPU source compatibility, with no prefill launcher or GPU admission.
+The runner implementation and every runtime/kernel/math source are unchanged;
+base identities and historical evidence are not relabeled. Only runner metadata,
+this provenance and CPU regressions change. Updated test/document pins bind those
+edits; unknown plan, README, validator, cache, quantizer or controller/plugin
+drift still rejects, as do altered manifest bytes and incomplete source pairs.
 
 Before any future live integration, fill and independently review:
 

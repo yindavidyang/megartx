@@ -149,6 +149,71 @@ def synthetic_records(protocol, prompts):
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_merged_binding_preserves_reviewed_plan_and_historical_sources(self):
+        manifest, plan = r.load_inputs(DOCS / "runner-plan.json", DOCS / "profile-plan.json",
+            DOCS / "source-binding.json", DOCS / "runner-binding.json", ROOT)
+        # PR19's entire plan, except PR15's reviewed source-manifest pointer.
+        semantic_plan = copy.deepcopy(plan)
+        semantic_plan["binding"].pop("source_manifest_sha256")
+        self.assertEqual(r.digest(semantic_plan),
+                         "a3819e2816aa7f3292d216bdcef56e7fe3af3539ba1bacb6604c74e0c4b58196")
+        source = p.read_json(DOCS / "source-binding.json")
+        self.assertEqual(plan["binding"]["source_manifest_sha256"],
+                         "ef9ece4b8ebd97b095f6a333681d8c2b3abca16ed7a89c59f05955cd06cc70d1")
+        self.assertEqual(len(source["repo_files"]), 12)
+        self.assertEqual(r.digest(source["repo_files"]),
+                         "05f0b4f7f009024b082e170539217fe5839da5f86d6eb7e88105832feea2fc66")
+        self.assertEqual(len(source["reviewed_source_overlays"]), 1)
+        overlay = source["reviewed_source_overlays"][0]
+        self.assertEqual(overlay["source_head"], "dfd77d8c80d333fc9531955795476f7e9c0cbab2")
+        self.assertEqual(overlay["review_scope"], "cpu_source_compatibility_only")
+        for name, expected in overlay["repo_files"].items():
+            self.assertEqual(hashlib.sha256((ROOT / name).read_bytes()).hexdigest(), expected)
+        self.assertEqual(hashlib.sha256((DOCS / "pr15-source-reconciliation.json").read_bytes()).hexdigest(),
+                         source["source_review_sha256"])
+        self.assertEqual(manifest["repository_base_commit"], "5a32504b5ccb209a779b8a110eb2ebc56d72e373")
+        self.assertEqual(hashlib.sha256((ROOT / "src/megartx/prefill_runner.py").read_bytes()).hexdigest(),
+                         "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93")
+        protocol = r.compile_protocol(manifest, plan)
+        self.assertFalse(protocol["gpu_execution_available"])
+        self.assertFalse(protocol["gpu_qualified"])
+        self.assertFalse(protocol["prerequisites_complete"])
+
+    def test_unknown_plan_and_manifest_bytes_still_reject(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            paths = [directory / name for name in
+                     ("runner-plan.json", "profile-plan.json", "source-binding.json", "runner-binding.json")]
+            for path in paths:
+                shutil.copyfile(DOCS / path.name, path)
+            r.load_inputs(*paths, ROOT)
+            original = paths[1].read_bytes()
+            altered = p.read_json(paths[1])
+            altered["workloads"][0]["chunk_tokens"] = [256, 2048]
+            for content in (original + b"\n", json.dumps(altered).encode()):
+                paths[1].write_bytes(content)
+                with self.assertRaisesRegex(ValueError, "Prefill plan digest changed"):
+                    r.load_inputs(*paths, ROOT)
+            paths[1].write_bytes(original)
+            for path, error in ((paths[2], "Source manifest digest changed"),
+                                (paths[3], "Runner binding digest changed")):
+                content = path.read_bytes()
+                path.write_bytes(content + b"\n")
+                with self.assertRaisesRegex(ValueError, error):
+                    r.load_inputs(*paths, ROOT)
+                path.write_bytes(content)
+            # Even a deliberately repinned private plan retains strict semantics.
+            for field, value, error in (("unknown", True, "plan: missing or unsupported fields"),
+                                        ("gpu_enabled", True, "gpu_enabled: unsupported contract")):
+                altered = json.loads(original)
+                altered[field] = value
+                paths[1].write_text(json.dumps(altered))
+                manifest = p.read_json(paths[0])
+                manifest["plan_sha256"] = hashlib.sha256(paths[1].read_bytes()).hexdigest()
+                paths[0].write_text(json.dumps(manifest))
+                with self.assertRaisesRegex(ValueError, error):
+                    r.load_inputs(*paths, ROOT)
+
     def test_checked_in_inputs_bind_and_remain_disabled(self):
         manifest, plan = r.load_inputs(DOCS / "runner-plan.json", DOCS / "profile-plan.json",
             DOCS / "source-binding.json", DOCS / "runner-binding.json", ROOT)
@@ -282,6 +347,19 @@ class ProtocolTests(unittest.TestCase):
             paths = [root / "docs/prefill" / name for name in
                      ("runner-plan.json", "profile-plan.json", "source-binding.json", "runner-binding.json")]
             r.load_inputs(*paths, root)
+            for name, error in (("docs/prefill/README.md", "Runner source drift"),
+                                ("src/megartx/prefill_plan.py", "Runner source drift"),
+                                ("numerical_reference/prefill_cache_reference.py", "Runner source drift"),
+                                ("src/megartx/nvfp4_runtime.py", "Source drift"),
+                                ("src/megartx/m1_live.py", "Source drift"),
+                                ("src/megartx/vllm_scale_plugin.py", "Source drift")):
+                with self.subTest(source=name):
+                    file = root / name
+                    original = file.read_bytes()
+                    file.write_bytes(original + b"\n# unknown integration drift\n")
+                    with self.assertRaisesRegex(ValueError, error):
+                        r.load_inputs(*paths, root)
+                    file.write_bytes(original)
             file = root / "src/megartx/prefill_runner.py"
             original = file.read_bytes()
             file.write_bytes(original + b"\n# drift\n")
