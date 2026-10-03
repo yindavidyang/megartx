@@ -100,6 +100,44 @@ measurement and cleanup, with request intervals used to separate lane samples.
 These are sampled device peaks, not exact transient or Torch allocated/reserved
 peaks. Telemetry and lifecycle sampling costs remain in the guarded lane.
 
+## Startup ownership and private cache admission
+
+The eager lane now also requires `--m1-private-aot PATH` and a source-bound,
+CUDA-hidden CPU loader dry-run. The failed pilot at runtime `77af241` reached
+startup JIT after relocating a cache whose Ninja outputs were absolute paths.
+The sampled aggregate compiler RSS was 3,805,532,160 bytes, above the existing
+2 GiB bound. No client request or startup correction fixture ran. The bridge
+build passed separately; this failed pilot supplies no timing result. Sanitized
+receipts and final cleanup state are in
+[m1-eager-startup-failure.json](evidence/m1-eager-startup-failure.json).
+
+The task-local launcher becomes a Linux child subreaper before launch. It scans
+owned descendants about every 50 ms, retains PID plus `/proc` start-time
+identities across parent exit and `setsid`, and uses verified pidfds for signals.
+It sums RSS over all concurrently owned Ninja/NVCC/compiler trees and retains
+one 300-second elapsed budget from the earliest compiler start across jobs and
+idle gaps. Bounds are sampled, so a brief overshoot can occur between samples;
+the observed peak and triggering identities are recorded and invalidate the run.
+Host available RAM stays at least 8 GiB and GPU headroom at least 2 GiB.
+Any guard failure blocks dispatch and stops verified owned identities. Cleanup
+uses bounded TERM/KILL, reaps adopted children, checks remembered identities and
+owned GPU PIDs across groups, and preserves the primary failure if cleanup fails.
+Ownership and resource supervision costs remain in both measured lanes.
+
+Private mount isolation was unavailable on the assigned host. Instead, eight
+exact prebuilt module hashes are promoted through FlashInfer's supported private
+`flashinfer_jit_cache` provider. All four installed loader files byte-match the
+official `v0.6.18.post1` release. Private AOT symlinks resolve to the same private
+incumbent `.so` bound by the bridge, retaining its native relocation checks.
+Installed package files, shared caches and checkpoint are untouched. A private,
+source-bound Python startup hook rejects cache admission errors and forbids
+`JitSpecNvcc.build` only for those eight promoted names; other specs retain their
+ordinary loading policy under the shared resource guard. No global JIT-disable
+or version-bypass flag is enabled. The CPU dry-run loads all eight through the
+unmodified AOT fast path with rebuilding forbidden, checks module/Ninja hashes,
+and verifies CUDA stayed uninitialized. This checks loader reuse, not kernels,
+startup correction, quality, or GPU timing.
+
 ## Source review and serialized GPU gates
 
 Freeze a clean commit/tree, CPU results and this scope with the parent and
@@ -115,7 +153,7 @@ idle/owned processes and bounds before each launch; run one server at a time.
    context/lane and one matched pair per context. Require actual request/frame
    and backend counts, transcript hashes, identical 256-token outputs/usage,
    natural correction counters, repeated lane switches/workspace reuse, and
-   successful owned group/GPU cleanup. Require no observer/probe or diagnostic
+   successful owned identity/GPU cleanup. Require no observer/probe or diagnostic
    capture destination or preparation/NPZ/request-trace/call-receipt output.
    Its scalar checks are not a CUDA trace, tensor oracle or quality proof.
 3. Only after the affected source/build and pilot gates pass, prepare the six-pair plan
@@ -135,7 +173,7 @@ Exact next timing invocations, after source approval and the above gates:
 
 ```sh
 python scripts/prepare_m1_eager_benchmark.py --model-path "$MODEL" --output "$PRIVATE_PLAN" --trials 6 --warmups 2 --seed 9471
-python scripts/run_scale_validation.py --mode native --client m1-eager-benchmark --m1-eager-benchmark-plan "$PRIVATE_PLAN" --m1-preparation stock --m1-execution capture-free --m1-bridge "$BUILD/m1_live_bridge.so" --m1-build-receipt "$BUILD/build.json" --label m1-guarded-eager-pairs6
+python scripts/run_scale_validation.py --mode native --client m1-eager-benchmark --m1-eager-benchmark-plan "$PRIVATE_PLAN" --m1-private-aot "$PRIVATE_AOT" --m1-preparation stock --m1-execution capture-free --m1-bridge "$BUILD/m1_live_bridge.so" --m1-build-receipt "$BUILD/build.json" --label m1-guarded-eager-pairs6
 ```
 
 Here `--m1-preparation stock` supplies explicit initial M1 admission; the exact

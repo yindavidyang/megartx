@@ -26,6 +26,7 @@ parser.add_argument("--profile", action="store_true")
 parser.add_argument("--mode", choices=("native", "reference", "control", "paired_reference", "gate_only_negative_control"), required=True)
 parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal", "m1-eager-benchmark"), default="quality")
 parser.add_argument("--m1-eager-benchmark-plan", type=pathlib.Path)
+parser.add_argument("--m1-private-aot", type=pathlib.Path)
 parser.add_argument("--controlled-plan", type=pathlib.Path)
 parser.add_argument("--controlled-path", choices=("full", "cached", "chunked"))
 parser.add_argument("--layer0-boundaries", action="store_true")
@@ -46,8 +47,10 @@ args = parser.parse_args()
 eager_benchmark = args.client == "m1-eager-benchmark"
 benchmark_plan = None
 if eager_benchmark:
+    if any(os.environ.get(key) for key in ("FLASHINFER_DISABLE_JIT", "FLASHINFER_DISABLE_VERSION_CHECK")):
+        parser.error("private AOT requires ordinary FlashInfer version/JIT policy")
     from megartx.m1_eager_benchmark import load_plan
-    if (args.m1_eager_benchmark_plan is None or args.m1_preparation not in {"stock", "fused"}
+    if (args.m1_eager_benchmark_plan is None or args.m1_private_aot is None or args.m1_preparation not in {"stock", "fused"}
             or args.mode != "native" or args.m1_execution != "capture-free"
             or args.m1_bridge is None or args.m1_build_receipt is None
             or args.profile or args.m1_external_observer or args.m1_route_controls
@@ -58,6 +61,15 @@ if eager_benchmark:
             or args.kv != "bfloat16" or args.backend != "flashinfer_cutlass"):
         parser.error("eager benchmark requires its bounded native capture-free observer-off plan and bridge")
     benchmark_plan = load_plan(args.m1_eager_benchmark_plan)
+    from m1_private_aot import MODULE_PINS, sha, validate_cache
+    aot = args.m1_private_aot.resolve()
+    aot_manifest = validate_cache(aot, benchmark_plan["source_head"])
+    aot_cpu = json.loads((aot / "cpu-dry-run.json").read_text())
+    if (not aot_cpu.get("passed") or aot_cpu.get("source_head") != benchmark_plan["source_head"]
+            or aot_cpu.get("manifest_sha256") != sha(aot / "manifest.json")
+            or aot_cpu.get("build_calls") != 0 or aot_cpu.get("cuda_initialized") is not False
+            or aot_cpu.get("module_hashes") != MODULE_PINS):
+        parser.error("eager benchmark requires an exact-source CUDA-hidden private AOT dry-run")
     project_root = pathlib.Path(__file__).resolve().parents[1]
     from megartx.m1_execution import CONTROLLER_SOURCES
     expected_sources = {n: hashlib.sha256((project_root / "src/megartx" / n).read_bytes()).hexdigest()
@@ -73,7 +85,7 @@ if eager_benchmark:
             or any(build.get("source_hashes", {}).get(p) != h
                    for p, h in benchmark_plan["driver_source_hashes"].items())):
         parser.error("eager benchmark build/source identity differs")
-elif args.m1_eager_benchmark_plan is not None:
+elif args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None:
     parser.error("eager benchmark plan requires --client m1-eager-benchmark")
 normal_plan = None
 if args.client == "normal":
@@ -159,6 +171,7 @@ for inherited in ("MEGARTX_M1_PREPARATION", "MEGARTX_M1_EXECUTION", "MEGARTX_M1_
     env.pop(inherited, None)
 for inherited in ("MEGARTX_M1_EAGER_BENCHMARK_PLAN", "MEGARTX_M1_EAGER_BENCHMARK_DIR"):
     env.pop(inherited, None)
+env.pop("MEGARTX_M1_PRIVATE_AOT", None)
 if args.m1_preparation:
     env.update({"MEGARTX_M1_ROUTE_CONTROLS": "1" if args.m1_route_controls else "0",
                 "MEGARTX_M1_PREPARATION": args.m1_preparation,
@@ -181,6 +194,16 @@ if args.m1_preparation:
         env["MEGARTX_M1_API_PID_FILE"] = str(output / "owned-server.pid")
         env["PYTHONPATH"] = str(probe.parent) + ":" + env["PYTHONPATH"]
 if eager_benchmark:
+    env.pop("FLASHINFER_CUDA_ARCH_LIST", None)
+    env.pop("FLASHINFER_CUBIN_DIR", None)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    expected_shims = {"m1_private_aot.py": sha(project / "scripts/m1_private_aot.py"),
+                      "sitecustomize.py": sha(project / "scripts/m1_aot_cache/sitecustomize.py"),
+                      "flashinfer_jit_cache/__init__.py": sha(project / "scripts/m1_aot_cache/flashinfer_jit_cache/__init__.py")}
+    if aot_manifest["shim_hashes"] != expected_shims:
+        parser.error("private AOT bootstrap copies differ from source-bound drivers")
+    env["MEGARTX_M1_PRIVATE_AOT"] = str(aot)
+    env["PYTHONPATH"] = str(aot / "python") + ":" + env["PYTHONPATH"]
     env["MEGARTX_M1_EAGER_BENCHMARK_PLAN"] = str(args.m1_eager_benchmark_plan.resolve())
     env["MEGARTX_M1_EAGER_BENCHMARK_DIR"] = str(output / "eager-benchmark")
     (output / "eager-benchmark-plan.json").write_text(json.dumps(benchmark_plan, indent=2))
@@ -236,6 +259,35 @@ phase("idle_checked")
 stop_sample = threading.Event()
 server = None
 guard_failure = None
+ownership = None
+stop_guard = threading.Event()
+
+
+def fail_guard(message):
+    global guard_failure
+    if ownership is not None:
+        ownership.fail(message)
+        guard_failure = ownership.failure
+        ownership.stop()
+    else:
+        if guard_failure is None:
+            guard_failure = message
+        if server is not None and server.poll() is None:
+            os.killpg(server.pid, signal.SIGTERM)
+
+
+def compiler_guard():
+    from m1_owned_processes import snapshot
+    while not stop_guard.is_set():
+        try:
+            ownership.observe(snapshot(), time.monotonic())
+            if ownership.failure:
+                fail_guard(ownership.failure)
+                return
+        except Exception as error:
+            fail_guard("Owned compiler telemetry failed: " + str(error))
+            return
+        stop_guard.wait(.05)
 
 
 def interrupted(signum, frame):
@@ -258,26 +310,22 @@ def sampler():
                 if eager_benchmark and (result.returncode != 0 or len(values) != len(fields.split(","))):
                     raise RuntimeError("eager benchmark GPU headroom telemetry unavailable")
                 if result.returncode == 0 and len(values) >= 2 and float(values[1]) < 2048 and server is not None and server.poll() is None:
-                    guard_failure = "GPU free memory fell below the 2 GiB headroom guard; stopping only the owned test server"
-                    os.killpg(server.pid, signal.SIGTERM)
+                    fail_guard("GPU free memory fell below the 2 GiB headroom guard")
                 available_kib = int(next(l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:")))
                 if available_kib < 8 * 1024 * 1024 and server is not None and server.poll() is None:
-                    guard_failure = "Host available RAM fell below the 8 GiB headroom guard; stopping only the owned test server"
-                    os.killpg(server.pid, signal.SIGTERM)
+                    fail_guard("Host available RAM fell below the 8 GiB headroom guard")
             except Exception as error:
                 logfile.write(json.dumps({"error": str(error)}) + "\n")
                 if eager_benchmark:
-                    guard_failure = "Eager benchmark resource telemetry failed; stopping only the owned test server"
-                    if server is not None and server.poll() is None:
-                        try:
-                            os.killpg(server.pid, signal.SIGTERM)
-                        except ProcessLookupError:
-                            pass
+                    try:
+                        fail_guard("Eager benchmark resource telemetry failed: " + str(error))
+                    except ProcessLookupError:
+                        pass
             stop_sample.wait(.2)
 
 
 sample_thread = threading.Thread(target=sampler, daemon=True)
-sample_thread.start()
+guard_thread = None
 command = [str(base / ".venv/bin/vllm"), "serve", str(base / "models/gemma4-nvfp4"), "--host", "127.0.0.1", "--port", "18000", "--served-model-name", "gemma4-nvfp4", "--dtype", "bfloat16", "--max-model-len", "8448", "--max-num-seqs", "1", "--max-num-batched-tokens", str(args.prefill_chunk), "--gpu-memory-utilization", "0.84", "--kv-cache-memory-bytes", "2147483648", "--kv-cache-dtype", args.kv, "--moe-backend", args.backend, "--attention-backend", "FLASHINFER", "--no-enable-prefix-caching", "--language-model-only", "--generation-config", "vllm", "--seed", "1234", "--stream-interval", "1", "--enforce-eager", "--max-logprobs", "5"]
 # vLLM 0.30 enables async scheduling by default for this executor. Every
 # admitted M1 lane requires synchronous request/frame identity.
@@ -298,6 +346,7 @@ launch_env_keys = [
     "MEGARTX_M1_ROUTE_CONTROLS", "MEGARTX_M1_NORMAL_PLAN", "MEGARTX_M1_NORMAL_DIR",
     "MEGARTX_M1_EXTERNAL_OBSERVER_DIR",
     "MEGARTX_M1_EAGER_BENCHMARK_PLAN", "MEGARTX_M1_EAGER_BENCHMARK_DIR",
+    "MEGARTX_M1_PRIVATE_AOT",
 ]
 if args.m1_external_observer:
     launch_env_keys.extend(("VLLM_WORKER_MULTIPROC_METHOD",
@@ -323,6 +372,11 @@ launch_manifest = {
     "controlled_plan_sha256": json.loads((args.controlled_plan / "manifest.json").read_text())["schedule_sha256"] if args.controlled_plan else None,
     "minimum_free_memory_mib": 2048,
     "minimum_host_available_ram_gib": 8,
+    "owned_startup_containment": "subreaper_pid_start_time_pidfd" if eager_benchmark else None,
+    "compiler_aggregate_rss_limit_bytes": 2 << 30 if eager_benchmark else None,
+    "shared_compiler_budget_seconds": 300 if eager_benchmark else None,
+    "private_aot_manifest_sha256": sha(aot / "manifest.json") if eager_benchmark else None,
+    "private_aot_cpu_dry_run_sha256": sha(aot / "cpu-dry-run.json") if eager_benchmark else None,
     "qualification": "Experimental separate-projection original-weight correction; numerical qualification evaluated in separate reports. Eager execution and deterministic finalization are distinct from the original exploratory graph lane.",
     "adapter_mode": args.mode,
     "m1_preparation_requested": args.m1_preparation,
@@ -338,9 +392,22 @@ launch_manifest = {
 client = requests.Session()
 client.trust_env = False
 try:
+    if eager_benchmark:
+        from m1_owned_processes import OwnedProcesses, enable_subreaper, read_process
+        ownership = OwnedProcesses(enable_subreaper())
+        available_kib = int(next(l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:")))
+        if available_kib < 8 * 1024 * 1024:
+            raise RuntimeError("Host available RAM below 8 GiB before launch")
+        if idle.returncode != 0 or float(idle.stdout.splitlines()[-1].split(",")[3].strip().split()[0]) < 2048:
+            raise RuntimeError("GPU free memory below 2 GiB or preflight unavailable")
     logfile = (output / "server.log").open("w")
     phase("server_launch")
     server = subprocess.Popen(command, env=env, stdout=logfile, stderr=subprocess.STDOUT, start_new_session=True)
+    if ownership is not None:
+        ownership.register(read_process(server.pid))
+        guard_thread = threading.Thread(target=compiler_guard, daemon=True)
+        guard_thread.start()
+    sample_thread.start()
     (output / "owned-server.pid").write_text(str(server.pid) + "\n")
     deadline = time.monotonic() + 1200
     ready = False
@@ -394,14 +461,21 @@ try:
     # The process group belongs solely to the server started above. Refuse
     # benchmarks if a different compute job appears; never stop that job.
     other = []
+    if ownership is not None:
+        from m1_owned_processes import snapshot
+        owned_snapshot = snapshot()
+        ownership.observe(owned_snapshot, time.monotonic())
     for pid in gpu_jobs():
         try:
-            if os.getpgid(pid) != server.pid:
+            if ((ownership is not None and (pid not in owned_snapshot or owned_snapshot[pid].identity not in ownership.remembered))
+                    or ownership is None and os.getpgid(pid) != server.pid):
                 other.append(pid)
         except ProcessLookupError:
             pass
     if other:
         raise RuntimeError("Another GPU compute job appeared; benchmark not started")
+    if guard_failure:
+        raise RuntimeError(guard_failure)
     if eager_benchmark:
         bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/m1_eager_benchmark_client.py"),
                          "--plan", str(args.m1_eager_benchmark_plan), "--output", str(output)]
@@ -450,13 +524,22 @@ try:
     phase("diagnostic_complete" if args.router_score_only or args.client in {"controlled","normal"} else "benchmark_complete")
     (output / "run.exit").write_text("0\n")
 except Exception as error:
-    phase("failed", error=guard_failure or str(error))
+    phase("failed", error=str(error))
     (output / "run.exit").write_text("1\n")
     raise
 finally:
     for termination_signal in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(termination_signal, signal.SIG_IGN)
-    if server is not None:
+    stop_guard.set()
+    if guard_thread is not None:
+        guard_thread.join(timeout=10)
+    stop_sample.set()
+    if sample_thread.ident is not None:
+        sample_thread.join(timeout=10)
+    if ownership is not None:
+        ownership_report = ownership.cleanup(gpu_jobs, server.poll if server is not None else lambda: None)
+        (output / "owned-processes.json").write_text(json.dumps(ownership_report, indent=2))
+    if server is not None and ownership is None:
         phase("owned_server_stop")
         # The session/group was created solely for this Popen. Workers can
         # outlive its CLI leader, so cleanup does not depend on leader liveness.
@@ -493,23 +576,28 @@ finally:
                 except ProcessLookupError:
                     group_alive = False
     cleanup_error = None
-    cleanup_complete = True
+    cleanup_complete = ownership_report["cleanup_complete"] if ownership is not None else True
     if (args.m1_external_observer or eager_benchmark) and server is not None:
         owned_gpu_pids = []
-        try:
-            for pid in gpu_jobs():
-                try:
-                    if os.getpgid(pid) == server.pid:
-                        owned_gpu_pids.append(pid)
-                except ProcessLookupError:
-                    pass
-        except BaseException as error:
-            cleanup_error = type(error).__name__
-        try:
-            os.killpg(server.pid, 0)
-            group_alive = True
-        except ProcessLookupError:
-            group_alive = False
+        if ownership is not None:
+            owned_gpu_pids = ownership_report["owned_gpu_pids_remaining"]
+            group_alive = bool(ownership_report["owned_identities_remaining"])
+            cleanup_error = ownership_report["cleanup_errors"] or None
+        else:
+            try:
+                for pid in gpu_jobs():
+                    try:
+                        if os.getpgid(pid) == server.pid:
+                            owned_gpu_pids.append(pid)
+                    except ProcessLookupError:
+                        pass
+            except BaseException as error:
+                cleanup_error = type(error).__name__
+            try:
+                os.killpg(server.pid, 0)
+                group_alive = True
+            except ProcessLookupError:
+                group_alive = False
         cleanup_complete = not group_alive and not owned_gpu_pids and cleanup_error is None
         cleanup = {"schema": "megartx-m1-process-cleanup-v1",
                    "server_pid": server.pid, "server_returncode": server.returncode,
@@ -517,23 +605,19 @@ finally:
                    "owned_gpu_pids_remaining": owned_gpu_pids,
                    "cleanup_query_error": cleanup_error,
                    "cleanup_complete": cleanup_complete}
+        if ownership is not None:
+            cleanup.update(ownership_report)
         cleanup_path = output / "eager-benchmark-cleanup.json" if eager_benchmark else output / "m1-process-evidence" / "cleanup.json"
         cleanup_path.write_text(
             json.dumps(cleanup, indent=2))
         if not cleanup_complete:
             (output / "run.exit").write_text("1\n")
             phase("cleanup_incomplete", **cleanup)
-    stop_sample.set()
-    sample_thread.join(timeout=10)
     phase("cleanup_complete" if cleanup_complete else "cleanup_incomplete")
     phases.close()
     if not cleanup_complete:
-        active_error = sys.exc_info()[1]
-        message = "Owned M1 observer server cleanup did not complete"
-        if active_error is not None and hasattr(active_error, "add_note"):
-            active_error.add_note(message)
-        elif active_error is None:
-            raise RuntimeError(message)
+        from m1_owned_processes import preserve_primary
+        preserve_primary(sys.exc_info()[1], "Owned M1 server cleanup did not complete")
     if eager_benchmark and cleanup_complete and sys.exc_info()[1] is None:
         from m1_eager_benchmark_client import summarize_run
         try:
