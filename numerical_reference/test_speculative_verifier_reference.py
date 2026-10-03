@@ -501,6 +501,43 @@ class SamplingTests(unittest.TestCase):
                 ((F(1, 4), F(3, 4)),), (F(1, 2),), F(1, 4))
         self.assertEqual(select_stochastic(*args), select_stochastic(*args))
 
+    def test_rng_draws_require_conditional_independence(self):
+        grid = tuple(F(2 * index + 1, 8) for index in range(4))
+        p, q = (F(3, 4), F(1, 4)), (F(1, 2), F(1, 2))
+        independent, reused_proposal = defaultdict(F), defaultdict(F)
+        for proposal_u, accept_u, correction_u in itertools.product(grid, repeat=3):
+            proposal = 0 if proposal_u < F(1, 2) else 1
+            block = VerifyBlock(0, 0, (proposal,))
+            correct = select_stochastic(block, (p, p), (q,), (accept_u,), correction_u,
+                                        max_new_tokens=1)
+            independent[correct.emitted[0]] += F(1, 64)
+        # Invalid caller: reuse the proposal draw for the acceptance decision.
+        # The API cannot diagnose a draw's joint law from its numeric value.
+        for proposal_u, correction_u in itertools.product(grid, repeat=2):
+            proposal = 0 if proposal_u < F(1, 2) else 1
+            wrong = select_stochastic(VerifyBlock(0, 0, (proposal,)), (p, p), (q,),
+                                      (proposal_u,), correction_u, max_new_tokens=1)
+            reused_proposal[wrong.emitted[0]] += F(1, 16)
+        self.assertEqual(tuple(independent[token] for token in range(2)), p)
+        self.assertEqual(tuple(reused_proposal[token] for token in range(2)), (1, 0))
+        self.assertNotEqual(tuple(reused_proposal[token] for token in range(2)), p)
+
+        # A nontrivial residual also needs a fresh correction draw: reusing
+        # acceptance U conditions correction U on the rejection event.
+        p, q = (F(1, 2), F(1, 4), F(1, 4)), (1, 0, 0)
+        independent, reused_acceptance = defaultdict(F), defaultdict(F)
+        for accept_u, correction_u in itertools.product(grid, repeat=2):
+            correct = select_stochastic(VerifyBlock(0, 0, (0,)), (p, p), (q,),
+                                        (accept_u,), correction_u, max_new_tokens=1)
+            independent[correct.emitted[0]] += F(1, 16)
+        for accept_u in grid:
+            wrong = select_stochastic(VerifyBlock(0, 0, (0,)), (p, p), (q,),
+                                      (accept_u,), accept_u, max_new_tokens=1)
+            reused_acceptance[wrong.emitted[0]] += F(1, 4)
+        self.assertEqual(tuple(independent[token] for token in range(3)), p)
+        self.assertEqual(tuple(reused_acceptance[token] for token in range(3)), (F(1, 2), 0, F(1, 2)))
+        self.assertNotEqual(tuple(reused_acceptance[token] for token in range(3)), p)
+
     def test_exact_three_token_joint_law_over_multiple_cycles(self):
         # Finite uniform grids exactly integrate this conditional two-token
         # system. A rejection may require another cycle to reach three outputs.

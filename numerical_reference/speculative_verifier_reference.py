@@ -198,6 +198,13 @@ def select_stochastic(block, p_rows, q_rows, accept_uniforms, target_uniform,
     head, draft-vocabulary map and truncation. p_rows are the postprocessed
     target laws at the same proposal-conditioned prefixes. This does not imply
     identical output to target-only decoding under the same random seed.
+
+    Caller RNG contract: proposal, acceptance and correction/bonus draws must
+    be conditionally independent given history. Each acceptance uniform stays
+    uniform given the proposed tokens and earlier decisions; target_uniform
+    stays uniform given the proposal/acceptance trace. Use fresh draws rather
+    than reusing proposal or acceptance uniforms. Range checks cannot establish
+    RNG independence from a single supplied trace.
     """
     eos, early = _limits(block, eos_token_ids, max_new_tokens)
     if early is not None:

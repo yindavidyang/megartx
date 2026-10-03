@@ -158,6 +158,15 @@ from `q_j`, accept with `min(1, p_j(y_j)/q_j(y_j))`. At first rejection draw
 from `r_j(v) = max(p_j(v)-q_j(v),0) / sum_u max(p_j(u)-q_j(u),0)`.
 After full acceptance draw the bonus from `p_k`.
 
+Proposal, acceptance and correction/bonus RNG draws must be conditionally
+independent given history. Each acceptance uniform must remain uniform given
+the proposed tokens and earlier decisions; the correction/bonus uniform must
+remain uniform given the proposal/acceptance trace. Use fresh draws at distinct
+RNG coordinates; proposal tokens can still depend on earlier proposal tokens.
+Reusing a proposal uniform for acceptance with `p=[3/4,1/4]`, `q=[1/2,1/2]`
+produces `[1,0]`. This is invalid caller RNG use, not a selector defect; valid
+ranges or coincidentally equal draw values cannot establish independence.
+
 Apply temperature, top-k/top-p, penalties, constraints and token maps before
 computing these laws. A deterministic greedy draft is one-hot `q`, even when
 its network has nontrivial softmax scores. `q(y)=0` is an invalid sampled
