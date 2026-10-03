@@ -87,7 +87,7 @@
     {
       "path": "tests/test_m1_live.py",
       "parent_sha256": "721dde9c346a6995b84c41c5e0107826918a6dff13d1c426e45a906d66c096de",
-      "current_sha256": "f2e99b4dbb273b3c4ae71f5cec9af8cda35995fe88211cfc1e6925a0940044a0"
+      "current_sha256": "6c329465f41ea6be8c235c34006ff20226dbddfdb243bdb4b9bec9e24a9f7ea4"
     }
   ],
   "added_source_hashes": {
@@ -118,7 +118,7 @@
       {
         "path": "tests/test_m1_live.py",
         "parent_sha256": "721dde9c346a6995b84c41c5e0107826918a6dff13d1c426e45a906d66c096de",
-        "current_sha256": "f2e99b4dbb273b3c4ae71f5cec9af8cda35995fe88211cfc1e6925a0940044a0"
+        "current_sha256": "6c329465f41ea6be8c235c34006ff20226dbddfdb243bdb4b9bec9e24a9f7ea4"
       },
       {
         "path": "tests/test_m1_process_probe.py",

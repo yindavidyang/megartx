@@ -55,7 +55,7 @@ class TestLiveLease(unittest.TestCase):
             self.assertIsNone(load_controller("native"))
             constructor.assert_not_called()
 
-    def test_fresh_observer_off_process_does_not_import_process_lifecycle(self):
+    def test_fresh_capture_free_observer_off_process_stays_uninstrumented(self):
         root = Path(__file__).resolve().parents[1]
         code = r"""import json
 import os
@@ -80,6 +80,16 @@ class Function:
 with tempfile.TemporaryDirectory() as directory:
     report, receipt, env = TestLiveLease().admission_fixture(directory)
     module = env["MEGARTX_M1_STOCK_MODULE"]
+    env.pop("MEGARTX_M1_CAPTURE_DIR")
+    env.update({
+        "MEGARTX_M1_EXECUTION": "capture-free",
+        "MEGARTX_M1_PREPARATION": "fused",
+        "MEGARTX_SCALE_MODE": "native",
+        "MEGARTX_CONTROLLED_DIR": str(Path(directory) / "controlled"),
+        "MEGARTX_CONTROLLED_PLAN": str(Path(directory) / "plan.json"),
+        "MEGARTX_LOGITS_DIR": str(Path(directory) / "logits"),
+    })
+    observer_root = Path(directory) / "observer-sidecar"
     pinned = "dc26a85431c946b0f636ddd2e08aa676f6340fd085361b21e8b0fe00617d28f9"
     report["installed_pins"][module] = pinned
     receipt.write_text(json.dumps(report))
@@ -99,10 +109,12 @@ with tempfile.TemporaryDirectory() as directory:
          patch("ctypes.CDLL", return_value=native):
         controller = LivePreparation("fused")
     assert controller.external_observer_requested is False
+    assert controller.execution_mode == "capture-free"
+    assert controller.directory is None
     assert not hasattr(controller, "process_identity")
     assert "megartx.m1_process_lifecycle" not in sys.modules
     assert "megartx.m1_external_observer" not in sys.modules
-    assert not Path(env["MEGARTX_M1_CAPTURE_DIR"]).exists()
+    assert not observer_root.exists()
 """
         subprocess.run([sys.executable, "-c", code],
                        env={"PYTHONPATH": os.pathsep.join((str(root / "src"),
