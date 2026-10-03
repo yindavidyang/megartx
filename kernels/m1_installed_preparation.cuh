@@ -112,4 +112,25 @@ inline PreparationBackend prepare(InstalledPreparationCall const& c, Incumbent&&
   incumbent();  // Preserve the caller's complete stock branch, including its own fallback.
   return PreparationBackend::Stock;
 }
+
+struct PreparationDecision {
+  bool qualified;
+  PreparationBackend backend;
+};
+
+// The capture-free bridge needs qualification for both stock and fused descriptor
+// checks. Evaluate the complete dynamic contract once, immediately consume it,
+// and return only the completed decision. No caller-supplied checked flag can
+// bypass a fresh query, and no observer/capture callback runs between check/use.
+template <class Incumbent>
+inline PreparationDecision prepare_capture_free(InstalledPreparationCall const& c,
+    Incumbent&& incumbent, bool fused_requested) {
+  bool qualified=candidate_eligible(c,true);
+  if(qualified && fused_requested) {
+    require_cuda_success(launch(c.buffers,c.stream,true),"candidate launch");
+    return {true,PreparationBackend::Fused};
+  }
+  incumbent();
+  return {qualified,PreparationBackend::Stock};
+}
 }  // namespace megartx::experimental

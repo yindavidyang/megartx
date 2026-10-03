@@ -367,11 +367,32 @@ class M1PreparationTests(unittest.TestCase):
         for path, expected in attribution["preserved_historical_ledgers"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
         current_changes = {r["path"]: r for r in attribution["superseded_sources"]}
+        lean_path = root / "docs/evidence/m1-lean-source-pins.json"
+        lean = json.loads(lean_path.read_text())
+        self.assertEqual(lean["parent_head"], "2c65ebd3ef450b37dd88a9d89c630fd10165642d")
+        self.assertEqual(lean["parent_ledger_sha256"], hashlib.sha256(
+            (root / "docs/evidence/m1-decode-attribution-source-pins.json").read_bytes()).hexdigest())
+        for field in ("gpu_execution_verified", "quality_qualified", "graphs_qualified", "performance_qualified"):
+            self.assertIs(lean[field], False)
+        lean_changes = {r["path"]: r for r in lean["superseded_sources"]}
+        header_path = "kernels/m1_installed_preparation.cuh"
+        header = (root / header_path).read_text()
+        self.assertEqual(header.count("\nstruct PreparationDecision {"), 1, header_path)
+        # The new helper is appended; the original checker and diagnostic prepare
+        # remain byte-identical to the verified parent, including error handling.
+        parent_header = header.split("\nstruct PreparationDecision {")[0] + "}  // namespace megartx::experimental\n"
+        self.assertEqual(hashlib.sha256(parent_header.encode()).hexdigest(),
+                         lean_changes[header_path]["prior_sha256"], header_path)
+        def lean_current(path, previous):
+            if path in lean_changes:
+                self.assertEqual(lean_changes[path]["prior_sha256"], previous, path)
+                return lean_changes[path]["current_sha256"]
+            return previous
         def attributed_current(path, previous):
             if path in current_changes:
                 self.assertEqual(current_changes[path]["prior_sha256"], previous, path)
-                return current_changes[path]["current_sha256"]
-            return previous
+                previous = current_changes[path]["current_sha256"]
+            return lean_current(path, previous)
         def expected_current(path, historical):
             if path in eager_changes:
                 self.assertEqual(eager_changes[path]["parent_sha256"], historical, path)
@@ -413,12 +434,16 @@ class M1PreparationTests(unittest.TestCase):
                 current = lifecycle_changes[path]["current_sha256"] if path in lifecycle_changes else replacement["current_sha256"]
                 self.assertEqual(digest, expected_current(path, current), path)
             else:
-                self.assertEqual(digest, record["sha256"], record["path"])
+                self.assertEqual(digest, lean_current(record["path"], record["sha256"]), record["path"])
         for path, record in eager_changes.items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), attributed_current(path, record["current_sha256"]), path)
         for path, record in current_changes.items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), record["current_sha256"], path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), lean_current(path, record["current_sha256"]), path)
         for path, expected in attribution["added_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), lean_current(path, expected), path)
+        for path, record in lean_changes.items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), record["current_sha256"], path)
+        for path, expected in lean["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
 
     def test_stale_combined_source_or_ledger_hash_is_rejected(self):
@@ -457,6 +482,24 @@ class M1PreparationTests(unittest.TestCase):
                 return data
             with self.subTest(field=field), patch.object(Path, "read_text", changed_text), \
                  self.assertRaisesRegex(AssertionError, "probes/m1_live_bridge.cu"):
+                self.test_committed_source_pins_match_exact_base_evidence()
+
+
+    def test_lean_overlay_cannot_bypass_current_source_or_previous_header(self):
+        root = Path(__file__).resolve().parents[1]
+        ledger = root / "docs/evidence/m1-lean-source-pins.json"
+        read_text = Path.read_text
+        for field in ("prior_sha256", "current_sha256"):
+            def changed_text(path, *args, **kwargs):
+                data = read_text(path, *args, **kwargs)
+                if path == ledger:
+                    record = json.loads(data)
+                    entry = next(r for r in record["superseded_sources"] if r["path"] == "kernels/m1_installed_preparation.cuh")
+                    entry[field] = "0" * 64
+                    return json.dumps(record)
+                return data
+            with self.subTest(field=field), patch.object(Path, "read_text", changed_text), \
+                 self.assertRaisesRegex(AssertionError, "kernels/m1_installed_preparation.cuh"):
                 self.test_committed_source_pins_match_exact_base_evidence()
 
 

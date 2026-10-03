@@ -396,6 +396,19 @@ __attribute__((visibility("default"))) bool fusedBuildExpertMapsSortFirstToken(i
   require(ids==b.ids && inverse==b.sorted_to_slot && source==b.slot_to_sorted && offsets==b.offsets &&
       rows==1 && experts==128 && topk==8 && start==0 && end==128 && !pdl && stream==c.stream,
       "actual map ABI differs from source-bound workspace ledger");
+  if(!lease.capture_enabled && !lease.observer) {
+    bool map_result=false;
+    mx::PreparationDecision decision;
+    // The helper performs one fresh check followed by immediate dispatch. The
+    // phase includes eligibility here; the original diagnostic phases below
+    // remain separate. No capture/observer callback can mutate the checked state.
+    { AttributionPhase dispatch_phase(2);decision=mx::prepare_capture_free(c,[&] {
+      map_result=original(ids,inverse,source,offsets,rows,experts,topk,start,end,pdl,stream);
+    },lease.fused_requested); }
+    lease.qualified=decision.qualified;
+    lease.candidate=decision.backend==mx::PreparationBackend::Fused;
+    return lease.candidate || map_result;
+  }
   // Successful unsupported queries delegate unchanged to the incumbent. Errors
   // escape before the map callback, capture, or candidate output mutation.
   bool eligible;
