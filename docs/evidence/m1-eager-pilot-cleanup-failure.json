@@ -1,0 +1,82 @@
+{
+  "scope": "Failed observer-off pilot; successful bounded request checks, failed cleanup and unproven compiler quiescence. No accepted timing or quality result.",
+  "runtime_head": "6d8f1662d9de401f7b685a92a3f6630edf483607",
+  "runtime_tree": "5ed315c2daf3cc696beca60449c816df469d18fc",
+  "bridge_build": {
+    "returncode": 0,
+    "reason": null,
+    "seconds": 6.124829973996384,
+    "peak_aggregate_rss_bytes": 730947584,
+    "binary_sha256": "3b062261b303dd63dfd9d0fadb0eb740855846d53e75a8255b42dd4e3e0472c2",
+    "compiled_lease_controls_returncode": 0,
+    "compiled_binding_controls_returncode": 0,
+    "installed_pins_unchanged": true
+  },
+  "pilot": {
+    "requests": 8,
+    "output_tokens_per_request": 256,
+    "input_token_counts": [
+      2048,
+      8192
+    ],
+    "plan_sha256": "7b7606b3497b48d8fa1d158c969e71c6a5666ba614cba3fb0ca7220528d3e27a",
+    "matched_tokens_usage": true,
+    "actual_input_transcripts_verified": true,
+    "native_backends_verified": true,
+    "forced_all_six_executed": true,
+    "natural_model_forward_verified": true,
+    "client_exit": 0,
+    "run_exit": 1,
+    "summary_created": false
+  },
+  "cleanup": {
+    "cleanup_complete": false,
+    "errors": [
+      "[Errno 22] Invalid argument"
+    ],
+    "error_operation_localized": false,
+    "remaining_identities": 0,
+    "remaining_gpu_pids": 0
+  },
+  "compiler_receipt": {
+    "reported_sampled_peak_rss_bytes": 0,
+    "reported_shared_elapsed_seconds": 0,
+    "omitted_tileiras_identities": 3,
+    "argv_retained": false,
+    "quiescence_established": false,
+    "scope": "Executable-name evidence alone cannot distinguish compiler work from metadata probes; pinned FlashInfer has a tileiras --help architecture probe. No retrospective acceptance."
+  },
+  "external_final_cleanup": {
+    "remembered_identities": 180,
+    "all_absent": true,
+    "original_group_empty": true,
+    "gpu_compute_jobs": 0,
+    "gpu_used_mib": 41,
+    "gpu_free_mib": 32101,
+    "gpu_utilization_percent": 0
+  },
+  "cpu_reproduction": {
+    "source_head": "6d8f1662d9de401f7b685a92a3f6630edf483607",
+    "pidfd_attempts": 250254,
+    "operation": "os.pidfd_open",
+    "flags": 0,
+    "errno": 22,
+    "fresh_identity_read_errno": 2,
+    "scope": "Real CPU-only owned child exit/reaping failure mechanism; original pilot operation was unlocalized, so this is not proof of its exact historical cause.",
+    "kernel": "6.8.0-142-generic",
+    "kernel_source": "https://github.com/torvalds/linux/blob/v6.8/kernel/fork.c#L2178-L2183"
+  },
+  "private_receipt_sha256": {
+    "build.json": "04e9da48db5a0513ce833a11423c08958326cac33b3ad944f3b458a15f3237cd",
+    "client-validation.json": "90347cca3efefb35d3e78a921b5469629e9e50585241520d2c4582aafdad41e3",
+    "cleanup.json": "0d517e92d72b3059db398a2040d98f26c410465090ff479970d587183f1951c0",
+    "activation-proof.json": "8054991681260f49d2f22733d53380c39430521e8f5a77131f7131d22537f60b",
+    "external-cleanup.json": "02f3a38beea57c5b350e5dfcb81e8a1168e1a5ab8622c9589abb6a520b045df6",
+    "pidfd-exit-race.json": "4b43f84890ec7b239df3d7cad9cb3dea65c1a0752d0b67f339e8802ebbf8cdc7",
+    "cpu-cleanup-stress.json": "08157c75d0032f8a797db42fbe69becb0677c72d8f16d7c64870f0e7474c2071",
+    "cpu-cleanup-syscalls.log": "1d9736b52364c3b453388d979717733db2a0585efcd42b6dee063eaaad9c72e5"
+  },
+  "performance_qualified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false
+}

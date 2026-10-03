@@ -436,6 +436,37 @@ with tempfile.TemporaryDirectory() as directory:
                 self.assertEqual(result, 9);self.assertEqual(calls, [kwargs])
                 self.assertEqual(native.begins, []);self.assertEqual(native.ends, 0)
 
+    def test_eager_benchmark_uses_same_native_owners_and_reports_actual_backend(self):
+        for lane, status in (("stock", 0), ("fused", 1), ("fused", 0)):
+            with self.subTest(lane=lane, status=status), tempfile.TemporaryDirectory() as directory:
+                from unittest.mock import Mock
+                native = Native();native.megartx_m1_end = lambda: setattr(native, "active", False) or status
+                obj = self.capture_free(self.controller(directory, native));obj.lane = lane
+                obj.benchmark = SimpleNamespace(backend=Mock(), fallback=Mock())
+                kwargs = self.kwargs();calls = []
+                with patch.dict("sys.modules", self.modules()), patch.object(Path, "open", side_effect=AssertionError("timed I/O")):
+                    self.assertEqual(obj.invoke(lambda **kw: calls.append(kw) or 9, (), kwargs), 9)
+                obj.benchmark.backend.assert_called_once_with(status)
+                self.assertEqual(native.begins[0][1][5], int(lane == "fused"))
+                self.assertEqual(len(calls), 1)
+                self.assertFalse(native.active)
+                self.assertEqual(obj.call_index, 1)
+
+    def test_eager_benchmark_prefill_counts_complete_stock_call_and_capture_refuses(self):
+        from unittest.mock import Mock
+        with tempfile.TemporaryDirectory() as directory:
+            obj = self.capture_free(self.controller(directory, Native()))
+            obj.benchmark = SimpleNamespace(backend=Mock(), fallback=Mock())
+            kwargs = self.kwargs();kwargs["input"].shape = (256, 1408);calls = []
+            modules = self.modules()
+            with patch.dict("sys.modules", modules):
+                self.assertEqual(obj.invoke(lambda **kw: calls.append(kw) or 9, (), kwargs), 9)
+            self.assertEqual(calls, [kwargs]);obj.benchmark.fallback.assert_called_once()
+            obj.benchmark.backend.assert_not_called()
+            modules["torch"].cuda.is_current_stream_capturing = lambda: True
+            with patch.dict("sys.modules", modules), self.assertRaisesRegex(RuntimeError, "geometry/capture"):
+                obj.invoke(lambda **kw: self.fail("capture submitted"), (), kwargs)
+
     def test_capture_free_unbound_or_unreleased_runner_is_fatal_without_diagnostics(self):
         for unbound in (False, True):
             with self.subTest(unbound=unbound), tempfile.TemporaryDirectory() as directory:

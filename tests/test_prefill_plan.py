@@ -82,6 +82,7 @@ class PlanTests(unittest.TestCase):
             (root / "link.py").symlink_to(root / "target.py")
             for source_name in ("../target.py", "/tmp/target.py", "link.py"):
                 manifest = prefill.read_json(MANIFEST)
+                manifest["reviewed_source_overlays"] = []
                 manifest["repo_files"] = {source_name: hashlib.sha256(b"source").hexdigest()}
                 file = root / "manifest.json"
                 file.write_text(json.dumps(manifest))
@@ -105,6 +106,7 @@ class PlanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             manifest = prefill.read_json(MANIFEST)
+            manifest["reviewed_source_overlays"] = []
             manifest["repo_files"] = {"source.py": hashlib.sha256(b"original").hexdigest()}
             file = root / "manifest.json"
             file.write_text(json.dumps(manifest))

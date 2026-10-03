@@ -1,0 +1,688 @@
+{
+  "schema": "megartx-m1-guarded-eager-gpu-scalars-v1",
+  "date_utc": "2026-10-03",
+  "measured_source_head": "eecfc13e1be9aaf4e361888d5f4c65ad22fb41c4",
+  "measured_source_tree": "3c9e248405d2f97677223759e86174f09f068d08",
+  "merged_base_head": "5a32504b5ccb209a779b8a110eb2ebc56d72e373",
+  "source_scope": "Fresh isolated Mac clone and task-local GPU checkout; runtime inputs identical to independently reviewed dfd77d8. Subsequent publication changes are documentation/scalars only.",
+  "checkpoint": "nvidia/Gemma-4-26B-A4B-NVFP4",
+  "checkpoint_revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+  "packages": {
+    "python": "3.12.3",
+    "vllm": "0.30.0",
+    "flashinfer": "0.6.18.post1",
+    "torch": "2.13.0+cu130",
+    "cupti": "13.0.85"
+  },
+  "gpu": {
+    "model": "NVIDIA GeForce RTX 5090",
+    "driver": "610.43.02",
+    "power_limit_w": 575
+  },
+  "protocol": {
+    "input_tokens": [
+      2048,
+      8192
+    ],
+    "output_tokens": 256,
+    "kv": "bfloat16",
+    "dtype": "bfloat16",
+    "eager_both_lanes": true,
+    "synchronous": true,
+    "concurrency": 1,
+    "prefix_caching": false,
+    "temperature": 0,
+    "ignore_eos": true,
+    "seed": 9471,
+    "warmups_per_context_per_lane": 2,
+    "measurement_pairs_per_context": 6,
+    "pair_order_each_context": {
+      "stock_first": 3,
+      "fused_first": 3
+    },
+    "observer_off": true,
+    "request_profiling": false,
+    "startup_forced_fixture_profile": "separate before client launch",
+    "timing_boundary": "Host-local client perf_counter_ns before POST through SSE delivery, DONE and response close. JSON encoding/tokenization/marker writes excluded. Native validation, correction, stream handoffs, prefill, head, sampler, KV and local streaming included.",
+    "retained_guard_costs": "Stock one route-ID readback/fence; fused two; both seven descriptor table readbacks and one fence per stage; all owners, lease checks and stream handoffs retained"
+  },
+  "build": {
+    "base_head": "eecfc13e1be9aaf4e361888d5f4c65ad22fb41c4",
+    "seconds": 6.1124295750050806,
+    "peak_aggregate_rss_bytes": 731148288,
+    "binary_sha256": "f5a11f7d1e95de40abc0b58e017403a60c7789226e954c2bece10945b0389371",
+    "compiled_lease_controls_returncode": 0,
+    "compiled_binding_controls_returncode": 0,
+    "installed_pins_unchanged": true,
+    "limits": {
+      "compiler_rss_bytes": 2147483648,
+      "compile_seconds": 300,
+      "host_available_bytes": 8589934592,
+      "gpu_free_bytes": 2147483648,
+      "additional_device_workspace_bytes": 8388608
+    }
+  },
+  "aot_cpu_admission": {
+    "source_head": "eecfc13e1be9aaf4e361888d5f4c65ad22fb41c4",
+    "passed": true,
+    "modules": 8,
+    "build_calls": 0,
+    "cuda_initialized": false,
+    "manifest_sha256": "fe41dac34241fc208d954237c4057826e300bc4297b607d9bf8bd62a1aacb451",
+    "dry_run_sha256": "e3208122885796188fbcd29627c8d3dcf63b174fff522eecfaae6c7e07b12d5b"
+  },
+  "controller_source_hashes": {
+    "m1_live.py": "5c555e420c77a590c9fad47b45f6aff36af6f22279f29fdfbbd4641cd80368a4",
+    "vllm_scale_plugin.py": "5bbdd7ba1b6777eb48cafae742ba7d808b28ef166292f8a1c2e79df2d621b54a",
+    "m1_execution.py": "4db938f4f0f6d39b8bc1d136d9eaf15559a3a6df1b61aaf5b57c10a299038c42",
+    "controlled_capture.py": "edd9947a06f54953c67afdcbe3c1d1dc13f4db30d4b5fe9bf7961a92bda3f691",
+    "controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
+    "m1_normal_plan.py": "5de0b23e2c836b8ee44326763ed5ccc9dcda691b2a1654470c05d5c428212ee2",
+    "m1_normal_capture.py": "7826ee7b2914e28e8a3a989136beedae7f6cbcba35b323334f64ddfaa131850d",
+    "m1_external_observer.py": "3eb0733fa064b7091ce3d446e476bd89453ec360fb230e6518024823c0539e54",
+    "m1_process_lifecycle.py": "26572c9085eb2a5292680f0d296ba3ec3ddbf8453ec87b97e822176ce2a83106",
+    "m1_eager_benchmark.py": "63c4d6ed740fb3c5ea5e92268dc639a63b2c560b912e8da5b359f166930bfede"
+  },
+  "driver_source_hashes": {
+    "scripts/m1_eager_benchmark_client.py": "a7b871b71d7b1d19a7813405602592f9562e7e0269e48d78a50950f49f20d34d",
+    "scripts/prepare_m1_eager_benchmark.py": "8d7b7203284daad286f61f69933a7e02370a782e17ed06371be7e50eebe8333e",
+    "scripts/run_scale_validation.py": "a62e4b405f00a256aa8bdee71df006197fe8b2145868f9d7c57ca22d244bc205",
+    "scripts/m1_owned_processes.py": "eac1f7d983e324e9ec38d7a646163a530dfaa7ccf17262a42e06886c0d9f46bd",
+    "scripts/m1_private_aot.py": "2369dfac5f41c5c07dd6a0f9dcac8af4aa5b11a819f5d6add1cf11d64d8ddbee",
+    "scripts/check_m1_private_aot.py": "9e1e94b0c9859f05fd69d8ae3e9cd632f46006f89cfc22f513f3ab525ccb5f62",
+    "scripts/m1_aot_cache/sitecustomize.py": "3ee856677318aeba2ac6554376a4bb01151144087c4a8930dd59d50b6be5238d",
+    "scripts/m1_aot_cache/flashinfer_jit_cache/__init__.py": "2f8ca5cc4706b4b9c5fca181654ec5d0a4577058a8cf8413ebc32a12794a8203"
+  },
+  "observer_absence_and_natural_counter_readback": {
+    "pilot": {
+      "observer_probe_request_profile_diagnostic_capture_absent": true,
+      "all_request_natural_correction_selected_rows": 0,
+      "requests_including_warmups": 8,
+      "artifact_count": 21,
+      "dispatch_sha256": "3a4a17bbdfe3c72795f342f95b7ac2ffc4c66ee124083ebade18fd6dc396fd33"
+    },
+    "pairs6": {
+      "observer_probe_request_profile_diagnostic_capture_absent": true,
+      "all_request_natural_correction_selected_rows": 0,
+      "requests_including_warmups": 32,
+      "artifact_count": 21,
+      "dispatch_sha256": "bb34dea8ba1d63926217525785998c3a7cebfd3d4e9db6309c714d59f2d644c4"
+    }
+  },
+  "cpu_hidden_setup_failure": {
+    "initial_exit": 78,
+    "reason": "Missing explicit architecture with CUDA hidden selected the version-only JIT directory; strict workspace guard rejected before build/model execution.",
+    "retry": "Only the CPU-hidden check set FLASHINFER_CUDA_ARCH_LIST=12.0f; both path probes kept CUDA uninitialized. Live launcher unsets architecture and uses actual GPU discovery. Initial failure retained; no source change or guard relaxation.",
+    "initial_failure_sha256": "1123eb4ff1a70023e29d9a340f397e0931bd51cbd387435e14838879ab308d0d",
+    "diagnosis_receipt_sha256": "f00d4055bdd0fe8bdd6792c1f07cd9a050167155bd655a8362f4b44d9156c6e2"
+  },
+  "metadata_timing_policy": {
+    "policy": "pinned_tileiras_help_v1",
+    "proposal_sha256": "fecc1f67f9bbac374235ffbf82e0ce83d362ce3269237bfa2a8761e5ef027d1a",
+    "binary_sha256": "88737a8be5c56bf73fb885a567a950f247a8cfa1d146dbc7a65eff77e7d62bf0",
+    "caller_sha256": "8b80053b84ad68fee19cc66f2b9a8f3e55df2c10be77a71e892da6aa22e35bae",
+    "file_version_fields": [
+      "dev",
+      "ino",
+      "size",
+      "mtime_ns",
+      "ctime_ns"
+    ]
+  },
+  "metadata_timing_default_enabled": false,
+  "pilot": {
+    "plan_sha256": "08e1654df7e7a2a83a7ce1a248498b94c0a842c45a1209031b6d78996aee5ba8",
+    "requests": 8,
+    "untimed_drain_requests": 1,
+    "matched_tokens_usage": true,
+    "actual_input_transcripts_verified": true,
+    "native_backends_verified": true,
+    "native_backend_counts": {
+      "stock": 30600,
+      "fused": 30600,
+      "prefill_fallback": 4800
+    },
+    "source_all_214_files_verified": true,
+    "adapter_copies_verified": true,
+    "startup_activation": {
+      "forced_all_six_executed": true,
+      "native_dense_sm120_launches": 18,
+      "adapter_gelu_launches": 6,
+      "guarded_model_dispatch": true,
+      "forced_adapter_spans": {
+        "megartx::corrected_expert_native": 6,
+        "megartx::corrected_expert_reference": 6
+      },
+      "forced_trace_sha256": "cf5ba5cbf53db32646cfb4073d3d1636a5e7268dfd53091ba1f6157a3cdebd73",
+      "registered_layers": 30,
+      "original_tensor_captures": 54,
+      "fixtures": 6,
+      "fixture_max_absolute_difference": 0.0,
+      "all_original_bytes_equal": true
+    },
+    "compiler_accounting": {
+      "peak_aggregate_rss_bytes": 34603008,
+      "shared_elapsed_seconds": 29.355233616981423,
+      "sampled_compiler_identities": 5,
+      "metadata_only_identities": 5,
+      "unknown_or_work_identities": 0,
+      "actual_pid_start_argv_executable_file_version_verified": true,
+      "positive_metadata_samples_and_no_unknown_work_history": true,
+      "final_metadata_hashes_unchanged": true,
+      "sampling_caveat": "50ms process scans can miss brief processes; no universal syscall/proprietary tool behavior claim"
+    },
+    "resource_bounds": {
+      "samples": 571,
+      "minimum_sampled_gpu_free_mib": 10423.0,
+      "maximum_sampled_gpu_used_mib": 21719.0,
+      "host_available_guard_gib": 8,
+      "host_guard_scope": "200ms sampler failed closed; no exact host minimum recorded",
+      "scratch_limit_bytes": 8388608,
+      "scratch_scope": "source/build contract bounds retained; no new scratch allocation",
+      "telemetry_scope": "sampled200ms, includes launcher sampler costs, not exact transient or Torch allocation peak"
+    },
+    "owned_cleanup_complete": true,
+    "independent_post_cleanup_idle": {
+      "gpu_compute_apps": [],
+      "gpu_used_free_utilization": "41, 32101, 0",
+      "host_available_kib": 61735120
+    },
+    "exit_codes": {
+      "driver": 0,
+      "client": 0,
+      "run": 0
+    },
+    "guarded_eager_summary": {
+      "schema": "megartx-m1-guarded-eager-summary-v1",
+      "source_head": "eecfc13e1be9aaf4e361888d5f4c65ad22fb41c4",
+      "plan_sha256": "08e1654df7e7a2a83a7ce1a248498b94c0a842c45a1209031b6d78996aee5ba8",
+      "scope": "guarded stock eager versus guarded fused eager, exploratory",
+      "timing_boundary": "Host-local client perf_counter_ns before POST through SSE delivery, DONE and response close. JSON encoding/tokenization/marker writes excluded. Native validation, correction, stream handoffs, prefill, head, sampler, KV and local streaming included.",
+      "gpu_event_timing": "not measured; no per-token fences or kernel-only inference",
+      "policy": "BF16 KV, corrected native quantizer/model, synchronous eager concurrency one, greedy 256 tokens with ignore_eos, prefix caching off",
+      "retained_guard_costs": "Stock one route-ID readback/fence; fused two; both seven descriptor table readbacks and one fence per stage; all owners, lease checks and stream handoffs retained",
+      "quality_qualified": false,
+      "graphs_qualified": false,
+      "performance_gate_passed": false,
+      "minimum_30_pairs_met": false,
+      "memory": {
+        "sampled_lifecycle_device_peak_mib": 21719.0,
+        "scope": "nvidia-smi samples at approximately 200 ms; transient exact peak and Torch allocated/reserved peaks not measured"
+      },
+      "contexts": {
+        "2048": {
+          "matched_pairs": 1,
+          "first_lane_order": [
+            "stock"
+          ],
+          "warmups_per_lane": 1,
+          "individual_itl_observable": true,
+          "multi_token_chunks": 0,
+          "ttft_ms": {
+            "stock_p50": 262.344019,
+            "stock_p95": 262.344019,
+            "fused_p50": 252.804274,
+            "fused_p95": 252.804274,
+            "paired_95pct_reduction": null
+          },
+          "amortized_itl_ms": {
+            "stock_p50": 43.469308078431375,
+            "stock_p95": 43.469308078431375,
+            "fused_p50": 44.051554298039214,
+            "fused_p95": 44.051554298039214,
+            "paired_95pct_reduction": null
+          },
+          "last_token_ms": {
+            "stock_p50": 11347.017579,
+            "stock_p95": 11347.017579,
+            "fused_p50": 11485.95062,
+            "fused_p95": 11485.95062,
+            "paired_95pct_reduction": null
+          },
+          "done_ms": {
+            "stock_p50": 11347.05031,
+            "stock_p95": 11347.05031,
+            "fused_p50": 11485.986774,
+            "fused_p95": 11485.986774,
+            "paired_95pct_reduction": null
+          },
+          "response_ms": {
+            "stock_p50": 11347.105151,
+            "stock_p95": 11347.105151,
+            "fused_p50": 11486.038664,
+            "fused_p95": 11486.038664,
+            "paired_95pct_reduction": null
+          },
+          "stock": {
+            "sampled_request_device_peak_mib": 21719.0,
+            "natural_correction_selected_rows": {},
+            "zero_natural_correction_hits": true,
+            "individual_itl_p95_ms": 46.405238399999995
+          },
+          "fused": {
+            "sampled_request_device_peak_mib": 21719.0,
+            "natural_correction_selected_rows": {},
+            "zero_natural_correction_hits": true,
+            "individual_itl_p95_ms": 47.3162084
+          }
+        },
+        "8192": {
+          "matched_pairs": 1,
+          "first_lane_order": [
+            "stock"
+          ],
+          "warmups_per_lane": 1,
+          "individual_itl_observable": true,
+          "multi_token_chunks": 0,
+          "ttft_ms": {
+            "stock_p50": 1047.952946,
+            "stock_p95": 1047.952946,
+            "fused_p50": 1022.872112,
+            "fused_p95": 1022.872112,
+            "paired_95pct_reduction": null
+          },
+          "amortized_itl_ms": {
+            "stock_p50": 43.47962816078431,
+            "stock_p95": 43.47962816078431,
+            "fused_p50": 43.91338985882353,
+            "fused_p95": 43.91338985882353,
+            "paired_95pct_reduction": null
+          },
+          "last_token_ms": {
+            "stock_p50": 12135.258127,
+            "stock_p95": 12135.258127,
+            "fused_p50": 12220.786526,
+            "fused_p95": 12220.786526,
+            "paired_95pct_reduction": null
+          },
+          "done_ms": {
+            "stock_p50": 12135.288528,
+            "stock_p95": 12135.288528,
+            "fused_p50": 12220.818149,
+            "fused_p95": 12220.818149,
+            "paired_95pct_reduction": null
+          },
+          "response_ms": {
+            "stock_p50": 12135.332932,
+            "stock_p95": 12135.332932,
+            "fused_p50": 12220.860249,
+            "fused_p95": 12220.860249,
+            "paired_95pct_reduction": null
+          },
+          "stock": {
+            "sampled_request_device_peak_mib": 21719.0,
+            "natural_correction_selected_rows": {},
+            "zero_natural_correction_hits": true,
+            "individual_itl_p95_ms": 46.9002891
+          },
+          "fused": {
+            "sampled_request_device_peak_mib": 21719.0,
+            "natural_correction_selected_rows": {},
+            "zero_natural_correction_hits": true,
+            "individual_itl_p95_ms": 46.3379395
+          }
+        }
+      }
+    },
+    "private_audit_sha256": "5b99a7340f531e5d5f858b3414d47c7db23e2ff0be93ff666021da7bb699d353",
+    "public_safe_receipt_hashes": {
+      "eager-client-validation.json": "e48dbd6cfd01eb4ba6a102e67874a8eddccb9b37214312f70be5b3dc53074bba",
+      "timing-metadata-final.json": "30b1a33bbb90c33807740e8668ed422dbc15b02755269186dc83631df9ba91ec",
+      "activation-proof.json": "36f5f502b1285b226ac42c3c58371dd3bfaff28313f512499ba14bcedb57da93",
+      "owned-processes.json": "936039b6374b3a938fe5a5c32f9cc43392a261abb6e35ca4f9b4b0349b65fd50",
+      "eager-summary.json": "db5cc0ba8cc614809ff02c2e82d8aa3a49ae8bda5beff444132f5d8371d27c1b",
+      "eager-benchmark-cleanup.json": "9619e8080afdb43f3e72722662261bd89e9444f7b39f2e8a252ea3f529ec8530",
+      "dispatch.json": "3a4a17bbdfe3c72795f342f95b7ac2ffc4c66ee124083ebade18fd6dc396fd33",
+      "pilot-freeze.json": "aefc79177ab6aedcd8e41a7818dc9f6d82ba85b1b9feb97425c9d4d2438245ff"
+    }
+  },
+  "six_pair_comparison": {
+    "plan_sha256": "2e48a6e602120a750d4158cfff27de0298e495eb16982fe1934fb31fd5e0a8da",
+    "requests": 32,
+    "untimed_drain_requests": 1,
+    "matched_tokens_usage": true,
+    "actual_input_transcripts_verified": true,
+    "native_backends_verified": true,
+    "native_backend_counts": {
+      "stock": 122400,
+      "fused": 122400,
+      "prefill_fallback": 19200
+    },
+    "source_all_214_files_verified": true,
+    "adapter_copies_verified": true,
+    "startup_activation": {
+      "forced_all_six_executed": true,
+      "native_dense_sm120_launches": 18,
+      "adapter_gelu_launches": 6,
+      "guarded_model_dispatch": true,
+      "forced_adapter_spans": {
+        "megartx::corrected_expert_native": 6,
+        "megartx::corrected_expert_reference": 6
+      },
+      "forced_trace_sha256": "0833294163d59074b0718bcee14b25c50ccec5195521f98cef1b04efabf19a75",
+      "registered_layers": 30,
+      "original_tensor_captures": 54,
+      "fixtures": 6,
+      "fixture_max_absolute_difference": 0.0,
+      "all_original_bytes_equal": true
+    },
+    "compiler_accounting": {
+      "peak_aggregate_rss_bytes": 19660800,
+      "shared_elapsed_seconds": 0.029999999998835847,
+      "sampled_compiler_identities": 1,
+      "metadata_only_identities": 1,
+      "unknown_or_work_identities": 0,
+      "actual_pid_start_argv_executable_file_version_verified": true,
+      "positive_metadata_samples_and_no_unknown_work_history": true,
+      "final_metadata_hashes_unchanged": true,
+      "sampling_caveat": "50ms process scans can miss brief processes; no universal syscall/proprietary tool behavior claim"
+    },
+    "resource_bounds": {
+      "samples": 1801,
+      "minimum_sampled_gpu_free_mib": 10765.0,
+      "maximum_sampled_gpu_used_mib": 21377.0,
+      "host_available_guard_gib": 8,
+      "host_guard_scope": "200ms sampler failed closed; no exact host minimum recorded",
+      "scratch_limit_bytes": 8388608,
+      "scratch_scope": "source/build contract bounds retained; no new scratch allocation",
+      "telemetry_scope": "sampled200ms, includes launcher sampler costs, not exact transient or Torch allocation peak"
+    },
+    "owned_cleanup_complete": true,
+    "independent_post_cleanup_idle": {
+      "gpu_compute_apps": [],
+      "gpu_used_free_utilization": "41, 32101, 0",
+      "host_available_kib": 61738968
+    },
+    "exit_codes": {
+      "driver": 0,
+      "client": 0,
+      "run": 0
+    },
+    "guarded_eager_summary": {
+      "schema": "megartx-m1-guarded-eager-summary-v1",
+      "source_head": "eecfc13e1be9aaf4e361888d5f4c65ad22fb41c4",
+      "plan_sha256": "2e48a6e602120a750d4158cfff27de0298e495eb16982fe1934fb31fd5e0a8da",
+      "scope": "guarded stock eager versus guarded fused eager, exploratory",
+      "timing_boundary": "Host-local client perf_counter_ns before POST through SSE delivery, DONE and response close. JSON encoding/tokenization/marker writes excluded. Native validation, correction, stream handoffs, prefill, head, sampler, KV and local streaming included.",
+      "gpu_event_timing": "not measured; no per-token fences or kernel-only inference",
+      "policy": "BF16 KV, corrected native quantizer/model, synchronous eager concurrency one, greedy 256 tokens with ignore_eos, prefix caching off",
+      "retained_guard_costs": "Stock one route-ID readback/fence; fused two; both seven descriptor table readbacks and one fence per stage; all owners, lease checks and stream handoffs retained",
+      "quality_qualified": false,
+      "graphs_qualified": false,
+      "performance_gate_passed": false,
+      "minimum_30_pairs_met": false,
+      "memory": {
+        "sampled_lifecycle_device_peak_mib": 21377.0,
+        "scope": "nvidia-smi samples at approximately 200 ms; transient exact peak and Torch allocated/reserved peaks not measured"
+      },
+      "contexts": {
+        "2048": {
+          "matched_pairs": 6,
+          "first_lane_order": [
+            "stock",
+            "fused",
+            "fused",
+            "stock",
+            "fused",
+            "stock"
+          ],
+          "warmups_per_lane": 2,
+          "individual_itl_observable": true,
+          "multi_token_chunks": 0,
+          "ttft_ms": {
+            "stock_p50": 259.10966099999996,
+            "stock_p95": 266.11530975,
+            "fused_p50": 259.2868065,
+            "fused_p95": 263.13759000000005,
+            "paired_95pct_reduction": {
+              "reduction_fraction": -0.0006836699925290013,
+              "confidence_interval": [
+                -0.022049084120637108,
+                0.018843660914515725
+              ],
+              "confidence": 0.95,
+              "bootstrap_resamples": 2000,
+              "bootstrap_seed": 9471,
+              "bootstrap_unit": "matched_request_pair",
+              "request_pair_count": 6
+            }
+          },
+          "amortized_itl_ms": {
+            "stock_p50": 43.591986958823526,
+            "stock_p95": 43.87721293529411,
+            "fused_p50": 43.96010732941177,
+            "fused_p95": 44.139353854901955,
+            "paired_95pct_reduction": {
+              "reduction_fraction": -0.008444679774197272,
+              "confidence_interval": [
+                -0.012298991978718421,
+                0.0015409667350619882
+              ],
+              "confidence": 0.95,
+              "bootstrap_resamples": 2000,
+              "bootstrap_seed": 9471,
+              "bootstrap_unit": "matched_request_pair",
+              "request_pair_count": 6
+            }
+          },
+          "last_token_ms": {
+            "stock_p50": 11375.043699,
+            "stock_p95": 11451.774658,
+            "fused_p50": 11471.7168685,
+            "fused_p95": 11516.974255000001,
+            "paired_95pct_reduction": {
+              "reduction_fraction": -0.008498707526591653,
+              "confidence_interval": [
+                -0.011434433196169325,
+                0.0018616079908786443
+              ],
+              "confidence": 0.95,
+              "bootstrap_resamples": 2000,
+              "bootstrap_seed": 9471,
+              "bootstrap_unit": "matched_request_pair",
+              "request_pair_count": 6
+            }
+          },
+          "done_ms": {
+            "stock_p50": 11375.06587,
+            "stock_p95": 11451.79703425,
+            "fused_p50": 11471.752586999999,
+            "fused_p95": 11517.004042,
+            "paired_95pct_reduction": {
+              "reduction_fraction": -0.008499881943980325,
+              "confidence_interval": [
+                -0.011434293341778146,
+                0.001858692213546398
+              ],
+              "confidence": 0.95,
+              "bootstrap_resamples": 2000,
+              "bootstrap_seed": 9471,
+              "bootstrap_unit": "matched_request_pair",
+              "request_pair_count": 6
+            }
+          },
+          "response_ms": {
+            "stock_p50": 11375.110305,
+            "stock_p95": 11451.839900250001,
+            "fused_p50": 11471.805243499999,
+            "fused_p95": 11517.0543015,
+            "paired_95pct_reduction": {
+              "reduction_fraction": -0.008500571502809695,
+              "confidence_interval": [
+                -0.011433991127371312,
+                0.0018564436774195503
+              ],
+              "confidence": 0.95,
+              "bootstrap_resamples": 2000,
+              "bootstrap_seed": 9471,
+              "bootstrap_unit": "matched_request_pair",
+              "request_pair_count": 6
+            }
+          },
+          "stock": {
+            "sampled_request_device_peak_mib": 21377.0,
+            "natural_correction_selected_rows": {},
+            "zero_natural_correction_hits": true,
+            "individual_itl_p95_ms": 46.179095
+          },
+          "fused": {
+            "sampled_request_device_peak_mib": 21377.0,
+            "natural_correction_selected_rows": {},
+            "zero_natural_correction_hits": true,
+            "individual_itl_p95_ms": 46.320865999999995
+          }
+        },
+        "8192": {
+          "matched_pairs": 6,
+          "first_lane_order": [
+            "fused",
+            "fused",
+            "stock",
+            "stock",
+            "fused",
+            "stock"
+          ],
+          "warmups_per_lane": 2,
+          "individual_itl_observable": true,
+          "multi_token_chunks": 0,
+          "ttft_ms": {
+            "stock_p50": 1040.345435,
+            "stock_p95": 1044.7889069999999,
+            "fused_p50": 1031.0064585,
+            "fused_p95": 1044.09231275,
+            "paired_95pct_reduction": {
+              "reduction_fraction": 0.008976803459516236,
+              "confidence_interval": [
+                -0.009307259378738442,
+                0.02715288928578774
+              ],
+              "confidence": 0.95,
+              "bootstrap_resamples": 2000,
+              "bootstrap_seed": 9471,
+              "bootstrap_unit": "matched_request_pair",
+              "request_pair_count": 6
+            }
+          },
+          "amortized_itl_ms": {
+            "stock_p50": 43.6946728254902,
+            "stock_p95": 44.04910563235294,
+            "fused_p50": 43.908125221568625,
+            "fused_p95": 44.03594738725491,
+            "paired_95pct_reduction": {
+              "reduction_fraction": -0.004885089698026146,
+              "confidence_interval": [
+                -0.012049451698273428,
+                0.0030801844502913456
+              ],
+              "confidence": 0.95,
+              "bootstrap_resamples": 2000,
+              "bootstrap_seed": 9471,
+              "bootstrap_unit": "matched_request_pair",
+              "request_pair_count": 6
+            }
+          },
+          "last_token_ms": {
+            "stock_p50": 12175.327118,
+            "stock_p95": 12263.05300175,
+            "fused_p50": 12235.231412500001,
+            "fused_p95": 12261.77936275,
+            "paired_95pct_reduction": {
+              "reduction_fraction": -0.004920138401163676,
+              "confidence_interval": [
+                -0.010785093556834768,
+                0.0031625202511279538
+              ],
+              "confidence": 0.95,
+              "bootstrap_resamples": 2000,
+              "bootstrap_seed": 9471,
+              "bootstrap_unit": "matched_request_pair",
+              "request_pair_count": 6
+            }
+          },
+          "done_ms": {
+            "stock_p50": 12175.3559345,
+            "stock_p95": 12263.0777135,
+            "fused_p50": 12235.254757,
+            "fused_p95": 12261.814376999999,
+            "paired_95pct_reduction": {
+              "reduction_fraction": -0.004919677323787397,
+              "confidence_interval": [
+                -0.010784632833784391,
+                0.003162720973869604
+              ],
+              "confidence": 0.95,
+              "bootstrap_resamples": 2000,
+              "bootstrap_seed": 9471,
+              "bootstrap_unit": "matched_request_pair",
+              "request_pair_count": 6
+            }
+          },
+          "response_ms": {
+            "stock_p50": 12175.4052175,
+            "stock_p95": 12263.1237715,
+            "fused_p50": 12235.3028125,
+            "fused_p95": 12261.868779749999,
+            "paired_95pct_reduction": {
+              "reduction_fraction": -0.004919556592162477,
+              "confidence_interval": [
+                -0.010784354229458115,
+                0.0031626802443176505
+              ],
+              "confidence": 0.95,
+              "bootstrap_resamples": 2000,
+              "bootstrap_seed": 9471,
+              "bootstrap_unit": "matched_request_pair",
+              "request_pair_count": 6
+            }
+          },
+          "stock": {
+            "sampled_request_device_peak_mib": 21377.0,
+            "natural_correction_selected_rows": {},
+            "zero_natural_correction_hits": true,
+            "individual_itl_p95_ms": 46.4605973
+          },
+          "fused": {
+            "sampled_request_device_peak_mib": 21377.0,
+            "natural_correction_selected_rows": {},
+            "zero_natural_correction_hits": true,
+            "individual_itl_p95_ms": 46.90950205
+          }
+        }
+      }
+    },
+    "private_audit_sha256": "983d01edee3c6e2c99dc6d010cfe69a7a355ef01eb818efbc9dca22ea11aa3e0",
+    "public_safe_receipt_hashes": {
+      "eager-client-validation.json": "697c7f83aae0b8cab3a474917ccd7d730164eeb3cbc07ea8a9cd6a3a1903e64c",
+      "timing-metadata-final.json": "30b1a33bbb90c33807740e8668ed422dbc15b02755269186dc83631df9ba91ec",
+      "activation-proof.json": "f6b5513da81f307e5d4836b4eb02ec47c8d804d1952d57bae33b0e500ce59972",
+      "owned-processes.json": "468f835a739384140b1af0091478b475f78c1957ba8ca047bee21e4eb7d99ec7",
+      "eager-summary.json": "6c140508bea8747d38b7173d3d07f3cf7dab036b253028683e516382fa55580c",
+      "eager-benchmark-cleanup.json": "964b6f9c702cce410fb8fffa16b8340c5d68499afe0458d5e849271efb1e31b7",
+      "dispatch.json": "bb34dea8ba1d63926217525785998c3a7cebfd3d4e9db6309c714d59f2d644c4",
+      "pairs6-freeze.json": "e8da41a5ebb60bd16e9e53c760c8966fc9e71bbb29a16f686ba6a7c8acf7a145"
+    }
+  },
+  "final_independent_cleanup": {
+    "passed": true,
+    "no_vllm_or_compiler_processes": true,
+    "port_18000_not_listening": true,
+    "gpu_compute_apps": [],
+    "gpu_used_free_utilization": "41, 32101, 0",
+    "host_available_kib": 61785856,
+    "owned_identities_verified_absent_or_reused": 604
+  },
+  "gpu_execution_verified": true,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_gate_passed": false,
+  "minimum_30_pairs_met": false,
+  "natural_correction_coverage_qualified": false,
+  "historical_failed_attempts_accepted": false,
+  "raw_prompts_tensors_profiler_host_logs_published": false,
+  "limitations": [
+    "Six matched pairs per context are exploratory and below the unchanged 30-pair protocol minimum.",
+    "Measured natural correction selected-row counters are zero for these prompts; six forced startup fixtures do not establish full-model quality.",
+    "Process and resource evidence is sampled; brief processes and transient peaks can be missed.",
+    "This is guarded host-local eager latency, including native validation and stream handoffs, not GPU kernel-only timing. CUDA graphs remain a subsequent gated milestone."
+  ]
+}

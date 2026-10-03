@@ -129,7 +129,7 @@ def load_build(directory):
     controller_sources = ("m1_live.py", "vllm_scale_plugin.py", "m1_execution.py",
                           "controlled_capture.py", "controlled_kv_capture.py",
                           "m1_normal_plan.py", "m1_normal_capture.py",
-                          "m1_external_observer.py", "m1_process_lifecycle.py")
+                          "m1_external_observer.py", "m1_process_lifecycle.py", "m1_eager_benchmark.py")
     require(contract.get("execution_modes") == ["captured", "capture-free"]
             and contract.get("capture_free_begin") == "megartx_m1_begin_capture_free_v2"
             and contract.get("external_observer") == {"registration": "megartx_m1_set_external_observer_v1",

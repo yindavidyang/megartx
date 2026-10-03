@@ -1,0 +1,78 @@
+{
+  "ast_signature_format": "ast_dump_without_empty_type_params_v1",
+  "baseline_commit": "09341f2ad3f6e4b03e8f264b9e3c59fe5ddb52ed",
+  "baseline_equal_ast_boundaries": {
+    "src/megartx/m1_live.py::LivePreparation.routed": "c55fbd2e94d3ebb99fc56ab365d879755c8c44e88876ec9012069a920a258f3d",
+    "src/megartx/m1_live.py::LivePreparation.routed.retain": "f5c11c88d4cce5728d543f118375f65cb31f108a9a2ffe0eb032f94e3a799cc6",
+    "src/megartx/m1_live.py::LivePreparation.run_route_controls": "43d24eb1a48534f94dde51b7e990a0cca68a4468eab1c7f1c5f56b9f97065420",
+    "src/megartx/m1_live.py::_valid_cupti_stream_provider": "0f190801528004cd50305b46907661920795757c42e1e5e740ea08ef53017c4d",
+    "src/megartx/m1_live.py::digest": "80feb8ab50881ff78b05816172bb23ecd098682e8782a7fd3d38c23fbfee04cd",
+    "src/megartx/m1_live.py::load_controller": "fd2d98f7ac250813b405fa66814c1b28dea093a461e993d0d5925cc6066326a8",
+    "src/megartx/m1_live.py::tensor_view": "bfd288b6809cfba148a4351ff7198b2066b50ceec7a9d8e6316f52bcf784619c",
+    "src/megartx/vllm_scale_plugin.py::install.deterministic_fused": "c8f3a2cbfe8a76ff2f530cddf96c1c356eb7461a43417dccf5dcb1305d292221",
+    "src/megartx/vllm_scale_plugin.py::install.incumbent_routed": "3e1e9e9bfa342c78640eee767e5f6842ceb7a57e483ea66d53c87a226d1f070b",
+    "src/megartx/vllm_scale_plugin.py::install.load": "98e6773f5f17ff4da726b1ec46ca773ed99af2663b57de430694fb2bc5f0c70f",
+    "src/megartx/vllm_scale_plugin.py::install.logits_forward": "a6ee98915465d8b826b1149a60a765d0a8b1406f709579e55f3f3300d17a97dd",
+    "src/megartx/vllm_scale_plugin.py::install.model_forward": "86f3e6abde906cb612981c32ea6f37e96bb31e71fe7f885d2c922990018bbe82"
+  },
+  "files": {
+    "src/megartx/m1_live.py": {
+      "baseline_sha256": "d43adffdece9ec51627fa3b42125367ec3370bb01d800aad7b1fc6dc4d0f4431",
+      "candidate_sha256": "5c555e420c77a590c9fad47b45f6aff36af6f22279f29fdfbbd4641cd80368a4",
+      "changed_ast_boundaries": [
+        "LivePreparation",
+        "LivePreparation.__init__",
+        "LivePreparation.begin_forward",
+        "LivePreparation.end_forward",
+        "LivePreparation.invoke"
+      ],
+      "unchanged_ast_boundaries": [
+        "LivePreparation.routed",
+        "LivePreparation.routed.retain",
+        "LivePreparation.run_route_controls",
+        "View",
+        "_valid_cupti_stream_provider",
+        "digest",
+        "load_controller",
+        "tensor_view"
+      ]
+    },
+    "src/megartx/vllm_scale_plugin.py": {
+      "baseline_sha256": "8f673b71d62d5e4c7ac1707e09d188b6d2013af8dbe7420d81dc41b6470c71ae",
+      "candidate_sha256": "5bbdd7ba1b6777eb48cafae742ba7d808b28ef166292f8a1c2e79df2d621b54a",
+      "changed_ast_boundaries": [
+        "install",
+        "install.routed_adapter"
+      ],
+      "unchanged_ast_boundaries": [
+        "install.deterministic_fused",
+        "install.incumbent_routed",
+        "install.load",
+        "install.logits_forward",
+        "install.model_forward"
+      ]
+    }
+  },
+  "final_pr15_head": "dfd77d8c80d333fc9531955795476f7e9c0cbab2",
+  "final_pr15_tree": "bb175084a1cfbab3ba0f9a30ca1344a36bce4e8f",
+  "future_runner_requirement": "No PR15 benchmark plan reuse for 255/512/1024/etc prefill chunks; separate accepted profile plan and actual environment/source/ownership receipts remain required.",
+  "gpu_qualified": false,
+  "initial_pr15_head": "b0b9d4d537a0ce9e8131ef659ddf83307d7158f0",
+  "integration_main": "5a32504b5ccb209a779b8a110eb2ebc56d72e373",
+  "review_scope": "cpu_source_compatibility_only",
+  "routed_math_boundary": {
+    "after_removing_exact_reviewed_counter_ast_equal": true,
+    "approved_added_counter_ast_sha256": "cbc3c89d57d631657e7d3d972eda857b9c39a8efa7d8c542be75f5d9047e9a9f",
+    "approved_added_counter_source": "if m1 is not None and m1.benchmark is not None and m1.benchmark.pending:\n    m1.benchmark.correction_hit(data['ordinal'], e.index, rows.numel())",
+    "baseline_ast_sha256": "963aa8edc3b1386afb42360b4ef41835b1f0e029d44eafa47ac8ebd80b6c0861",
+    "name": "install.routed_adapter"
+  },
+  "schema": "megartx-prefill-pr15-source-review-v1",
+  "semantic_delta": [
+    "Explicit benchmark admission bypasses the prior controlled/normal-only collector guard, through an independently bounded source-bound eager plan.",
+    "Request marker origin, bounded regular JSON check, per-request lane/call-limit/counter handling and end-of-forward receipts change.",
+    "Benchmark-only multirow fallback requires exactly 256 rows and rejects capture; ordinary benchmark-off multirow calls retain full incumbent fallback.",
+    "Original quantizer, loader, model_forward, logits_forward, finalization and routed arithmetic after removing exactly one counter-only block are unchanged."
+  ],
+  "test_merge_commit": "aa01cc590b74c029c6cfdf25b3905719c80b7c12"
+}

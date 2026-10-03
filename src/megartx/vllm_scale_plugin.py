@@ -64,7 +64,7 @@ def install():
     m1 = load_controller(mode)
     if normal and (controlled or router_score or route_audit or not capture or not os.environ.get("MEGARTX_M1_NORMAL_PLAN")):
         raise RuntimeError("normal M1 collector requires its isolated exact plan")
-    if m1 is not None and not (controlled or normal):
+    if m1 is not None and not (controlled or normal or m1.benchmark is not None):
         raise RuntimeError("live preparation requires a bounded controlled or normal request collector")
     if normal and m1 is None:
         raise RuntimeError("normal M1 collector requires explicit preparation opt-in")
@@ -192,6 +192,8 @@ def install():
                     y = run_expert(x[rows], e, mode=execution_mode)
             kind = "forced_hits" if "fixture_mode" in data else ("controlled_hits" if controlled_request else ("unmarked_hits" if controlled else "natural_hits"))
             data[kind][e.index] = data[kind].get(e.index, 0) + rows.numel()
+            if m1 is not None and m1.benchmark is not None and m1.benchmark.pending:
+                m1.benchmark.correction_hit(data["ordinal"], e.index, rows.numel())
             if route_audit and "fixture_mode" not in data:
                 marker = Path(capture).parent / "capture-request.json"
                 if marker.exists():

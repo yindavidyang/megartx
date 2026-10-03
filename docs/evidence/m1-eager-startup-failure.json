@@ -1,0 +1,40 @@
+{
+  "scope": "Failed startup only; no benchmark dispatch, correction-fixture or timing result. Remediation requires fresh source review.",
+  "runtime_head": "77af2413f17b060067620cffe684e9f067f806e1",
+  "runtime_tree": "4c0bfcff86087bcac2ae3e99cc60c8d65161e3fd",
+  "bridge_build": {
+    "returncode": 0,
+    "reason": null,
+    "seconds": 6.1088130040006945,
+    "peak_aggregate_rss_bytes": 731144192,
+    "binary_sha256": "3e915e59d5c47d9bdba0d0adcf68ffe2f000cc61368869e947f7f17bcc5b52a3",
+    "compiled_lease_controls_returncode": 0,
+    "compiled_binding_controls_returncode": 0,
+    "installed_pins_unchanged": true
+  },
+  "failure": {
+    "compiler_sampled_aggregate_rss_bytes": 3805532160,
+    "compiler_limit_bytes": 2147483648,
+    "client_dispatched": false,
+    "startup_fixtures_reached": false,
+    "cause": "Relocated private cache regenerated absolute-output Ninja files; startup compiler descendant bounds and cleanup were incomplete."
+  },
+  "final_cleanup": {
+    "remembered_identities": 12,
+    "all_absent": true,
+    "gpu_compute_jobs": 0,
+    "gpu_used_mib": 41,
+    "gpu_free_mib": 32101,
+    "gpu_utilization_percent": 0
+  },
+  "private_receipt_sha256": {
+    "build.json": "5fad96fc53f857906441ed36c91c1fd30e6d452f9a3829cc478d3f56bc9a9e59",
+    "installed-loader-release-comparison.json": "161a3af1686ec623eee959073508ad92ea1b7545ab9beafd17bd94036525eb4c",
+    "pilot-1-compiler-guard-stop.json": "d89c82bff91bae0229bd76f4970a4cef1ff5a304efa2c0f2a7ff4aaf2a81795f",
+    "pilot-1-final-cleanup-readback.json": "10600e4d5429123b12298c37e45a4274abf698132dc007a3bf94ccece784b710",
+    "pilot-1-force-cleanup.json": "104864ecc2975055a28fd13e471bccec3db4cae2cbf379dca27b833a67d33ce2"
+  },
+  "performance_qualified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false
+}

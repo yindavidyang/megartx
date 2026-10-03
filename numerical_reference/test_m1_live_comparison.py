@@ -40,7 +40,7 @@ class TestLiveComparison(unittest.TestCase):
             "m1_live.py", "vllm_scale_plugin.py", "m1_execution.py",
             "controlled_capture.py", "controlled_kv_capture.py",
             "m1_normal_plan.py", "m1_normal_capture.py",
-            "m1_external_observer.py", "m1_process_lifecycle.py")
+            "m1_external_observer.py", "m1_process_lifecycle.py", "m1_eager_benchmark.py")
         source_paths = ["probes/m1_live_bridge.cu"] + [
             "src/megartx/" + name for name in controller_sources]
         with tempfile.TemporaryDirectory() as directory:

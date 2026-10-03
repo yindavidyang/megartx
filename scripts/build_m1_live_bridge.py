@@ -68,6 +68,12 @@ def build(args):
                "src/megartx/m1_normal_plan.py", "src/megartx/m1_normal_capture.py",
                "src/megartx/m1_external_observer.py",
                "src/megartx/m1_process_lifecycle.py",
+               "src/megartx/m1_eager_benchmark.py",
+               "scripts/m1_eager_benchmark_client.py", "scripts/prepare_m1_eager_benchmark.py",
+               "scripts/run_scale_validation.py",
+               "scripts/m1_owned_processes.py", "scripts/m1_private_aot.py",
+               "scripts/check_m1_private_aot.py", "scripts/m1_aot_cache/sitecustomize.py",
+               "scripts/m1_aot_cache/flashinfer_jit_cache/__init__.py",
                )
     for name in sources:
         target = work / name
@@ -119,7 +125,8 @@ def build(args):
                           for name in ("m1_live.py", "vllm_scale_plugin.py", "m1_execution.py",
                                        "controlled_capture.py", "controlled_kv_capture.py",
                                        "m1_normal_plan.py", "m1_normal_capture.py",
-                                       "m1_external_observer.py", "m1_process_lifecycle.py")},
+                                       "m1_external_observer.py", "m1_process_lifecycle.py",
+                                       "m1_eager_benchmark.py")},
                      "native_source_sha256": sha(work / "probes/m1_live_bridge.cu"),
                      "cupti_stream_id_provider": cupti_identity,
                      "execution_modes": ["captured", "capture-free"],
