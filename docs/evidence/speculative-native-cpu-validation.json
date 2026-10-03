@@ -1,0 +1,35 @@
+{
+  "schema": "megartx-speculative-native-cpu-validation-v1",
+  "base_commit": "464c728a8758a558fd0bfe326f3ed7a2f10fe0c4",
+  "native_executed": false,
+  "runtime_imports": false,
+  "GPU_jobs": 0,
+  "shared_files_changed": [],
+  "source_sha256": {
+    "src/megartx/speculative_native_probe.py": "a43d9412b433ceb40163d5c91e58f9cc67936690c710b2c54114004ac72a7f4a",
+    "scripts/run_speculative_native_probe.py": "e276bd8afcd895eb54f55e99428cdb9cb0e2dbbbf2adb88da46b7197c7124b62",
+    "tests/test_speculative_native_probe.py": "2ff3a4efb28c75fbf31f6a89cdc710e7c36ea828e553c1700c898ae0ff722fda",
+    "docs/design/speculative-native-protocol.json": "92d8bb4e60164d3124707aabb1901cce72de3adfa62ae58560276077ee67ac41",
+    "docs/evidence/speculative-native-source-binding.json": "9f3bc95cab7003e29aef1723bbc86ca3f85f3588a36151b5522f8e549ee16c5f"
+  },
+  "checks": {
+    "native_CPU_tests": 25,
+    "scaffold_tests": 234,
+    "scaffold_skipped": 1,
+    "reference_tests": 508
+  },
+  "environment": {
+    "python": "3.12.8",
+    "numpy": "2.4.4",
+    "location": "isolated_Mac_task17",
+    "limitation": "local_NumPy_is_not_CI_pinned_version; exact_head_CI_required"
+  },
+  "installed_source_files_matched_upstream": 22,
+  "blocking": [
+    "unregistered_owned_lifecycle_EngineCore_utility_and_Worker_extension",
+    "actual_page_padding_and_scratch_fit",
+    "source_bound_external_CUDA_workspace_coverage",
+    "live_allocator_padding_coverage",
+    "independent_review_and_parent_admission_and_sole_GPU_slot"
+  ]
+}
