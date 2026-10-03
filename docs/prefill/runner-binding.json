@@ -1,0 +1,13 @@
+{
+  "repo_files": {
+    "docs/action-plans/wp7.md": "eb9497765da0e39f9725f7d06152df78f28cc12854c01154e9db0794d15fe139",
+    "docs/prefill/README.md": "37475027ae102bdfbdec3f29c1f1fe3ff2cf8960227ff86414353b8ba19de20b",
+    "docs/prefill/runner-protocol.md": "361bf6675c9d20d60d6142fd2f225a719baea7acc89cf936549eb5a4ad1d24da",
+    "numerical_reference/prefill_cache_reference.py": "924defa768a08df8d60b05a404c06d10a14003231a54ae9958e92eeff925b8ac",
+    "src/megartx/prefill_plan.py": "016322c19bdbd82cb165be74cf5f18a80f662f95b08ea981f17b041888bb4154",
+    "src/megartx/prefill_runner.py": "f571f876e2fda46d272eaa7e4110437b06d0025b09b23a0698260e1b75f673ad",
+    "tests/test_prefill_runner.py": "c86d96d626a88a697588f68a852718d76aaf8f8733543c0ba5ac9668ff6d0e82"
+  },
+  "repository_base_commit": "5a32504b5ccb209a779b8a110eb2ebc56d72e373",
+  "schema": "megartx-prefill-runner-source-v1"
+}
