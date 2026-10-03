@@ -376,6 +376,54 @@ class RecordTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.check()
 
+    def test_per_expert_selected_bound_preserves_total_and_allows_padding(self):
+        original = copy.deepcopy(self.records)
+        for row_index, m in ((0, 255), (-1, 8)):
+            for variant in ("one_excess", "all_slots_one_expert"):
+                with self.subTest(m=m, variant=variant):
+                    self.records = copy.deepcopy(original)
+                    row = self.run_for("profile", "expert")["profile"]["expert_rows"][row_index]
+                    spans = self.protocol["jobs"][1]["spans"]
+                    start, end = spans[row["forward_index"]]
+                    self.assertEqual(end - start, m)
+                    counts = ([m + 1, m - 1] + [m] * 6 + [0] * 120 if variant == "one_excess"
+                              else [m * 8] + [0] * 127)
+                    self.assertEqual(sum(counts), m * 8)
+                    for field in ("selected_m", "positive_m", "scheduled_m"):
+                        row[field] = counts.copy()
+                    with self.assertRaisesRegex(ValueError, "selected_m"):
+                        self.check()
+            self.records = copy.deepcopy(original)
+            row = self.run_for("profile", "expert")["profile"]["expert_rows"][row_index]
+            self.assertEqual(max(row["selected_m"]), m)
+            row["scheduled_m"][0] = m + 127
+            self.assertTrue(self.check()["records_consistent"])
+
+    def test_build_wall_cannot_exceed_initialization_interval(self):
+        record = self.run_for("initialization")
+        duration = record["run_end_ns"] - record["run_begin_ns"]
+        # This stays within the independently frozen build bound, isolating the
+        # lifecycle consistency check from the existing resource-limit check.
+        self.assertLess(duration + 1, self.protocol["resource_bounds"]["max_build_seconds"] * 10**9)
+        record["initialization"]["build_wall_ns"] = duration + 1
+        with self.assertRaisesRegex(ValueError, "Build wall time exceeds initialization"):
+            self.check()
+        record["initialization"]["build_wall_ns"] = duration
+        self.assertTrue(self.check()["records_consistent"])
+
+    def test_tokenless_stream_event_cannot_precede_request_acceptance(self):
+        for state in ("cold", "warm"):
+            record = self.run_for("timing", state=state)
+            acceptance = record["timing"]["request_accept_ns"]
+            event = {"received_ns": acceptance - 1, "data": json.dumps({
+                "id": record["server_response_id"], "choices": [], "usage": None})}
+            self.assertGreaterEqual(event["received_ns"], record["run_begin_ns"])
+            record["client_events"].insert(0, event)
+            with self.subTest(state=state), self.assertRaisesRegex(ValueError, "precedes request acceptance"):
+                self.check()
+            event["received_ns"] = acceptance
+            self.assertTrue(self.check()["records_consistent"])
+
     def test_memory_capacity_alias_reserve_scratch_phase_and_bounds(self):
         changes = [lambda m: m["samples"].pop(),
                    lambda m: m["samples"][3]["allocations"][1].update(bytes=1),

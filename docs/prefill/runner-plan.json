@@ -37,6 +37,6 @@
   },
   "repository_base_commit": "5a32504b5ccb209a779b8a110eb2ebc56d72e373",
   "run_namespace": null,
-  "runner_binding_sha256": "fbf7287823d300080d2b7453ab60335a597a5916f4703cc81d0d04c7933611ba",
+  "runner_binding_sha256": "db85e918bd2e3023fffdf37d81cb86146fbe11f2f3b820f4b57eaadf3af63dd3",
   "schema": "megartx-prefill-runner-v1"
 }

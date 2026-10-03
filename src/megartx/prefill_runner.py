@@ -477,7 +477,7 @@ def _profile(value, job, protocol):
         for field in ("selected_m", "positive_m", "scheduled_m"):
             _list(row[field], 128, 128, field)
             for count in row[field]:
-                integer(count, 0, 2**31 - 1, field)
+                integer(count, 0, m if field == "selected_m" else 2**31 - 1, field)
         if sum(row["selected_m"]) != m * 8 or any(p > s or a < p for s, p, a in
                 zip(row["selected_m"], row["positive_m"], row["scheduled_m"])):
             raise ValueError("Expert selected/positive/scheduled counts inconsistent")
@@ -598,6 +598,8 @@ def validate_records(protocol, records, prompts):
             if (init["build_rss_peak_bytes"] > bounds["max_build_rss_bytes"]
                     or init["build_wall_ns"] > bounds["max_build_seconds"] * 10**9):
                 raise ValueError("Build resource bound breached")
+            if init["build_wall_ns"] > record["run_end_ns"] - record["run_begin_ns"]:
+                raise ValueError("Build wall time exceeds initialization interval")
             if sum(v for k, v in init.items() if k.endswith("_ns") and k != "build_wall_ns") > record["run_end_ns"] - record["run_begin_ns"]:
                 raise ValueError("Initialization stage durations exceed lifecycle interval")
             for key in ("handoff", "server_response_id", "timing", "profile", "memory"):
@@ -648,6 +650,8 @@ def validate_records(protocol, records, prompts):
                     equal(timing[key], expected, "timing." + key)
                 if timing["request_accept_ns"] < record["run_begin_ns"] or record["trace_bytes"]:
                     raise ValueError("Timing clock/trace isolation changed")
+                if any(e["received_ns"] < timing["request_accept_ns"] for e in record["client_events"]):
+                    raise ValueError("Client event precedes request acceptance")
             else:
                 equal(record["timing"], None, "instrumented run cannot produce timing evidence")
             for mode in ("profile", "memory"):

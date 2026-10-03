@@ -5,7 +5,8 @@ This local implementation extends the merged PR16/17 preparation on main
 exact-token client payloads and validates normalized recorded results. It uses
 only the Python standard library. It has no network, process, CUDA, model-load,
 native-build, plugin-registration or GPU execution path. `--execute-gpu` always
-fails before any device work. Publication of this new task has not been approved.
+fails before any device work. Draft publication is approved; independent review
+is tracked in [PR19](https://github.com/yindavidyang/megartx/pull/19).
 
 No existing file is modified. In particular, the stock prefill fallback,
 `m1_live.py`, `vllm_scale_plugin.py`, quantizer and shared launcher are untouched.
@@ -180,7 +181,8 @@ requests; this is a protocol size, not approval to run it. A smaller selected
 slot receives a different scope and must have its own receipts and finite bounds.
 Initialization has no prompt forwards/client token stream and is never averaged
 into warm timing. Lifecycle stage durations are disjoint; compiler wall time and
-RSS remain separate from those stage totals. A cold timing process must start
+RSS remain separate from those stage totals. Build wall time cannot exceed its
+initialization interval. A cold timing process must start
 fresh: after initialization/profile/memory processes are cleaned up, the launcher
 starts its cold instance, then establishes a warmed/reset instance for warm time.
 The client request clock determines whether load is inside cold TTFT; do not add
@@ -201,7 +203,9 @@ activations or reusable prompt K/V are precomputed; no forced expert or allowed
 output-token control is inserted. The client records each SSE data payload with
 a local monotonic receive time. It requires a single stable response ID, choice
 index zero, valid token IDs, exactly 256 outputs, a length finish, exact prompt /
-completion / total usage, ordered events and a final `[DONE]`. Multitoken chunks
+completion / total usage, ordered events and a final `[DONE]`. Every timing-run
+SSE event, including tokenless metadata, must occur at or after request acceptance.
+Multitoken chunks
 are flagged and cannot supply per-token ITL. The explicit run/request ID joins
 server forwards; server response ID joins streaming packets. Network transport
 and endpoint selection are intentionally left to the future reviewed adapter.
@@ -230,7 +234,7 @@ Synthetic test records have no observed target source or measurement provenance.
 | Handoff | Complete/nonpoisoned BF16 state, committed length/next absolute position, P+256 capacity; exact 25 local/5 global layer intervals and processed K/V/layout digests |
 | Timing | PR17 whole-prompt coverage and ordered boundaries; first-token clock matches client; warm preallocation/warmup; no profiler/memory/correctness capture or trace |
 | Profile | Explicit runtime-stream to CUPTI-stream mapping with pinned provider; unique launch and kernel IDs, source-bound registry/site, layer/chunk/component and M/N/K; kernel names, grid/block, device interval and bytes |
-| Experts | Every layer/chunk has 128 selected/positive/scheduled-M counts, route digest, correction hits and suppressed-stock rows; selected sum is M*8, positive does not exceed selected, scheduled covers positive |
+| Experts | Every layer/chunk has 128 selected/positive/scheduled-M counts, route digest, correction hits and suppressed-stock rows; selected sum is M*8, each selected count is <= M, positive does not exceed selected, scheduled covers positive and may exceed M for padding |
 | Memory | Load/import/compile-warmup/every chunk/handoff/head/fixed-continuation allocated/reserved/device-used peaks; uniquely owned physical allocation IDs/categories; scratch/reserve and BF16 capacity floors |
 
 Attention/dense/expert profile records must cover all selected layer/chunk pairs;
