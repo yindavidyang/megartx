@@ -352,16 +352,30 @@ class M1PreparationTests(unittest.TestCase):
         self.assertIs(lifecycle["native_build_verified"], False)
         self.assertIs(lifecycle["gpu_execution_verified"], False)
         lifecycle_changes = {r["path"]: r for r in lifecycle["superseded_parent_sources"]}
+        eager_path = root / "docs/evidence/m1-eager-benchmark-source-pins.json"
+        eager = json.loads(eager_path.read_text())
+        self.assertEqual(eager["parent_head"], "09341f2ad3f6e4b03e8f264b9e3c59fe5ddb52ed")
+        self.assertEqual(eager["parent_ledger_sha256"], hashlib.sha256(lifecycle_path.read_bytes()).hexdigest())
+        for field in ("gpu_execution_verified", "quality_qualified", "graphs_qualified", "performance_qualified"):
+            self.assertIs(eager[field], False)
+        eager_changes = {r["path"]: r for r in eager["superseded_sources"]}
+        def expected_current(path, historical):
+            if path in eager_changes:
+                self.assertEqual(eager_changes[path]["parent_sha256"], historical, path)
+                return eager_changes[path]["current_sha256"]
+            return historical
+        for path, expected in eager["added_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
         for section in ("runtime_source_hashes", "observer_source_hashes"):
             for path, expected in combined[section].items():
                 digest = hashlib.sha256((root / path).read_bytes()).hexdigest()
                 if path in lifecycle_changes:
                     self.assertEqual(lifecycle_changes[path]["parent_sha256"], expected, path)
-                    self.assertEqual(digest, lifecycle_changes[path]["current_sha256"], path)
+                    self.assertEqual(digest, expected_current(path, lifecycle_changes[path]["current_sha256"]), path)
                 else:
-                    self.assertEqual(digest, expected, path)
+                    self.assertEqual(digest, expected_current(path, expected), path)
         for path, expected in lifecycle["added_source_hashes"].items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected_current(path, expected), path)
 
         capture_plugin = next(r for r in capture_overlay["superseded_inputs"]
                               if r["path"] == "src/megartx/vllm_scale_plugin.py")
@@ -380,9 +394,15 @@ class M1PreparationTests(unittest.TestCase):
             if record["path"] in replacements:
                 replacement = replacements[record["path"]]
                 self.assertEqual(replacement["historical_sha256"], record["sha256"])
-                self.assertEqual(digest, replacement["current_sha256"], record["path"])
+                # The plugin's lifecycle overlay changed this old combined pin;
+                # chain both later overlays rather than rewriting that evidence.
+                path = record["path"]
+                current = lifecycle_changes[path]["current_sha256"] if path in lifecycle_changes else replacement["current_sha256"]
+                self.assertEqual(digest, expected_current(path, current), path)
             else:
                 self.assertEqual(digest, record["sha256"], record["path"])
+        for path, record in eager_changes.items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), record["current_sha256"], path)
 
     def test_stale_combined_source_or_ledger_hash_is_rejected(self):
         root = Path(__file__).resolve().parents[1]

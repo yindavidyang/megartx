@@ -1,7 +1,8 @@
-"""Diagnostic policy for the eager, bounded M1 controlled request.
+"""Diagnostic policy for bounded eager M1 requests.
 
-This switch changes evidence collection, never arithmetic or admission. It
-does not enable benchmarks, natural routing, repeated requests or CUDA graphs.
+The capture switch changes evidence collection, never arithmetic. Repeated
+natural timing requests need their separate explicit source-bound benchmark
+plan; neither policy enables CUDA graphs or admits quality qualification.
 """
 from contextlib import nullcontext
 import os
@@ -15,6 +16,7 @@ CONTROLLER_SOURCES = (
     "controlled_capture.py", "controlled_kv_capture.py",
     "m1_normal_plan.py", "m1_normal_capture.py", "m1_external_observer.py",
     "m1_process_lifecycle.py",
+    "m1_eager_benchmark.py",
 )
 
 
@@ -29,6 +31,22 @@ def execution_mode():
     value = os.environ.get("MEGARTX_M1_EXECUTION", "captured")
     if value not in EXECUTION_MODES:
         raise RuntimeError("unknown explicit M1 execution mode")
+    benchmark = os.environ.get("MEGARTX_M1_EAGER_BENCHMARK_PLAN")
+    if benchmark:
+        forbidden = ("MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN", "MEGARTX_LOGITS_DIR",
+                     "MEGARTX_M1_NORMAL_PLAN", "MEGARTX_M1_NORMAL_DIR", "MEGARTX_M1_CAPTURE_DIR",
+                     "MEGARTX_M1_EXTERNAL_OBSERVER_DIR", "MEGARTX_M1_PROCESS_EVIDENCE_DIR",
+                     "MEGARTX_ROUTE_AUDIT_PATH", "MEGARTX_ROUTING_COVERAGE_PATH", "MEGARTX_ROUTER_SCORE_DIR")
+        if (value != "capture-free" or os.environ.get("MEGARTX_SCALE_MODE") != "native"
+                or os.environ.get("MEGARTX_M1_PREPARATION") not in {"stock", "fused"}
+                or not os.environ.get("MEGARTX_M1_EAGER_BENCHMARK_DIR")
+                or any(os.environ.get(k) for k in forbidden)
+                or os.environ.get("MEGARTX_M1_ROUTE_CONTROLS") == "1"
+                or os.environ.get("MEGARTX_LAYER0_BOUNDARIES") == "1"):
+            raise RuntimeError("eager benchmark requires isolated capture-free native observer-off execution")
+        return value
+    if os.environ.get("MEGARTX_M1_EAGER_BENCHMARK_DIR"):
+        raise RuntimeError("eager benchmark destination requires explicit plan")
     if value == "capture-free":
         if (os.environ.get("MEGARTX_M1_PREPARATION") not in {"stock", "fused"}
                 or os.environ.get("MEGARTX_SCALE_MODE") != "native"

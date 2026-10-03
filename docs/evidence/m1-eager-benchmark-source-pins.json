@@ -1,0 +1,68 @@
+{
+  "scope": "CPU source freeze for default-off guarded matched eager preparation. No native/GPU execution or performance qualification. Historical evidence remains unchanged.",
+  "parent_head": "09341f2ad3f6e4b03e8f264b9e3c59fe5ddb52ed",
+  "parent_ledger_sha256": "942106acc72152e84f78429c31ad4dd5bf2525dea8df20ba46f4623aa2793ba0",
+  "gpu_execution_verified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false,
+  "superseded_sources": [
+    {
+      "path": "docs/m1-capture-free-execution.md",
+      "parent_sha256": "e9cd666719a55ecfebcdc57e6af4e9790ff463230a56585e287410e327aa3044",
+      "current_sha256": "6acc6546e68dbb0141ea2c4be117b40dc31429c00faa7980fb95077c60a3ba6d"
+    },
+    {
+      "path": "numerical_reference/compare_m1_live.py",
+      "parent_sha256": "ccf531b66b480081cb76aaf6868cadd2c542a95209e945ef1957a66621c44e46",
+      "current_sha256": "c62f6b1c8eee358a6128e170b54d88f4b9e3c5bd93e0a2a0077dab44e1d8fce0"
+    },
+    {
+      "path": "numerical_reference/test_m1_live_comparison.py",
+      "parent_sha256": "40c83f90ed8171d33f279e2b5d7a6d940ca5bc473cc5d4bf2fb6230feb117d35",
+      "current_sha256": "471bce5e5ed769a38511d78e39c35b6111f767431325d4aa802f5e38978d2768"
+    },
+    {
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "parent_sha256": "de762395f405482e0007dd698e4c2229b392284c962002faeb2fb7c2cfc249a7",
+      "current_sha256": "49735c87806ef8cf4ad4b69a3a2eab27614d5e1dcd92be1bcc5c13cfe8edd9ff"
+    },
+    {
+      "path": "scripts/build_m1_live_bridge.py",
+      "parent_sha256": "83221856cb327240f6b2910968446ece4b14cfc9c57ea79b75150594ed4abd36",
+      "current_sha256": "d0c287395eb0fffdbcb398f3596ae0e34e4878583e065b82dba25d7bede14294"
+    },
+    {
+      "path": "scripts/run_scale_validation.py",
+      "parent_sha256": "a0a9b57991d3b78db3d0617408dd3e8720bf139832fad37a9eeb018ca6f24b52",
+      "current_sha256": "e66202377694d8c8c4e32e511c71f2fa07722648b7ca50372a3a1ffdd18f52b1"
+    },
+    {
+      "path": "src/megartx/m1_execution.py",
+      "parent_sha256": "04a7ecbcf90bc94e0c80370f8a8d3bcb8867981b93d548940726e7c220ca40bf",
+      "current_sha256": "4db938f4f0f6d39b8bc1d136d9eaf15559a3a6df1b61aaf5b57c10a299038c42"
+    },
+    {
+      "path": "src/megartx/m1_live.py",
+      "parent_sha256": "d43adffdece9ec51627fa3b42125367ec3370bb01d800aad7b1fc6dc4d0f4431",
+      "current_sha256": "5c555e420c77a590c9fad47b45f6aff36af6f22279f29fdfbbd4641cd80368a4"
+    },
+    {
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "parent_sha256": "8f673b71d62d5e4c7ac1707e09d188b6d2013af8dbe7420d81dc41b6470c71ae",
+      "current_sha256": "5bbdd7ba1b6777eb48cafae742ba7d808b28ef166292f8a1c2e79df2d621b54a"
+    },
+    {
+      "path": "tests/test_m1_live.py",
+      "parent_sha256": "6c329465f41ea6be8c235c34006ff20226dbddfdb243bdb4b9bec9e24a9f7ea4",
+      "current_sha256": "741f8b62eca40b6dd1b5a231fd1211aeef4acc78bf0dd514832513313ecf1cee"
+    }
+  ],
+  "added_source_hashes": {
+    "src/megartx/m1_eager_benchmark.py": "2c749123630c1e7640daf2c890f04d647bb3aab9dd6b7f090279e6eb42c99257",
+    "scripts/m1_eager_benchmark_client.py": "a7b871b71d7b1d19a7813405602592f9562e7e0269e48d78a50950f49f20d34d",
+    "scripts/prepare_m1_eager_benchmark.py": "8d27bdd36809aa111386d54a961711e1f495c45585480709904119db793bfa77",
+    "tests/test_m1_eager_benchmark.py": "7b6f92eb0dca376c29fe809ccb74c0fa045008f36bf7dc252745e64fcd250e8f",
+    "docs/m1-matched-eager-benchmark.md": "667ad3842eaddb47c1bdcc2826024a1be22f7ebd32dcf58f6150fa0dfb284fb8"
+  }
+}

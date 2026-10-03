@@ -167,6 +167,17 @@ class LivePreparation:
         self.route_controls_done = False
         self.normal_plan = None
         self.call_limit = 64
+        self.benchmark = None
+        if os.environ.get("MEGARTX_M1_EAGER_BENCHMARK_PLAN"):
+            from .m1_eager_benchmark import EagerBenchmark, load_plan
+            plan = load_plan(os.environ["MEGARTX_M1_EAGER_BENCHMARK_PLAN"],
+                             expected_contract["controller_source_hashes"])
+            if receipt.get("base_head") != plan["source_head"]:
+                raise RuntimeError("eager benchmark bridge/source head differs")
+            if any(receipt.get("source_hashes", {}).get(p) != h for p, h in plan["driver_source_hashes"].items()):
+                raise RuntimeError("eager benchmark bridge/driver sources differ")
+            self.benchmark = EagerBenchmark(plan, os.environ["MEGARTX_M1_EAGER_BENCHMARK_DIR"], lane)
+            self.call_limit = self.benchmark.call_limit
         if os.environ.get("MEGARTX_M1_NORMAL_PLAN"):
             from .m1_normal_plan import load_plan, LIVE_CALLS
             if not self.diagnostics:
@@ -181,8 +192,13 @@ class LivePreparation:
             raise RuntimeError("failed live preparation context requires an owned process restart")
         if self.forward is not None:
             raise RuntimeError("nested model preparation context")
-        marker = Path(os.environ["MEGARTX_LOGITS_DIR"]).parent / "capture-request.json"
+        benchmark = getattr(self, "benchmark", None)
+        marker = (benchmark.directory.parent if benchmark is not None else
+                  Path(os.environ["MEGARTX_LOGITS_DIR"]).parent) / "capture-request.json"
         if not marker.exists():
+            if benchmark is not None and benchmark.index >= 0:
+                self.failed = True
+                raise RuntimeError("eager benchmark request marker disappeared")
             return
         if self.external_observer_requested:
             from .m1_process_lifecycle import process_identity
@@ -193,6 +209,8 @@ class LivePreparation:
                 raise RuntimeError("observed model work is not owned by its EngineCore observer process")
         if input_ids is None or positions.ndim != 1 or input_ids.numel() != positions.numel():
             raise RuntimeError("live preparation needs actual model token/position rows")
+        if marker.is_symlink() or marker.stat().st_size > 65536:
+            raise RuntimeError("live request marker must be bounded regular JSON")
         request = json.loads(marker.read_text())
         if self.normal_plan is not None:
             from .m1_normal_plan import request as planned_request
@@ -203,6 +221,13 @@ class LivePreparation:
         self.forward = {"request": request, "forward_index": self.forward_index,
                         "tokens": input_ids.detach().cpu().tolist(),
                         "positions": positions.detach().cpu().tolist()}
+        if benchmark is not None and not benchmark.begin(request, self.forward["tokens"], self.forward["positions"]):
+            self.forward = None
+            return
+        if benchmark is not None:
+            if input_ids.ndim != 1:
+                raise RuntimeError("eager benchmark requires flat input IDs")
+            self.lane = benchmark.lane  # Only after the prior request ledger is verified.
         self.forward_index += 1
 
     def end_forward(self):
@@ -212,6 +237,9 @@ class LivePreparation:
             self.failed = True
             self.native.megartx_m1_end()
             raise RuntimeError("native lease escaped the routed call")
+        benchmark = getattr(self, "benchmark", None)
+        if benchmark is not None and not self.failed:
+            benchmark.end()
 
     def routed(self, incumbent, layer, *args):
         import torch
@@ -296,6 +324,11 @@ class LivePreparation:
             return incumbent(*args, **kwargs)
         x = kwargs.get("input")
         if x is None or x.shape[0] != 1 or torch.cuda.is_current_stream_capturing():
+            benchmark = getattr(self, "benchmark", None)
+            if benchmark is not None:
+                if x is None or x.shape[0] != 256 or torch.cuda.is_current_stream_capturing():
+                    raise RuntimeError("eager benchmark fallback geometry/capture differs")
+                benchmark.fallback()
             if self.diagnostics:
                 with (self.directory / "stock-fallbacks.jsonl").open("a") as stream:
                     stream.write(json.dumps({"layer_name": self.layer.layer_name,
@@ -424,6 +457,9 @@ class LivePreparation:
         if status < 0 or not released:
             self.failed = True
             raise RuntimeError("request did not bind/release the actual native runner")
+        benchmark = getattr(self, "benchmark", None)
+        if benchmark is not None:
+            benchmark.backend(status)
         if self.route_controls and not self.route_controls_done:
             self.run_route_controls(incumbent, kwargs)
         return result
