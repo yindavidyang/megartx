@@ -12,7 +12,6 @@ from pathlib import Path
 from .m1_execution import (CAPTURE_FREE_BEGIN, CONTROLLER_SOURCES,
                            EXECUTION_MODES, EXTERNAL_OBSERVER_SETTER,
                            execution_mode, profile_scope)
-from .m1_process_lifecycle import process_identity
 
 
 LIVE_ABI_VERSION = 2
@@ -66,7 +65,6 @@ class LivePreparation:
         self.lane = lane
         self.execution_mode = execution_mode()
         self.diagnostics = self.execution_mode == "captured"
-        self.process_identity = process_identity()
         library = Path(os.environ["MEGARTX_M1_BRIDGE"]).resolve()
         receipt = json.loads(Path(os.environ["MEGARTX_M1_BUILD_RECEIPT"]).read_text())
         if (receipt.get("returncode") != 0 or receipt.get("reason")
@@ -139,6 +137,8 @@ class LivePreparation:
             self.external_observer_requested = True
             if os.environ.get("MEGARTX_M1_PROCESS_PROBE_ACTIVE") != "1":
                 raise RuntimeError("external M1 observer requires its task-local vLLM process probe")
+            from .m1_process_lifecycle import process_identity
+            self.process_identity = process_identity()
             if self.process_identity["process_name"] == "EngineCore":
                 from .m1_external_observer import ExternalObserver
                 self.external_observer = ExternalObserver(
@@ -185,6 +185,7 @@ class LivePreparation:
         if not marker.exists():
             return
         if self.external_observer_requested:
+            from .m1_process_lifecycle import process_identity
             current = process_identity()
             if (self.external_observer is None
                     or current["pid"] != self.process_identity["pid"]

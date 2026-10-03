@@ -4,11 +4,14 @@ import multiprocessing
 import os
 from pathlib import Path
 import stat
+import time
 
 
 PROCESS_EVIDENCE = "process-events.jsonl"
 MAX_PROCESS_EVIDENCE_BYTES = 1 << 20
 MAX_PROCESS_EVIDENCE_ROWS = 1024
+SPAWN_START_RECORD_WAIT_SECONDS = 10.0
+SPAWN_START_RECORD_POLL_SECONDS = 0.05
 
 
 def process_identity():
@@ -37,7 +40,7 @@ def append_process_event(evidence_dir, event, *, probe_sha256=None, **fields):
         os.close(fd)
 
 
-def _read_records(path):
+def _read_records(path, *, allow_partial_final=False):
     path = Path(path)
     if path.is_symlink() or not path.is_file():
         raise RuntimeError("M1 process evidence must be a regular file")
@@ -45,14 +48,21 @@ def _read_records(path):
     if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_PROCESS_EVIDENCE_BYTES:
         raise RuntimeError("M1 process evidence exceeds its file bound")
     records = []
-    with path.open("r", encoding="utf-8") as stream:
-        for line in stream:
-            if len(records) >= MAX_PROCESS_EVIDENCE_ROWS:
-                raise RuntimeError("M1 process evidence exceeds its record bound")
-            value = json.loads(line)
-            if not isinstance(value, dict):
-                raise RuntimeError("M1 process evidence contains a non-object record")
-            records.append(value)
+    raw = path.read_bytes()
+    if len(raw) > MAX_PROCESS_EVIDENCE_BYTES:
+        raise RuntimeError("M1 process evidence exceeds its file bound")
+    lines = raw.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if not line.endswith(b"\n"):
+            if allow_partial_final and index == len(lines) - 1:
+                break
+            raise RuntimeError("M1 process evidence contains an incomplete record")
+        if len(records) >= MAX_PROCESS_EVIDENCE_ROWS:
+            raise RuntimeError("M1 process evidence exceeds its record bound")
+        value = json.loads(line.decode("utf-8"))
+        if not isinstance(value, dict):
+            raise RuntimeError("M1 process evidence contains a non-object record")
+        records.append(value)
     return records
 
 
@@ -68,26 +78,35 @@ def validate_engine_core_spawn_owner(evidence_dir, registration, api_pid_path,
     if api_pid <= 0 or registration.get("ppid") != api_pid:
         raise RuntimeError("observer owner is not a child of the owned API server")
 
-    records = _read_records(Path(evidence_dir) / PROCESS_EVIDENCE)
-    if not records:
-        raise RuntimeError("M1 process probe emitted no runtime evidence")
-    if any(record.get("probe_sha256") != expected_probe_sha256 for record in records):
-        raise RuntimeError("M1 process evidence is not bound to the requested probe source")
-    if any(record.get("event") == "process_probe_failure" for record in records):
-        raise RuntimeError("task-local M1 process probe reported a startup failure")
-    if any(record.get("event") == "multiprocessing_context_created"
-           and record.get("actual_start_method") != "spawn" for record in records):
-        raise RuntimeError("EngineCore actual multiprocessing context is not spawn")
+    evidence_path = Path(evidence_dir) / PROCESS_EVIDENCE
+    deadline = time.monotonic() + SPAWN_START_RECORD_WAIT_SECONDS
+    while True:
+        records = _read_records(evidence_path, allow_partial_final=True)
+        if not records:
+            raise RuntimeError("M1 process probe emitted no runtime evidence")
+        if any(record.get("probe_sha256") != expected_probe_sha256 for record in records):
+            raise RuntimeError("M1 process evidence is not bound to the requested probe source")
+        if any(record.get("event") == "process_probe_failure" for record in records):
+            raise RuntimeError("task-local M1 process probe reported a startup failure")
+        if any(record.get("event") == "multiprocessing_context_created"
+               and record.get("actual_start_method") != "spawn" for record in records):
+            raise RuntimeError("EngineCore actual multiprocessing context is not spawn")
 
-    ready = [record for record in records if record.get("event") == "process_probe_ready"]
-    api_ready = [record for record in ready if record.get("pid") == api_pid]
-    if len(api_ready) != 1:
-        raise RuntimeError("task-local process probe did not initialize in the owned API process")
-    spawned = [record for record in records
-               if record.get("event") == "engine_core_process_started"]
-    if len(spawned) != 1:
-        raise RuntimeError("expected exactly one observed EngineCore process creation before dispatch")
-    child = spawned[0]
+        ready = [record for record in records if record.get("event") == "process_probe_ready"]
+        api_ready = [record for record in ready if record.get("pid") == api_pid]
+        if len(api_ready) != 1:
+            raise RuntimeError("task-local process probe did not initialize in the owned API process")
+        spawned = [record for record in records
+                   if record.get("event") == "engine_core_process_started"]
+        if len(spawned) > 1:
+            raise RuntimeError("expected exactly one observed EngineCore process creation before dispatch")
+        if spawned:
+            child = spawned[0]
+            break
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("EngineCore spawn evidence did not arrive within the bounded startup window")
+        time.sleep(min(SPAWN_START_RECORD_POLL_SECONDS, remaining))
     contexts = [record for record in records
                 if record.get("event") == "multiprocessing_context_created"
                 and record.get("context_id") == child.get("context_id")]

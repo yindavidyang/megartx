@@ -2,8 +2,11 @@ import json
 import ctypes
 import hashlib
 from contextlib import contextmanager, nullcontext
+import os
 import tempfile
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -51,6 +54,60 @@ class TestLiveLease(unittest.TestCase):
         with patch.dict("os.environ", {}, clear=True), patch("megartx.m1_live.LivePreparation") as constructor:
             self.assertIsNone(load_controller("native"))
             constructor.assert_not_called()
+
+    def test_fresh_observer_off_process_does_not_import_process_lifecycle(self):
+        root = Path(__file__).resolve().parents[1]
+        code = r"""import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from test_m1_live import TestLiveLease, digest
+from megartx import m1_live
+from megartx.m1_live import LivePreparation, load_controller
+
+assert load_controller("native") is None
+assert "megartx.m1_process_lifecycle" not in sys.modules
+assert "megartx.m1_external_observer" not in sys.modules
+
+class Function:
+    def __init__(self, value): self.value = value
+    def __call__(self, *args): return self.value
+
+with tempfile.TemporaryDirectory() as directory:
+    report, receipt, env = TestLiveLease().admission_fixture(directory)
+    module = env["MEGARTX_M1_STOCK_MODULE"]
+    pinned = "dc26a85431c946b0f636ddd2e08aa676f6340fd085361b21e8b0fe00617d28f9"
+    report["installed_pins"][module] = pinned
+    receipt.write_text(json.dumps(report))
+    native = SimpleNamespace(
+        megartx_m1_contract_v2=Function(json.dumps(report["live_contract"]).encode()),
+        megartx_m1_begin_v2=Function(0),
+        megartx_m1_begin_capture_free_v2=Function(0),
+        megartx_m1_end=Function(0), megartx_m1_error=Function(b""),
+        megartx_m1_metadata=Function(b""), megartx_m1_active=Function(0),
+        megartx_m1_verify_bindings=Function(0))
+    def fake_digest(path):
+        if Path(path).resolve() == Path(module).resolve(): return pinned
+        return digest(path)
+    with patch.dict(os.environ, env, clear=True), \
+         patch.dict(sys.modules, {"torch": SimpleNamespace()}), \
+         patch("megartx.m1_live.digest", side_effect=fake_digest), \
+         patch("ctypes.CDLL", return_value=native):
+        controller = LivePreparation("fused")
+    assert controller.external_observer_requested is False
+    assert not hasattr(controller, "process_identity")
+    assert "megartx.m1_process_lifecycle" not in sys.modules
+    assert "megartx.m1_external_observer" not in sys.modules
+    assert not Path(env["MEGARTX_M1_CAPTURE_DIR"]).exists()
+"""
+        subprocess.run([sys.executable, "-c", code],
+                       env={"PYTHONPATH": os.pathsep.join((str(root / "src"),
+                                                          str(root / "tests")))},
+                       check=True, timeout=20, capture_output=True, text=True)
 
     def test_unqualified_modes_cannot_enable(self):
         for lane, mode in (("1", "native"), ("fused", "reference"), ("stock", "control")):

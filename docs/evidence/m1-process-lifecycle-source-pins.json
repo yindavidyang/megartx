@@ -72,23 +72,69 @@
     {
       "path": "src/megartx/m1_live.py",
       "parent_sha256": "2a34ff07649cb7e5d445fe50487e63c6e8a9a3833c62c52e54e35f0ebaf41168",
-      "current_sha256": "730287e49cdf88be4ac40d67694b3458f4088de1d99b197c1ff06689fb225394"
+      "current_sha256": "d43adffdece9ec51627fa3b42125367ec3370bb01d800aad7b1fc6dc4d0f4431"
     },
     {
       "path": "tests/test_m1_external_observer.py",
       "parent_sha256": "199e7d11ab0278b0dbb0f5a1140c9f5e3b333798cc4e1a1555850e25ab8f5422",
       "current_sha256": "1c2f7dd4c418f82e3ecb2a13ca8b73be623b13019487217c4a895e15d5ae5a59"
+    },
+    {
+      "path": "numerical_reference/compare_m1_live.py",
+      "parent_sha256": "b1becc623afcb74a72c695d27557ecb327d7d6d70744830adf2bf150221b5487",
+      "current_sha256": "ccf531b66b480081cb76aaf6868cadd2c542a95209e945ef1957a66621c44e46"
+    },
+    {
+      "path": "tests/test_m1_live.py",
+      "parent_sha256": "721dde9c346a6995b84c41c5e0107826918a6dff13d1c426e45a906d66c096de",
+      "current_sha256": "f2e99b4dbb273b3c4ae71f5cec9af8cda35995fe88211cfc1e6925a0940044a0"
     }
   ],
   "added_source_hashes": {
     "scripts/m1_process_probe/sitecustomize.py": "159f9480abb766f25385fa598123adf8fe31c2e47129059d79a7ef9607cfced6",
-    "src/megartx/m1_process_lifecycle.py": "a72688f2a7b07f408ff6fb1aabeea7881e87f9b9b052017539a55d71955758f6",
-    "tests/test_m1_process_probe.py": "95537fc65bc2ac181d4811be2ba11a9d55cd7c34becc68e2a30f86d38e27f1b4"
+    "src/megartx/m1_process_lifecycle.py": "26572c9085eb2a5292680f0d296ba3ec3ddbf8453ec87b97e822176ce2a83106",
+    "tests/test_m1_process_probe.py": "6c09fc82eeb6282bdb842b6ebfdbdd7c1bc4722df4dfb6250030d43536593e66"
   },
   "native_build_verified": false,
   "gpu_execution_verified": false,
   "capture_free_observer_gpu_verified": false,
   "graphs_qualified": false,
   "performance_qualified": false,
-  "public_validation_tree": "74d5e44771cba35d837e6245302c12e16a26e7e1"
+  "public_validation_tree": "74d5e44771cba35d837e6245302c12e16a26e7e1",
+  "reviewer_followup_changes": {
+    "parent_commit": "9a3b70d6fd2c7563b7804682d435432f7af7eb43",
+    "parent_tree": "28dd1b728ce65eac2f0d9e67be8fbb11d4b9c67b",
+    "files": [
+      {
+        "path": "src/megartx/m1_live.py",
+        "parent_sha256": "730287e49cdf88be4ac40d67694b3458f4088de1d99b197c1ff06689fb225394",
+        "current_sha256": "d43adffdece9ec51627fa3b42125367ec3370bb01d800aad7b1fc6dc4d0f4431"
+      },
+      {
+        "path": "src/megartx/m1_process_lifecycle.py",
+        "parent_sha256": "a72688f2a7b07f408ff6fb1aabeea7881e87f9b9b052017539a55d71955758f6",
+        "current_sha256": "26572c9085eb2a5292680f0d296ba3ec3ddbf8453ec87b97e822176ce2a83106"
+      },
+      {
+        "path": "tests/test_m1_live.py",
+        "parent_sha256": "721dde9c346a6995b84c41c5e0107826918a6dff13d1c426e45a906d66c096de",
+        "current_sha256": "f2e99b4dbb273b3c4ae71f5cec9af8cda35995fe88211cfc1e6925a0940044a0"
+      },
+      {
+        "path": "tests/test_m1_process_probe.py",
+        "parent_sha256": "95537fc65bc2ac181d4811be2ba11a9d55cd7c34becc68e2a30f86d38e27f1b4",
+        "current_sha256": "6c09fc82eeb6282bdb842b6ebfdbdd7c1bc4722df4dfb6250030d43536593e66"
+      },
+      {
+        "path": "numerical_reference/compare_m1_live.py",
+        "parent_sha256": "b1becc623afcb74a72c695d27557ecb327d7d6d70744830adf2bf150221b5487",
+        "current_sha256": "ccf531b66b480081cb76aaf6868cadd2c542a95209e945ef1957a66621c44e46"
+      },
+      {
+        "path": "numerical_reference/test_m1_live_comparison.py",
+        "parent_sha256": "9c44671c244a931eff69f68a555fef732078b6f3e2e222b638b3fa71f0c283a8",
+        "current_sha256": "40c83f90ed8171d33f279e2b5d7a6d940ca5bc473cc5d4bf2fb6230feb117d35"
+      }
+    ]
+  }
 }
