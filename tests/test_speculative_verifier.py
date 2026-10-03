@@ -250,6 +250,18 @@ class TransactionTests(unittest.TestCase):
         with self.assertRaises(v.VerificationError):
             replace(initial.layers[1].slots[0], rope_position=0)
 
+    def test_returned_positions_require_immutable_exact_integer_tags(self):
+        initial = session((2, 3))  # input 1: True and 1.0 compare equal to 1
+        for mutate in (
+                lambda b: replace(b, input_positions=(True,)),
+                lambda b: replace(b, input_positions=(1.0,)),
+                lambda b: replace(b, prediction_positions=(2.0,)),
+                lambda b: replace(b, input_positions=[1])):
+            harness = v.TargetVerifier(initial, ByteTarget(mutate=mutate), enabled=True)
+            with self.assertRaises(v.VerificationError):
+                harness.verify((), remaining_budget=1)
+            self.assertIs(harness.session, initial)
+
     def test_cancellation_each_boundary_retry_and_backend_failure(self):
         initial = session(tuple(i % VOCAB for i in range(17)))
         for cancel_at in range(3):

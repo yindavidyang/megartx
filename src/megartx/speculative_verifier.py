@@ -414,6 +414,10 @@ class TargetVerifier:
                 or type(batch.generation) is not int or (batch.request_id, batch.epoch, batch.generation, batch.policy_id) != (
                 before.request_id, before.epoch, before.generation, before.policy_id)):
             raise VerificationError("stale/wrong request, generation or policy")
+        for positions in (batch.input_positions, batch.prediction_positions):
+            _tuple(positions, "returned absolute positions")
+            for position in positions:
+                _int(position, "returned absolute position")
         if batch.input_positions != request.input_positions or batch.prediction_positions != request.prediction_positions:
             raise VerificationError("logits-position contract mismatch")
         _tuple(batch.layers, "staged layer set")
