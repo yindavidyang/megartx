@@ -46,8 +46,13 @@ class PlanTests(unittest.TestCase):
 
     def test_real_launcher_rejects_metadata_flag_outside_eager_and_plan_flag_drift(self):
         script = Path(__file__).resolve().parents[1] / "scripts/run_scale_validation.py"
+        # Match the existing CPU CLI tests: no optional HTTP package is
+        # installed in scaffold CI, and rejected calls must never use it.
+        code = ("import runpy,sys,types; sys.modules['requests']=types.SimpleNamespace(); "
+                "sys.argv=sys.argv[1:]; runpy.run_path(sys.argv[0],run_name='__main__')")
+        common = [sys.executable,"-c",code,str(script)]
         for client in ("quality","controlled","normal","benchmark"):
-            r = subprocess.run([sys.executable,str(script),"--mode","native","--label","cpu-only",
+            r = subprocess.run(common + ["--mode","native","--label","cpu-only",
                 "--client",client,"--m1-timing-metadata-help"],capture_output=True,text=True,timeout=10)
             self.assertEqual(r.returncode,2,r.stderr)
             self.assertIn("requires --client m1-eager-benchmark",r.stderr)
@@ -57,7 +62,7 @@ class PlanTests(unittest.TestCase):
                 p = plan();p["metadata_help_timing"] = enabled
                 p["plan_sha256"] = digest({k:v for k,v in p.items() if k!="plan_sha256"})
                 path.write_text(json.dumps(p))
-                cmd = [sys.executable,str(script),"--mode","native","--label","cpu-only",
+                cmd = common + ["--mode","native","--label","cpu-only",
                     "--client","m1-eager-benchmark","--m1-eager-benchmark-plan",str(path),
                     "--m1-private-aot","not-read","--m1-preparation","stock","--m1-execution","capture-free",
                     "--m1-bridge","not-read","--m1-build-receipt","not-read"]

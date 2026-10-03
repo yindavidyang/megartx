@@ -62,7 +62,7 @@
     "src/megartx/m1_eager_benchmark.py": "63c4d6ed740fb3c5ea5e92268dc639a63b2c560b912e8da5b359f166930bfede",
     "scripts/m1_eager_benchmark_client.py": "a7b871b71d7b1d19a7813405602592f9562e7e0269e48d78a50950f49f20d34d",
     "scripts/prepare_m1_eager_benchmark.py": "8d7b7203284daad286f61f69933a7e02370a782e17ed06371be7e50eebe8333e",
-    "tests/test_m1_eager_benchmark.py": "ca2a6cd6ca24fa2de3cb0ef837fc92bcbb7e3b7f5d0055fb425ba36cc12a5fc4",
+    "tests/test_m1_eager_benchmark.py": "2a60038a6583a9635df9010dbd0211c5ad78db6f899d54c3155ae0db49a469b9",
     "docs/m1-matched-eager-benchmark.md": "ee68b1a0b3958e1af6d51d535fdaf6b605dbc6f368b1224ed85d9ff7522c20c7",
     "scripts/m1_owned_processes.py": "eac1f7d983e324e9ec38d7a646163a530dfaa7ccf17262a42e06886c0d9f46bd",
     "scripts/m1_private_aot.py": "2369dfac5f41c5c07dd6a0f9dcac8af4aa5b11a819f5d6add1cf11d64d8ddbee",
