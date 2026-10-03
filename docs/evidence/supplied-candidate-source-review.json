@@ -1,0 +1,140 @@
+{
+  "schema": "megartx-supplied-candidate-source-review-v1",
+  "review_date_utc": "2026-10-03",
+  "repository_base_commit": "0581f09259d18044ffb5f9e1363d0760f37ddd4f",
+  "retrieval_bound_bytes_per_file": 1000000,
+  "files": [
+    {
+      "url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/config.json",
+      "revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+      "bytes": 10289,
+      "sha256": "4e379cc809c617a49179a49140f553a2d6a5ec538ed480832b0c54f6ace43d98",
+      "scope": "public_config_or_source_only_not_loaded_model_evidence"
+    },
+    {
+      "url": "https://huggingface.co/google/gemma-4-26B-A4B-it-assistant/resolve/6e5aaaf4c42b98394530b8fda2e95cadd65c151c/config.json",
+      "revision": "6e5aaaf4c42b98394530b8fda2e95cadd65c151c",
+      "bytes": 2315,
+      "sha256": "f393dd4bbdbb1de9bfade9de224493de4e728ba020f9078db8de93cc66a551b2",
+      "scope": "public_config_or_source_only_not_loaded_model_evidence"
+    },
+    {
+      "url": "https://huggingface.co/RedHatAI/gemma-4-31B-it-speculator.dspark/resolve/0026c7d1899651ca3c45ede471712f04849723ac/config.json",
+      "revision": "0026c7d1899651ca3c45ede471712f04849723ac",
+      "bytes": 2010,
+      "sha256": "7dc09da7085d7dac9d1cb0cae87f284da70b7686ec5f7ce01a7158434232efed",
+      "scope": "public_config_or_source_only_not_loaded_model_evidence"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/models/gemma4_mtp.py",
+      "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+      "bytes": 21824,
+      "sha256": "27a2fb3073c2a27192f1e5a383b49a5a4d6bca2e38e5d31c56c05d0f9022601a",
+      "scope": "public_config_or_source_only_not_loaded_model_evidence"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/models/gemma4.py",
+      "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+      "bytes": 69524,
+      "sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "scope": "native_hook_feasibility_public_source_not_installed_adapter_proof"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/layers/attention/attention.py",
+      "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+      "bytes": 33071,
+      "sha256": "bc897e452f3aea603e353ca42a365d3be8836e9485d78cbf8cc4677baca2fb42",
+      "scope": "native_hook_feasibility_public_source_not_installed_adapter_proof"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/attention/backends/flashinfer.py",
+      "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+      "bytes": 117007,
+      "sha256": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f",
+      "scope": "native_hook_feasibility_public_source_not_installed_adapter_proof"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/worker/gpu_model_runner.py",
+      "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+      "bytes": 340999,
+      "sha256": "87c29d08c0bbf66993d8b984811e7325e35e6436242a773feb55ec88f16b2c51",
+      "scope": "native_hook_feasibility_public_source_not_installed_adapter_proof"
+    }
+  ],
+  "target_config_observations": {
+    "layers": 30,
+    "hidden_size": 2816,
+    "vocabulary": 262144,
+    "experts": 128,
+    "top_k": 8,
+    "local_layers": 25,
+    "global_layers": 5,
+    "window": 1024,
+    "top_level_eos": [
+      1,
+      106
+    ],
+    "text_eos": 1,
+    "metadata_KV_bits": 8,
+    "required_runtime_KV_dtype": "bfloat16"
+  },
+  "assistant_config_observations": {
+    "backbone_hidden_size": 2816,
+    "assistant_hidden_size": 1024,
+    "layers": 4,
+    "KV_shared_layers": 4,
+    "vocabulary": 262144,
+    "status": "matching_metadata_only_native_compatibility_unverified"
+  },
+  "dense_draft_config_observations": {
+    "named_target": "google/gemma-4-31B-it",
+    "feature_layer_ids": [
+      1,
+      17,
+      29,
+      47,
+      58
+    ],
+    "draft_hidden_size": 5376,
+    "draft_vocabulary": 32000,
+    "status": "incompatible_with_selected_target_features"
+  },
+  "web_review": [
+    {
+      "url": "https://ai.google.dev/gemma/docs/mtp/overview",
+      "scope": "MTP_mechanism_and_batch_one_MoE_warning",
+      "mutable": true,
+      "retained_bytes": false
+    },
+    {
+      "url": "https://arxiv.org/html/2607.05147v1",
+      "scope": "DSpark_architecture_and_scheduling_not_RTX_performance",
+      "mutable": false,
+      "retained_bytes": false
+    },
+    {
+      "url": "https://arxiv.org/html/2211.17192v2",
+      "scope": "generic_acceptance_residual_distribution",
+      "mutable": false,
+      "retained_bytes": false
+    }
+  ],
+  "limits": [
+    "no_weights_tokenizers_datasets_or_training",
+    "metadata_not_loaded_weight_or_token_ID_identity_proof",
+    "pinned_source_not_installed_runtime_proof",
+    "no_GPU_or_full_model_G1_evidence",
+    "existing_source_pins_unchanged"
+  ],
+  "native_source_review": {
+    "Gemma4Attention_forward": "535-567",
+    "Gemma4_causal_LM_head": "1588,1625-1642",
+    "Attention_context_writer": "682-736",
+    "FlashInfer_metadata_build": "1292-1321",
+    "FlashInferImpl_writer": "2577-2614",
+    "runner_logits_selection": "2243-2275,4497-4498",
+    "historical_Gemma_Attention_FlashInfer_hashes_match": true,
+    "runner_installed_hash_unverified": true,
+    "shared_files_edited": false
+  }
+}

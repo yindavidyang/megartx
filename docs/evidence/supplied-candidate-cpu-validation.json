@@ -1,0 +1,65 @@
+{
+  "schema": "megartx-supplied-candidate-cpu-validation-v1",
+  "date_utc": "2026-10-03",
+  "base_commit": "0581f09259d18044ffb5f9e1363d0760f37ddd4f",
+  "scope": "CPU_contract_and_synthetic_witness_only",
+  "python": "3.12.8",
+  "platform": "Darwin",
+  "existing_numpy_version": "2.4.4",
+  "package_changes": false,
+  "gpu_or_model_execution": false,
+  "native_verification_qualified": false,
+  "full_model_G1_qualified": false,
+  "checks": [
+    {
+      "name": "scaffold",
+      "command": "PYTHONPATH=src python3 -m unittest discover -s tests -v",
+      "tests_run": 207,
+      "skipped": 1,
+      "status": "passed",
+      "private_log_sha256": "98ad556c1677c3419a26bfc55a2575cc7bb2cd2b5f74af838459b407a2900d80"
+    },
+    {
+      "name": "numerical_reference",
+      "command": "python3 -m unittest discover -s numerical_reference -v",
+      "tests_run": 508,
+      "skipped": 0,
+      "status": "passed",
+      "private_log_sha256": "ab396dc7b756bbbe886de3437d76498891c32fe6d6eb2675de6ad73b7cad035f"
+    },
+    {
+      "name": "new_speculative_tests",
+      "command": "PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_speculative*.py' -v",
+      "tests_run": 18,
+      "skipped": 0,
+      "status": "passed",
+      "private_log_sha256": "0ad1d7dd40c1466f8da6a75909c5fcdf47b0545f734e8ca983a7844efa844f6a"
+    }
+  ],
+  "additional_checks": [
+    "PYTHONPATH=src python3 -m megartx validate configs",
+    "python3 -m compileall -q src tests numerical_reference",
+    "python3 numerical_reference/nvfp4_reference.py --self-test-summary",
+    "git diff --check",
+    "new_Markdown_links_and_JSON_parse"
+  ],
+  "format_product_checks": 4064,
+  "format_product_failures": 0,
+  "skip_reason": "existing_real_proc_subreaper_regression_requires_Linux",
+  "tested_source_sha256": {
+    "src/megartx/speculative_verifier.py": "b896f214aca4389e3569184f13faec09261705be8020283eedb51db6d4f4fee8",
+    "src/megartx/speculative_cost.py": "96ec59cc93f1080d423bb3b163c393f6613349cb0a4dbc831299462ba3f82e27",
+    "tests/test_speculative_verifier.py": "c8764cc659499e013ea515fc5d49015fffd410c601c79cd3e13a10730ab9f654",
+    "tests/test_speculative_cost.py": "109fcc200c9771e673de79e13df111c18acdc5edbf73bdacd21267840e568891",
+    "docs/design/supplied-candidate-verifier.md": "02bff10080cf38b4807b8450339191a63e34ff07e6fc462d669edb075d9f8c13",
+    "docs/design/speculative-draft-feasibility.md": "3e57403edb48f0506adc4a2b62f3e2573740b5126a656af94a8731c032d85767",
+    "docs/design/speculative-gpu-proposal.json": "77377d456b8686ecaf4af4895a5e84ab687172f44e61abf2bf56edcefa2fb133",
+    "docs/evidence/supplied-candidate-source-review.json": "cbbdc63f900aea48079a9b6d20e3bdd2182d45ea5569650ce5522d02b805cda5",
+    "docs/design/speculative-native-step.md": "9f5e2bbc8eb3341b7e4d10a123662f180f9f41189826c51a78964ad029069a37"
+  },
+  "publication_limits": "only_code_Markdown_sanitized_scalars_no_raw_prompts_tensors_logs",
+  "head_binding": "final_commit_and_exact_head_CI_receipt_reported_in_PR_and_parent_handoff_to_avoid_self_referential_commit_hash",
+  "proposal_extra_GPU_scratch_cap_bytes": 8388608,
+  "proposal_approved": false,
+  "native_implementation_present": false
+}
