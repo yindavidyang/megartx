@@ -218,6 +218,26 @@ class TransactionTests(unittest.TestCase):
             v.TargetVerifier(session((2,)), target, enabled=True).verify((3,), remaining_budget=5)
         self.assertEqual(target.calls, 0)
 
+    def test_terminal_publication_preserves_changed_session_and_rejects_reentry(self):
+        for budget, eos, stopped in ((0, (), None), (5, (2,), None), (5, (), "budget")):
+            initial = replace(session((2,)), stop_reason=stopped)
+            changed = replace(initial, generation=1)
+            target = ByteTarget()
+            harness = v.TargetVerifier(initial, target, enabled=True)
+            def change_session():
+                harness.session = changed
+                return False
+            with self.assertRaisesRegex(v.VerificationError, "session changed"):
+                harness.verify((), remaining_budget=budget, eos_token_ids=eos, cancelled=change_session)
+            self.assertIs(harness.session, changed)
+            self.assertEqual(target.calls, 0)
+            harness.session = initial
+            with self.assertRaisesRegex(v.VerificationError, "reentrant"):
+                harness.verify((), remaining_budget=budget, eos_token_ids=eos,
+                               cancelled=lambda: harness.verify((), remaining_budget=1))
+            self.assertIs(harness.session, initial)
+            self.assertEqual(target.calls, 0)
+
     def test_bad_batches_leave_all_bytes_frontier_and_rng_untouched(self):
         mutations = (
             lambda b: replace(b, generation=b.generation + 1),

@@ -14,10 +14,10 @@
     {
       "name": "scaffold",
       "command": "PYTHONPATH=src python3 -m unittest discover -s tests -v",
-      "tests_run": 208,
+      "tests_run": 209,
       "skipped": 1,
       "status": "passed",
-      "private_log_sha256": "3b4d02621cf15c5f765bcd06fb1248afcd78b93c72ffc23b780cf748c1b05f5e"
+      "private_log_sha256": "59152f4ce763bca5d5dd6d97cb2cc46f08adbb1d11b2b854ffbcdae098a07366"
     },
     {
       "name": "numerical_reference",
@@ -30,10 +30,10 @@
     {
       "name": "new_speculative_tests",
       "command": "PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_speculative*.py' -v",
-      "tests_run": 19,
+      "tests_run": 20,
       "skipped": 0,
       "status": "passed",
-      "private_log_sha256": "716371e2d06f838a24ad7b57b5900cfa86c640afd2e5810b40f55f9b4281ec5f"
+      "private_log_sha256": "ccf03a8a0e11713c20fb3eb7c1297b2bbc533e6cd477fe1cb860d0565116e919"
     }
   ],
   "additional_checks": [
@@ -47,10 +47,10 @@
   "format_product_failures": 0,
   "skip_reason": "existing_real_proc_subreaper_regression_requires_Linux",
   "tested_source_sha256": {
-    "src/megartx/speculative_verifier.py": "4cc7fdbe83c29f3c06108339f44e5d7c4a21a04eff4c582490b5153a61ac503f",
-    "src/megartx/speculative_cost.py": "96ec59cc93f1080d423bb3b163c393f6613349cb0a4dbc831299462ba3f82e27",
-    "tests/test_speculative_verifier.py": "39f01bc8f9a182f1b1ecbbb7904f7d33201af5ad378b702562b571d6027fa35c",
-    "tests/test_speculative_cost.py": "109fcc200c9771e673de79e13df111c18acdc5edbf73bdacd21267840e568891",
+    "src/megartx/speculative_verifier.py": "24da647b78af06441632ccddad368fc0a8df9c82f121b2bda2197f52025f1b67",
+    "src/megartx/speculative_cost.py": "042b6a6a7d173a3701d2a67cfe860c17174ae846fec2e7a9ea06a4b993156a15",
+    "tests/test_speculative_verifier.py": "5984f3cc6fd921892d88f4f7e20d39ae330fb9b2ecf7300b43a1e3cd8b3d1e66",
+    "tests/test_speculative_cost.py": "72a30ef6f5f03390a60e3897625be5b32e233ef66cbcb67fa2aefc261d136491",
     "docs/design/supplied-candidate-verifier.md": "02bff10080cf38b4807b8450339191a63e34ff07e6fc462d669edb075d9f8c13",
     "docs/design/speculative-draft-feasibility.md": "3e57403edb48f0506adc4a2b62f3e2573740b5126a656af94a8731c032d85767",
     "docs/design/speculative-gpu-proposal.json": "77377d456b8686ecaf4af4895a5e84ab687172f44e61abf2bf56edcefa2fb133",
@@ -62,6 +62,16 @@
   "proposal_extra_GPU_scratch_cap_bytes": 8388608,
   "proposal_approved": false,
   "native_implementation_present": false,
-  "review_delta_from": "a944838d24d69b645039b9fda6df5da9f11bd58c",
-  "review_delta": "strict_integer_tuple_position_metadata_with_four_rollback_negative_controls"
+  "review_delta_from": "ab15e629753895bf20a27deac88965ff94493f77",
+  "review_delta": "terminal_stale_session_guard_and_single_materialization_of_survival_iterable_with_focused_regressions",
+  "independent_review_controls": {
+    "scope": "independent_synthetic_CPU_checks_and_diagnostics_only",
+    "tests_run": 8,
+    "status": "passed",
+    "private_control_source_sha256": "26838b8b6c459d0c41c74e7bff502902ff969c3b0447d9cc24d059ae2f664982",
+    "private_log_sha256": "cf796232d10a72b08580afb22ac648b77a3adc951e6e410d8e102499aaf211cf",
+    "position_type_diagnostics": "all_rejected",
+    "terminal_and_active_replacement_generation_preserved": 1,
+    "generator_yield": 2.8
+  }
 }

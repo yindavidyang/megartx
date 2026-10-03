@@ -43,6 +43,7 @@ def expected_yield(prefix_survival, *, budget=None):
     Supply prefix survival, not marginal token agreement. For terminal/censored
     requests use measured committed yield instead of this uncensored model.
     """
+    prefix_survival = tuple(prefix_survival)
     previous = 1
     for probability in prefix_survival:
         _nonnegative(probability, "survival probability")

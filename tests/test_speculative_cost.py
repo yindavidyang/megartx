@@ -27,11 +27,15 @@ class CostTests(unittest.TestCase):
     def test_yield_uses_prefix_survival_and_budget_censoring(self):
         self.assertEqual(expected_yield(()), 1)
         self.assertAlmostEqual(expected_yield((.8, .6, .4)), 2.8)
+        self.assertAlmostEqual(expected_yield(p for p in (.8, .6, .4)), 2.8)
+        self.assertAlmostEqual(expected_yield((p for p in (.8, .6, .4)), budget=2), 1.8)
         self.assertEqual(expected_yield((.8, .6), budget=1), 1)
         self.assertAlmostEqual(expected_yield((.8, .6), budget=2), 1.8)
         for survival in ((.2, .4), (1.1,), (float("nan"),), (-.1,)):
             with self.assertRaises(ValueError):
                 expected_yield(survival)
+            with self.assertRaises(ValueError):
+                expected_yield(p for p in survival)
 
     def test_complete_cost_and_draft_budget(self):
         # Arbitrary scalar witness, not a 5090 performance prediction.

@@ -328,6 +328,8 @@ class TargetVerifier:
         if reason:
             if cancelled():
                 return None
+            if self.session is not before:
+                raise VerificationError("session changed before publication")
             self.session = replace(before, stop_reason=reason)
             return CycleResult((), 0, None, reason, before.cached_length, before.anchor, before.generation)
         # Reject unsupported shapes before dispatch. Reserve for the maximum
