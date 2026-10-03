@@ -1,0 +1,20 @@
+{
+  "immutable_inputs": {
+    "docs/prefill/profile-plan.json": "832daf1fb46c1c80240a4c890490e141c05da2122c6c2cafd8c6fc5df5016f06",
+    "docs/prefill/runner-binding.json": "bc57d5a8e303d8684e8c287545e45984d43c7eb46d81109a4492655d53f5d9b0",
+    "docs/prefill/runner-plan.json": "da6f2aa003ba5b187e133b1518ffef6f78ab678159567e99210392e63ad355e1",
+    "docs/prefill/source-binding.json": "ef9ece4b8ebd97b095f6a333681d8c2b3abca16ed7a89c59f05955cd06cc70d1"
+  },
+  "repo_files": {
+    "docs/prefill/live-protocol.md": "66b5c447d5e981e8a809fd60619cb579e8e971b51018e7365ea96d3f42eb1dda",
+    "docs/prefill/runtime-sites.json": "683601f48bfa0db5d3d1a65b104a4f307430b70b5e01b147d025919fbfbb2daf",
+    "src/megartx/prefill_collect.py": "4402f46ecba08a890cfa5e9d7577b30ab3ae3f955f9852ee1a90663a2d3312b4",
+    "src/megartx/prefill_kv.py": "0bbb309fa7c5b564e958cd7bcac1a71d60d2c6ec2c0a1a9b0bbb135b4aeb7b0e",
+    "src/megartx/prefill_launch.py": "467e01126ba138668f12b3673fd602eb8081dae964a88d7882f735319d798540",
+    "src/megartx/prefill_observe.py": "42b446eb081adbb5bd11c4dbac303362385b88e180be208f9a87c78ac1a47b0f",
+    "tests/test_prefill_collect.py": "25522b3fffeb2cfa370c50b8ba46e375449194e3fe78de3c6f636e45ec809a7b",
+    "tests/test_prefill_launch.py": "be930c849d372c4f37fb6a6b7c975aa10a50a7e668bc48fece4d23a0bd4dddeb"
+  },
+  "repository_base_commit": "0581f09259d18044ffb5f9e1363d0760f37ddd4f",
+  "schema": "megartx-prefill-live-source-v1"
+}

@@ -1,0 +1,39 @@
+{
+  "cpu_results": {
+    "base_scaffold_tests": 189,
+    "candidate_scaffold_tests": 224,
+    "compilation_passed": true,
+    "config_manifests": 8,
+    "diff_check_passed": true,
+    "finite_products": 4064,
+    "independent_numerical_tests": 508,
+    "prefill_tests": 74,
+    "products_not_exact_in_bf16": 0,
+    "scaffold_errors": 0,
+    "scaffold_failures": 0,
+    "scaffold_skips": 1,
+    "skip_scope": "Linux-only live-subreaper ownership fixture",
+    "source_binding_clis_passed": true
+  },
+  "environment": {
+    "numpy": "2.4.4",
+    "platform": "Mac CPU",
+    "python": "3.12.8"
+  },
+  "evidence_boundary": "CPU fixtures and source checks only. Final Git head/tree and post-commit exact-head results are recorded in the draft PR; this file does not hash itself or attest the target host.",
+  "qualification": {
+    "cuda_imported": false,
+    "g0_accepted": false,
+    "g1_accepted": false,
+    "g7_accepted": false,
+    "gpu_executed": false,
+    "gpu_qualified": false,
+    "native_cache_executed": false,
+    "numerical_qualified": false,
+    "performance_qualified": false,
+    "provider_connected": false
+  },
+  "repository_base_commit": "0581f09259d18044ffb5f9e1363d0760f37ddd4f",
+  "schema": "megartx-prefill-cpu-validation-v1",
+  "source_binding_sha256": "e3d118fe569b5ec6e9d1ef098983fe533472f0b09db5d2f08ef02f4e571acaf7"
+}
