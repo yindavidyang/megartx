@@ -120,19 +120,27 @@ def validate_trace(trace, lane):
     named = lambda name: sorted((e for e in cpu if e["name"] == name), key=lambda e: e["ts"])
     models, heads, samples = (named(n) for n in ("megartx::model_forward", "megartx::logits_head", "aten::argmax"))
     require(len(models) == len(heads) == len(samples) == 4, "full model/head/sampler coverage differs")
+    execution = {(e["pid"], e["tid"]) for e in (*models, *heads, *samples)}
+    require(len(execution) == 1, "model/head/sampler execution identity differs")
+    process, _ = next(iter(execution))
+    require(all(call["pid"] == process for call in api), "CUDA API owner process differs")
     prep = sorted((e for e in cpu if e["name"].startswith("megartx::m1_preparation_")), key=lambda e: e["ts"])
     routed = [e for e in cpu if e["name"].startswith("megartx::m1_routed_")]
     corrections = named("megartx::correction_selection")
     require(len(prep) == len(routed) == 120 and len(corrections) == 24, "preparation/routed/correction coverage differs")
     for i, model in enumerate(models):
-        require(model["ts"] + model["dur"] <= heads[i]["ts"] <= samples[i]["ts"], "model/head/sampler order differs")
+        require(model["ts"] + model["dur"] <= heads[i]["ts"]
+                and heads[i]["ts"] + heads[i]["dur"] <= samples[i]["ts"], "model/head/sampler order differs")
         if i < 3:
             require(samples[i]["ts"] + samples[i]["dur"] <= models[i+1]["ts"], "decode frame order differs")
         layers = [e for e in prep if contains(model, e)]
         expected = [f"megartx::m1_preparation_{lane}::language_model.model.layers.{layer}.moe.experts" for layer in range(30)]
         require([e["name"] for e in layers] == expected, "frame/layer preparation identities differ")
-        require(sum(contains(model, e) for e in routed) == 30
-                and sum(contains(model, e) for e in corrections) == 6, "frame routed/correction coverage differs")
+        routes = sorted((e for e in routed if contains(model, e)), key=lambda e: e["ts"])
+        require(len(routes) == 30 and all(e["name"] == "megartx::m1_routed_" + lane for e in routes)
+                and sum(contains(model, e) for e in corrections) == 6, "frame routed/correction identity differs")
+        require(all(contains(route, layer) and sum(contains(route, e) for e in layers) == 1
+                    for route, layer in zip(routes, layers)), "preparation/routed containment differs")
     stream = None
     for scope in prep:
         calls = [e for e in api if contains(scope, e)]

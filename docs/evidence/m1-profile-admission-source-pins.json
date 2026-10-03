@@ -50,8 +50,8 @@
     }
   ],
   "added_source_hashes": {
-    "scripts/m1_decode_profile.py": "6eab1d34355db9fc00092ea739a52e677b60d365766135f5a53cd5e5381ae028",
-    "tests/test_m1_profile_admission.py": "20134179f572fed2c595a422eef5eaddd297f930577ba9d4ffa863c0c41cc0b4",
+    "scripts/m1_decode_profile.py": "e9aa4c071f1659ac1fd500b9babb1bbacefa8a598be78c74e164f668f84b4e7c",
+    "tests/test_m1_profile_admission.py": "0de28c6c906762e0180a2fe082151c3bea1cfd41b7f4b06fa269cd6360b0a14c",
     "docs/m1-profile-only-admission.md": "95f2bdf1085e22a7c5d127da2b63d734d3b0a971ebcb414309f92aeecf849fd2"
   },
   "gpu_execution_verified": false,

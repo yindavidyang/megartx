@@ -53,7 +53,7 @@ def synthetic_trace(lane):
         for layer in range(30):
             begin = base + layer * 10_000 + 100
             cpu(f"megartx::m1_preparation_{lane}::language_model.model.layers.{layer}.moe.experts", begin, 5_000)
-            cpu(f"megartx::m1_routed_{lane}::language_model.model.layers.{layer}.moe.experts", begin+5_100, 3_000)
+            cpu(f"megartx::m1_routed_{lane}", begin-10, 8_000)
             if layer < 6: cpu("megartx::correction_selection", begin+8_200, 10)
             for i, size in enumerate([32,3072,2560,*[1024]*5,3072,2560,*[1024]*5]):
                 device("synthetic DtoH", "gpu_memcpy", begin+10+i*10, size)
@@ -212,6 +212,25 @@ class ProfileEvidenceTests(unittest.TestCase):
             elif kind=="frame":events.remove(next(e for e in events if e["name"]=="megartx::model_forward"))
             elif kind=="graph":gpu["args"]["graph id"]=1
             else:gpu["cat"]="gpu_memset"
+            path.write_text(json.dumps(changed))
+            with self.subTest(kind=kind),self.assertRaises(RuntimeError):self.admit()
+    def test_shared_execution_full_head_order_exact_routed_lane_and_api_process_are_required(self):
+        path=self.root/"decode-profile/stock.json";original=json.loads(path.read_text())
+        for kind in ("head_pid","sampler_tid","model_identity","head_overlap","routed_lane","api_pid","query_api_pid","prep_outside_routed"):
+            changed=copy.deepcopy(original);events=changed["traceEvents"]
+            head=next(e for e in events if e["name"]=="megartx::logits_head")
+            sample=next(e for e in events if e["name"]=="aten::argmax")
+            if kind=="head_pid":head["pid"]+=1
+            elif kind=="sampler_tid":sample["tid"]+=1
+            elif kind=="model_identity":next(e for e in events if e["name"]=="megartx::model_forward")["tid"]+=1
+            elif kind=="head_overlap":head["dur"]=sample["ts"]+sample["dur"]-head["ts"]+1
+            elif kind=="routed_lane":
+                for e in events:
+                    if e["name"].startswith("megartx::m1_routed_"):e["name"]="megartx::m1_routed_fused::wrong.layer"
+            elif kind=="api_pid":next(e for e in events if e["cat"]=="cuda_runtime" and "correlation" in e["args"])["pid"]+=1
+            elif kind=="query_api_pid":events.append(dict(ph="X",cat="cuda_runtime",name="cudaStreamIsCapturing",
+                    ts=800_000,dur=1,pid=101,tid=100,args={"correlation":100_000}))
+            else:next(e for e in events if e["name"]=="megartx::m1_routed_stock")["dur"]=1
             path.write_text(json.dumps(changed))
             with self.subTest(kind=kind),self.assertRaises(RuntimeError):self.admit()
     def test_token_usage_dispatch_fixture_and_launch_identity_fail_closed(self):
