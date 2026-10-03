@@ -2,7 +2,7 @@
 
 *Design proposal, 30 September 2026. No target-GPU measurements or kernel implementation claimed.*
 
-[Master contract](../master-plan.md) · [WP2](../action-plans/wp2.md) · [WP3](../action-plans/wp3.md) · [WP4](../action-plans/wp4.md)
+[Master contract](../master-plan.md) · [WP2](../action-plans/wp2.md) · [WP3](../action-plans/wp3.md) · [WP4](../action-plans/wp4.md) · [WP7 prefill](../action-plans/wp7.md)
 
 ## 1. Recommendation and scope
 
@@ -13,6 +13,8 @@ The target is one RTX 5090, one active text request, no dynamic request batching
 **The architectural constraint is absence of TMEM on SM120.** Accumulators live in registers, weight/scale tiles compete for CTA shared memory, and inter-CTA state lives in explicit global buffers. There is no SM100 `tcgen05`/TMEM schedule to transplant and no TPU-sized VMEM to hold a layer. Fusion must pay for its worst-phase register allocation, shared-memory reservation and barriers. A graph of smaller specialized kernels can win because each kernel reacquires its own resource budget. The [SM120 CUTLASS contract](https://docs.nvidia.com/cutlass/latest/media/docs/cpp/blackwell_functionality.html#blackwell-sm120-gemms) specifies `mma.sync` narrow-precision paths, TN operands and GeForce 1×1×1 clusters without multicast.
 
 Documentation and the WP0–WP1 scaffold are authorized. This proposal does not authorize custom kernel execution or imply G0–G4 passed. The subsequent [Mega MoE/K3 source comparison](reference-comparison.md) records adopted ideas, SM120 substitutions and review changes.
+
+The active milestone remains decode-first. The current bounded M1 preparation/lifecycle checks do not establish a speedup, broad G1 quality or complete-model graph admission; graph-backed execution below is a target architecture. The appended [full-prompt prefill design](#11-full-prompt-prefill-is-a-separate-optimization-regime) and WP7 action plan are proposals under D11; their draft PR publication is separately approved, with no GPU execution or merge approval.
 
 ## 2. Numerical DAG, before scheduling
 
@@ -322,3 +324,22 @@ Ordinary target-only decode is the first deliverable. After G1 and an accepted s
 No dates, GPU-hours estimate, dataset choice or loss function is frozen. This document authorizes no training run. DSpark-style scheduling does not make a Kimi-specific assistant compatible with Gemma. Attribute any comparison to the actual draft named by the source; there is no evidence here that Inferact trained its own draft.
 
 No tile, occupancy, timing, memory-fit or quality result in this document is established on the RTX 5090. Freeze immutable source revisions and attach build, oracle, sanitizer and measurement evidence before promoting any proposal. Preserve the master plan's [primary references](../master-plan.md#primary-references); external designs inform mechanisms, while SM120 resource and Gemma numerical contracts determine what can actually transfer.
+
+## 11. Full-prompt prefill is a separate optimization regime
+
+[WP7 A7.1–A7.6](../action-plans/wp7.md) profiles and tunes full 2K/8K prompts after G0/G1 qualification and a qualified decode control; 32K requires measured peak fit. This branch preserves the active WP2–WP4 decode chain. Its primary evidence is complete prompt-processing latency/throughput, peak memory, exact I03 handoff, TTFT and fixed-decode continuation guards at G7. It does not inherit G4 thresholds or convert short verifier speed into a prefill claim.
+
+The single-token vectors and B0–B11 worker schedule above are not a full-prompt schedule. For C rows in one chunk, dense projections have multirow GEMM opportunities, and each routed expert has a variable row group. Same-expert rows may reuse its weights; different experts use different weights. Measure expert occupancy, skew, empty groups, tile tails, quantization/gather/scatter and load balance. Bound working activations by chunk and tile; do not retain an all-prompt all-expert intermediate or assume M1's workspace bounds scale to C rows.
+
+| Candidate boundary | Evidence and unchanged contract |
+| --- | --- |
+| Chunk/context selection | Compare supported full versus chunked prefill; sum all chunk/scheduler costs and memory peaks; preserve every row's causal/sliding visibility before recycling local KV |
+| SM120 attention | Tune local/global geometry independently; keep normalization, unit score scale, absolute local/proportional RoPE and distinct processed K/V; no SM100 TMEM schedule |
+| Dense/shared projections | Tune actual multirow shapes and supported epilogues with the same dtype/casts, projection-sharing and output policy |
+| Grouped expert FC1/FC2 | Tune real per-expert M, scale segments, GELU tanh, FC2 quantization and weighted reference reduction; count padded work and dispatch/packing |
+| Residual hotspot fusion | Justify from the tuned prefill ledger; retain specialized GEMMs and bounded liveness/progress; operator and full-prompt same-lane evidence required |
+| Cache handoff/fallback | Compare continuous reference and chunked prefill→decode across chunk, window, page and prompt/output capacity boundaries; count conversion and reject partial/stale state |
+
+I01/I02 still govern original weights, scale/activation-quantizer lane and oracle boundaries. A faster arrangement may not silently merge expert calibration domains, change reductions or substitute W4A16. Use separate profiler and paired timing runs against tuned compatible FlashInfer in the same lane. Freeze useful prefill gain and tail/TTFT/memory/quality/decode guards before tuning for acceptance; unknown criteria or resource bounds block promotion.
+
+Full-prompt prefill builds an I03 committed prompt cache. WP5's short DSpark verifier operates on tentative anchor/proposal positions with I06 accept/rollback. Share qualified attention/GEMM/epilogue code where contracts match, but benchmark full prompts and short verifier route unions separately. G7 does not imply G5 or authorize draft training. GPU experiments remain queued under the sole owner and require separate approval; [resource bounds](../action-plans/wp7.md#resource-and-ownership-bounds) are not a transfer of ownership.

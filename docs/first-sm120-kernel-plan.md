@@ -16,6 +16,8 @@ does not open native, full/cached, quantizer, natural-quality or timing gates.
 The [master plan](master-plan.md) and [measurement protocol](protocols/measurement.md)
 remain authoritative for subsequent qualification.
 
+This is a historical candidate plan. Subsequent [bounded M1 normal-routing checks](m1-normal-correctness.md) and [PR14 lifecycle evidence](evidence/m1-pr14-gpu-lifecycle.md) cover their named implementations without qualifying speed, broad G1 quality or model graphs. [WP7](action-plans/wp7.md) is the separate full-prompt prefill plan; its multirow shape/reuse/memory profile cannot be inferred by extending this single-row preparation or its exploratory decode budget.
+
 ## Exploratory budget and priority
 
 The CPU audit separates eight prefill annotations from 31 decode annotations

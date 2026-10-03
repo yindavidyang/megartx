@@ -2,13 +2,15 @@
 
 *30 September 2026 | Contract 1.0 | Markdown initialization*
 
+*Planning revision, 3 October 2026: dedicated full-prompt prefill work package; draft PR publication approved, execution separately gated.*
+
 Objective: outperform a tuned, compatible FlashInfer backed runtime on the owned RTX 5090 for end to end single request Gemma 4 FP4 decode latency, while preserving model behavior.
 
 The core hypothesis is that a model specific schedule can coordinate dependencies, activation lifetimes and weight transfers across operator boundaries better than separately optimized kernels. FlashInfer already has specialized kernels. The opportunity must therefore be measured against tuned FlashInfer plus CUDA Graphs, not an untuned or unsupported configuration. A whole decoder megakernel is one possible outcome, not a prerequisite for success.
 
 ### How the two plans fit together
 
-This master plan governs scope, requirements, interfaces, evidence and decisions. The companion [RTX 5090 Gemma 4 Decode Action Plans](action-plans/README.md) describes execution tasks A0.1 through A6.4. Work package IDs WP0 through WP6 and gate IDs G0 through G6 are shared. If task steps conflict with this document, resolve the conflict before execution and update both plans under the same decision record.
+This master plan governs scope, requirements, interfaces, evidence and decisions. The companion [RTX 5090 Gemma 4 Action Plans](action-plans/README.md) describes the original tasks A0.1 through A6.4 and appended prefill tasks A7.1 through A7.6. WP0–WP6, G0–G6 and their tasks retain their IDs; [WP7/G7](action-plans/wp7.md) add a dedicated prefill optimization branch. If task steps conflict with this document, resolve the conflict before execution and update both plans under the same decision record.
 
 The [SM120 execution design](design/megakernel-design.md) expands the numerical DAG, layouts, phase barriers, buffer lifetimes and falsifiable experiments. The [Mega MoE and Kimi K3 comparison](design/reference-comparison.md) records which scheduling ideas transfer and which hardware/semantic assumptions do not. Both are reviewed proposals, not implemented kernels or performance evidence; they do not override frozen contracts or gate requirements.
 
@@ -24,12 +26,17 @@ The [SM120 execution design](design/megakernel-design.md) expands the numerical 
 | D06 | Proposed | Native expert NVFP4 W4A4 candidate; W4A16 is a separate numerical lane |
 | D07 | Proposed | 15% median ITL improvement, 20% stretch, quality/tail guards and 2 GiB initial reserve |
 | D08 | Authorized | Isolated target setup/model download, compatibility/baseline tests, six gate/up scale corrections, bounded independent numerical checks and a sanitized draft PR; training, merge and deployment excluded |
+| D11 | Planning and draft publication authorized; execution gated | Add WP7/G7 for full-prompt prefill optimization; publish this documentation as a draft PR under the owner's separate approval, with decode-first active and PR15 benchmark remediation separate |
 
 D04 and D05 select the authorized execution probes; they do not pass technical gates. D06 and D07 remain planning defaults. The selected runtime numerical path and proposed acceptance margins require qualification and a documented freeze.
 
 ### Scope and authority
 
 The owner has authorized isolated target-host setup, compatible stack/model download, target-only compatibility and baseline tests, correction of six mismatched gate/up globals with a minimal scale-preserving adapter, independent numerical checks and a sanitized draft PR. This does not imply a gate pass or authorize training, wider custom megakernels, merge or deployment. The selected checkpoint and BF16 execution probes are recorded in the [decision ledger](decision_ledger.md); proposed acceptance margins remain unfrozen. Preserve the distinction between original quantized weights, checkpoint activation calibration and the selected runtime quantizer. See the [scale-correction design](nvfp4-scale-correction.md).
+
+For this revision, D11 authorizes documentation and, following separate owner approval relayed on 3 October 2026, an isolated commit/push and public draft PR. Merge, SSH, GPU experiments, package installation and runtime changes remain excluded. PR15 benchmark remediation remains a separate workstream; task `01a10079-c8d1-752e-991a-4e76b523704e` remains the sole GPU owner. Draft publication does not extend execution authority or pass a technical gate.
+
+The [bounded normal-routing M1 checks](m1-normal-correctness.md) and [PR14 lifecycle evidence](evidence/m1-pr14-gpu-lifecycle.md) establish only their recorded correctness/lifecycle scope. They establish no speedup, broad G1 quality acceptance or complete-model graph eligibility. G0–G6 remain unaccepted; new G7 is also unaccepted. The existing decode-first milestone remains active.
 
 ## Requirements and research hypotheses
 
@@ -47,6 +54,7 @@ The owner has authorized isolated target-host setup, compatible stack/model down
 | R10 | Require compatible drafting, exact acceptance and safe rollback | G5 only |
 | R11 | Measure future topology; assume neither NVLink nor scaling benefit | G6 only |
 | R12 | Obtain implementation authorization and host/repository access before execution | Before WP0 execution |
+| R13 | Optimize full-prompt prefill with separate latency/throughput/memory evidence while preserving exact cache handoff and the active decode path | G1 and G7 |
 
 ### What the references establish
 
@@ -95,6 +103,8 @@ Use measured traffic and attainable bandwidth for comparable accesses, including
 ### Preferred progression
 
 Start with a proven prefill and graph captured decode path. Replace only measured hotspots. Move from small fusions to persistent MoE/block regions, then optionally cross layer or full token persistence. Fixed model shapes and context buckets permit preallocated scratch and GPU resident metadata. Keep one bounded invocation per token initially; an indefinitely running device server is outside the MVP.
+
+Graph capture here is a target architecture, not a claim about the current corrected M1 path. Retain its verified eager fallback until graph admission is independently qualified. [WP7](action-plans/wp7.md) optimizes the separate full-prompt prefill path after baseline qualification; it does not widen the single-row M1 preparation contract or displace WP2–WP4 decode work. Many prompt rows change GEMM utilization, expert reuse/load balance and activation/KV lifetimes, so prefill needs its own shape and cost ledger.
 
 The reference dependencies suggest early routing alongside the shared dense branch after attention. Once top 8 IDs exist, stage only selected expert tiles. Deterministic next layer projection tiles can be lookahead candidates; next layer routes are not yet known. Measure contention because overlapping work can reduce effective bandwidth or compute utilization. [9]
 
@@ -158,12 +168,15 @@ Tune the compatible FlashInfer incumbent before comparison. Keep non target comp
 | Procedure | Warm shapes and graphs; randomized paired trials; initially at least 30 trials per cell, more if uncertainty remains |
 | Report | Per request p50/p95 ITL, TTFT, total response time, cold load/compile separately, VRAM peaks and thermal/power state |
 | Attribution | Separate profiler runs; kernel/DRAM/L2/spill/barrier/host evidence; live routing in end to end timing |
+| Full-prompt prefill | Separate 2K/8K prompt-processing latency, prompt tokens/s, chunk traces, handoff cost and peak memory; 32K only after fit evidence; warm TTFT includes first-token completion |
 
 ### Proposed project acceptance thresholds
 
 G4 performance: at least 15% lower median end to end 8K decode ITL versus the tuned compatible FlashInfer backed runtime; 20% is a stretch objective. Proposed guards: p95 ITL no worse by more than 5%, and no unexplained greater than 5% TTFT or total response regression. Report 2K/32K tradeoffs and stronger control results. Kernel microbenchmarks are explanatory evidence, not the headline outcome.
 
 G4 quality: no more than 1% relative held out perplexity increase and 1 percentage point task score decrease versus the selected quantized reference, plus BF16 context where practical. Use paired confidence intervals and enough samples to resolve these margins. Small noisy tests are inconclusive. The project owner must freeze these proposed margins before tuning; strict semantics and safety invariants are not negotiable performance tradeoffs.
+
+G7 requires a same-lane, matched tuned-incumbent full-prompt prefill improvement with uncertainty, exact I03 handoff, safe measured peak fit, retained fallback and no decode regression beyond owner-frozen guards. Freeze the minimum useful prefill gain, p95/TTFT and decode regression margins, quality margins and memory reserve before acceptance tuning. No new numeric prefill threshold is asserted here; D07's existing margins remain proposed and do not automatically become G7 criteria. G7 cannot pass G4 or G5. See the [G7 decision packet](action-plans/wp7.md#a76-integrate-and-review-g7).
 
 Store raw per request/token results, seeds, warmup policy and excluded runs with reasons. Bootstrap paired comparisons, preserve thermal stability and continue trials when uncertainty cannot decide the gate. A fresh upstream FlashInfer release requires a separately pinned rebaseline; never silently change the incumbent during an experiment.
 
@@ -217,9 +230,19 @@ Accountable roles: runtime engineer and benchmark owner. Action plans A6.1–A6.
 
 Measure small message collectives and peer copies before choosing TP, pipeline or expert placement. Compare TP1 with TP2/TP4 where supported, including all communication and remote expert costs. G6 passes only if the measured result provides the agreed latency or capacity benefit over one GPU. Otherwise retain TP1. More aggregate VRAM can improve capacity without making a single token faster; no fourfold speed claim is justified.
 
+### WP7  Dedicated full-prompt prefill optimization
+
+Accountable roles: benchmark owner, kernel/runtime engineers and model/correctness lead. Action plans [A7.1–A7.6](action-plans/wp7.md). CPU contract/evidence preparation may proceed now. GPU profiling and tuning require separate authorization, accepted G0/G1 evidence and a qualified non-speculative decode control; the active decode-first milestone keeps priority in the sole owner's GPU queue. WP7 branches from WP1 and does not depend on wider WP4 persistence or WP5 drafting.
+
+Outcome: a full-prompt 2K/8K profile and memory ledger, conditional 32K fit decision, tuned chunking and SM120 attention, dense projection/shared-branch and grouped-expert GEMM candidates, measured hotspot fusions, exact cache handoff and independently reported prefill/decode controls. Many rows of one prompt remain one request. Preserve I01/I02 weights, quantizer lane and cast/reduction semantics; compare each lane to its own oracle. Tune compatible library paths before proposing fusion; do not extend the M1 decode preparation as a prefill solution by changing M.
+
+G7: A7.6's frozen criteria pass with all prompt, quantization, routing, dispatch, conversion, first-token, memory and fallback costs accounted for. Check causal/sliding masks, absolute RoPE, chunk/window/page/capacity boundaries and continuation against the continuous reference. Keep the verified incumbent on unsupported/losing shapes. Full prefill and short DSpark verifier batches may share qualified kernels, but have separate benchmarks and I03 versus I06 state transactions; neither inherits the other's gate evidence.
+
 ### Dependency and scope rules
 
 The dependency-based timeline starts with non-speculative WP0–WP1, progresses through useful WP2–WP3 fusion and optional WP4 persistence, then branches to planned WP5 draft evaluation, conditional training and verifier integration. No calendar dates or training GPU-hour estimates are assigned before discovery and approval. WP5 branches from the stable single GPU path. WP6 waits for hardware and may be deferred indefinitely without blocking WP0–WP4. Changes to quantization or checkpoint reopen I01/I02 and applicable G0/G1 evidence. Changes to cache layout reopen I03 and rollback tests. Any new persistent schedule reopens I04 safety review. The action playbook uses these same dependencies and gates.
+
+WP7 adds a separately gated prefill branch from WP1; it neither blocks the existing decode-first chain nor becomes a prerequisite for WP5. CPU reviews can overlap with stable inputs and separate outputs; GPU jobs are serialized by the sole owner with per-task resource admission and cleanup. No GPU ownership transfer, PR15 experiment or draft training is authorized by this plan. See the [resource bounds](action-plans/wp7.md#resource-and-ownership-bounds).
 
 ## Risk register and plan governance
 
