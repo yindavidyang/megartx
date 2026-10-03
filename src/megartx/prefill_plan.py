@@ -153,6 +153,7 @@ def verify_source_binding(plan, manifest_path, root):
     if type(files) is not dict or not files:
         raise ValueError("Source files absent")
     root = Path(root).resolve()
+    actual = {}
     for name, expected in files.items():
         _sha(expected, name)
         relative = Path(name)
@@ -163,8 +164,28 @@ def verify_source_binding(plan, manifest_path, root):
             raise ValueError("Source symlinks unsupported")
         if not source.is_file() or source.stat().st_size > 2**20:
             raise ValueError("Source file missing or unbounded: " + name)
-        if hashlib.sha256(source.read_bytes()).hexdigest() != expected:
-            raise ValueError("Source drift: " + name)
+        actual[name] = hashlib.sha256(source.read_bytes()).hexdigest()
+    candidates = [files]
+    overlays = manifest.get("reviewed_source_overlays", [])
+    if type(overlays) is not list or len(overlays) > 1:
+        raise ValueError("At most one explicit CPU source overlay is supported")
+    pair = {"src/megartx/m1_live.py", "src/megartx/vllm_scale_plugin.py"}
+    for overlay in overlays:
+        _keys(overlay, {"id", "source_head", "review_scope", "repo_files", "evidence_reference"}, "source overlay")
+        _sha(overlay["source_head"], "overlay source head", 40)
+        _equal(overlay["review_scope"], "cpu_source_compatibility_only", "overlay scope")
+        for key in ("id", "evidence_reference"):
+            if type(overlay[key]) is not str or not overlay[key].strip():
+                raise ValueError("Source overlay needs explicit identity/evidence")
+        _keys(overlay["repo_files"], pair, "atomic controller/plugin overlay")
+        if not pair <= set(files):
+            raise ValueError("Source overlay cannot add absent baseline files")
+        for name, expected in overlay["repo_files"].items():
+            _sha(expected, name)
+        candidates.append({**files, **overlay["repo_files"]})
+    if actual not in candidates:
+        changed = sorted(name for name in files if actual[name] != files[name])
+        raise ValueError("Source drift: " + ", ".join(changed))
     return len(files)
 
 

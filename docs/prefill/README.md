@@ -8,7 +8,8 @@ decode task `01a10079-c8d1-752e-991a-4e76b523704e` retains sole GPU ownership.
 
 The isolated base is `09341f2ad3f6e4b03e8f264b9e3c59fe5ddb52ed`. The separately
 prepared WP7/G7 master-plan revision is proposed context and has no source
-dependency here. This packet does not import PR15 changes or presume its result.
+dependency here. CPU source compatibility includes the explicitly reviewed PR15
+controller/plugin pair below; it does not presume GPU, timing or quality results.
 The [existing master contract](../master-plan.md),
 [measurement protocol](../protocols/measurement.md),
 [scale correction](../nvfp4-scale-correction.md) and
@@ -56,6 +57,25 @@ evidence files. Its historical target stack is vLLM 0.30.0, FlashInfer
 hashes come from retained repository evidence; the associated upstream vLLM
 commit is `ced6857afa0ea7b2e3f0846a62e1394e90f15607`. That association does not
 attest binary/source equivalence. This Mac CPU run does not reproduce that stack.
+
+The original twelve-file source vector remains immutable. A bounded, atomic
+`reviewed_source_overlays` entry additionally accepts the exact controller/plugin
+pair at PR15 head `dfd77d8c80d333fc9531955795476f7e9c0cbab2`, as documented in
+[the CPU source review](pr15-source-reconciliation.json). Mixed original/new
+pairs, unknown controller bytes and changes to any other pinned source fail
+closed. This is CPU source compatibility only; source/ownership/environment
+receipts and all pending GPU gates remain required for future execution.
+
+Whole-file controller pins were inspected baseline context for M1 fallback,
+forward ownership and observer boundaries, not CPU numerical dependencies.
+The reviewed delta adds bounded eager benchmark admission, request/lane/counter
+handling and a stricter marker check. Its benchmark-only multirow fallback
+accepts exactly 256 rows and rejects capture; it cannot serve the planned
+255/512/1024/etc prefill sweep. Quantizer and model arithmetic stay fixed;
+twelve original AST boundaries agree, and routed arithmetic agrees after removing
+exactly the reviewed counter-only block. AST equality is source evidence, not
+native arithmetic or GPU qualification. The future runner needs its own accepted
+prefill workload/admission contract and cannot silently reuse PR15's benchmark.
 
 The pinned NVIDIA checkpoint is
 `nvidia/Gemma-4-26B-A4B-NVFP4@a19cfe00be84568a6867111c9a68c9c44fdcffe6`.
