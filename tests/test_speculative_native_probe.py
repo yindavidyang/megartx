@@ -187,6 +187,15 @@ class SourceAndDefaultOff(unittest.TestCase):
         with self.assertRaises(ProbeError):
             check_admission({})
 
+    def test_prefill_guard_precedes_cache_reset(self):
+        # Error-boundary spy only: no runtime owner/model/cache is injected.
+        obj = OwnedNativeProbe.__new__(OwnedNativeProbe)
+        with patch.object(obj, "_check", side_effect=ProbeError("expired native lease")) as check:
+            with self.assertRaisesRegex(ProbeError, "expired native lease"):
+                obj.prefill((7,) * P)
+        check.assert_called_once_with()
+        self.assertFalse(hasattr(obj, "torch"))
+
     def test_module_import_is_cpu_only(self):
         code = "import sys; import megartx.speculative_native_probe; assert 'torch' not in sys.modules; assert 'vllm' not in sys.modules"
         subprocess.run([sys.executable, "-S", "-c", code], cwd=ROOT, check=True,

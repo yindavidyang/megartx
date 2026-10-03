@@ -6,18 +6,18 @@
   "GPU_jobs": 0,
   "shared_files_changed": [],
   "source_sha256": {
-    "src/megartx/speculative_native_probe.py": "725076e3a10786d912da939c44851cbfb2e39c9bce17d59c47e22c96c998d649",
+    "src/megartx/speculative_native_probe.py": "22a21197355eefdadd30831ce2911e783598270fad3e9ae3ff3cb58c2be42a68",
     "scripts/run_speculative_native_probe.py": "81623f6f9c4b3803dda1e96c1a34d304fa324ef06f7a220206e455f8ff2ca4aa",
-    "tests/test_speculative_native_probe.py": "db564dbcee22f37b319773c773d862d40c936b46c85e8beb952e48b0cfb1beec",
+    "tests/test_speculative_native_probe.py": "bf36294ce2222a3e59b8a71bbc5cafd2cf72c79f4fea1183ae47fad88a73e7c4",
     "docs/design/speculative-native-protocol.json": "cef85994ddeeba8663bfc0c1e0362c18a2ada6262989718f0d54012517f9acfb",
     "docs/evidence/speculative-native-source-binding.json": "9f3bc95cab7003e29aef1723bbc86ca3f85f3588a36151b5522f8e549ee16c5f"
   },
   "checks": {
-    "native_CPU_tests": 30,
-    "scaffold_tests": 239,
+    "native_CPU_tests": 31,
+    "scaffold_tests": 240,
     "scaffold_skipped": 1,
     "reference_tests": 508,
-    "scaffold_passed": 238
+    "scaffold_passed": 239
   },
   "environment": {
     "python": "3.12.8",
@@ -47,6 +47,7 @@
     "whole_transaction_fault_poison_and_drain",
     "allocator_guard_setup_and_restoration_same_error_boundary",
     "measured_allocator_slack_charged_without_empty_cache",
-    "startup_frames_in_global_96_forward_bound"
+    "startup_frames_in_global_96_forward_bound",
+    "direct_native_binding_and_prefill_guards_precede_writer_installation_and_cache_reset"
   ]
 }

@@ -368,6 +368,8 @@ class OwnedNativeProbe:
             if importlib.metadata.version(package) != version:
                 raise ProbeError("Installed package differs: " + package)
         import torch
+        if not torch.is_inference_mode_enabled():
+            raise ProbeError("Owned native inference-mode context required")
         model = runner.get_model()
         _class_source(model, "vllm.model_executor.models.gemma4_mm", "Gemma4ForConditionalGeneration")
         checkpoint = Path(runner.model_config.model)
@@ -795,6 +797,7 @@ class OwnedNativeProbe:
     def prefill(self, prompt):
         if len(prompt) != P or any(type(x) is not int or not 0 <= x < VOCAB for x in prompt):
             raise ProbeError("Exactly P2048 target prompt IDs required")
+        self._check()
         # Reset only the allocator-owned pages after prior work drained; old
         # sessions are no longer live. Prefix tables retain all 2048 inputs and
         # the installed local attention window applies its own causal bounds.
