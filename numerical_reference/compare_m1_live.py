@@ -42,7 +42,9 @@ def payload(directory, name, size):
     return result
 
 
-def check_call(directory, receipt, lane):
+def check_call(directory, receipt, lane, *, forward_identity=None):
+    require(receipt.get("diagnostics_mode", "captured") == "captured",
+            "Capture-free call cannot supply captured correctness evidence")
     require(receipt.get("schema") == "megartx-m1-live-v2" and receipt.get("lane") == lane
             and receipt.get("actual_backend") == lane, "Missing positive actual backend")
     require(receipt.get("execution_mode") == "eager" and receipt.get("pdl") is False
@@ -52,7 +54,8 @@ def check_call(directory, receipt, lane):
             "Missing successful lease/stream cleanup")
     require(receipt.get("owner_extents") == EXTENTS and receipt.get("workspace_bytes") == EXTENTS[5],
             "Actual owner extents differ")
-    require(receipt.get("forward_index") == 1 and receipt.get("positions") == [32]
+    expected_forward, expected_position = (1,32) if forward_identity is None else forward_identity
+    require(receipt.get("forward_index") == expected_forward and receipt.get("positions") == [expected_position]
             and len(receipt.get("tokens", [])) == 1, "Missing actual M1 forward identity")
     require(receipt.get("live_contract", {}).get("abi_version") == 2
             and receipt["live_contract"].get("view_count") == 15
@@ -123,15 +126,33 @@ def load_build(directory):
                 and hashlib.sha256(read_bytes(directory/name, 8<<20)).hexdigest() == digest,
                 "Compiled source snapshot differs")
     contract = report["live_contract"]
+    controller_sources = ("m1_live.py", "vllm_scale_plugin.py", "m1_execution.py",
+                          "controlled_capture.py", "controlled_kv_capture.py",
+                          "m1_normal_plan.py", "m1_normal_capture.py",
+                          "m1_external_observer.py")
+    require(contract.get("execution_modes") == ["captured", "capture-free"]
+            and contract.get("capture_free_begin") == "megartx_m1_begin_capture_free_v2"
+            and contract.get("external_observer") == {"registration": "megartx_m1_set_external_observer_v1",
+                                                        "callback_abi_version": 1},
+            "Compiled execution contract differs")
     require(contract.get("abi_version") == 2 and contract.get("view_count") == 15 and contract.get("view_bytes") == 32
             and contract.get("native_source_sha256") == report["source_hashes"].get("probes/m1_live_bridge.cu")
             and contract.get("controller_source_hashes") == {name: report["source_hashes"].get("src/megartx/"+name)
-               for name in ("m1_live.py", "vllm_scale_plugin.py")}, "Compiled source/ABI contract differs")
+               for name in controller_sources}, "Compiled source/ABI contract differs")
     header = read_bytes(directory/"m1_live_symbols.h", 1<<20).decode()
     declarations = [line.removeprefix("#define M1_LIVE_CONTRACT_JSON ") for line in header.splitlines()
                     if line.startswith("#define M1_LIVE_CONTRACT_JSON ")]
     require(len(declarations) == 1 and json.loads(json.loads(declarations[0])) == contract, "Generated compiled contract differs")
     lease, binding = read_json(directory/"lease-controls.json"), read_json(directory/"binding-controls.json")
+    if "execution_modes" in contract:
+        require(lease.get("execution_modes_tested") == contract["execution_modes"]
+                and lease.get("cross_mode_nested_rejection_preserves_outer") is True
+                and lease.get("captured_null_directory_rejected") is True
+                and lease.get("external_observer_export") == "megartx_m1_set_external_observer_v1"
+                and lease.get("external_observer_registration_guarded_by_live_leases") is True
+                and lease.get("external_observer_capture_free_begin_end_events") == [
+                    ["lease_begin", "fused", 0, 7, 0], ["lease_end", "fused", 0, 7, -1]],
+                "Compiled execution controls differ")
     require(lease.get("live_contract") == contract and lease.get("invalid_framing_before_dereference") is True
             and lease.get("historical_begin_symbol_absent") is True and lease.get("active_after") == 0
             and binding.get("torch_runtime") == "2.13.0+cu130" and binding.get("relocations_bound_to_bridge") == 4
@@ -141,9 +162,12 @@ def load_build(directory):
 
 def check_run(run, lane):
     run = Path(run)
+    launch = read_json(run / "launch-manifest.json")
+    require(launch.get("m1_execution_requested", "captured") == "captured"
+            and launch.get("environment_overrides", {}).get("MEGARTX_M1_EXECUTION", "captured") == "captured",
+            "Capture-free execution cannot supply captured correctness evidence")
     require(read_json(run / "status.json").get("phase") == "cleanup_complete", "Owned lifecycle incomplete")
     require(not (run / "QUALIFICATION-INVALIDATED.json").exists(), "Run explicitly invalidated")
-    launch = read_json(run / "launch-manifest.json")
     require(launch.get("m1_preparation_requested") == lane and launch.get("controlled_request_count") == 1
             and launch.get("controlled_path") == "cached" and launch.get("m1_route_controls") is True,
             "Run lacks bounded matched request declaration")
@@ -221,14 +245,14 @@ def check_trace(case, manifest, lane, scopes):
     return correlate_trace(json.loads(raw)["traceEvents"], lane, scopes)
 
 
-def correlate_trace(events, lane, scopes):
+def correlate_trace(events, lane, scopes, *, request_scope="controlled_live_request", request_count=30, artificial_count=2):
     require(isinstance(events, list) and len(events) <= 150000, "Trace event count exceeds bound")
     complete = [e for e in events if isinstance(e, dict) and e.get("ph") == "X"]
     spans = sorted((e for e in complete if e.get("cat") == "user_annotation"
                     and e.get("name") == "megartx::m1_preparation_"+lane), key=lambda e: e["ts"])
     outer = [e for e in complete if e.get("cat") == "user_annotation" and e.get("name") == "megartx::m1_routed_"+lane]
-    require(len(spans) == len(scopes) and scopes.count("controlled_live_request") == 30
-            and scopes.count("artificial_route_control") == 2, "Trace lacks positive request spans")
+    require(len(spans) == len(scopes) and scopes.count(request_scope) == request_count
+            and scopes.count("artificial_route_control") == artificial_count, "Trace lacks positive request spans")
     for span in spans:
         require(all(type(span.get(f)) in (int, float) and math.isfinite(span[f]) for f in ("ts", "dur"))
                 and span["dur"] > 0, "Invalid CPU span")
@@ -253,7 +277,7 @@ def correlate_trace(events, lane, scopes):
             counters[owners[c]][event["name"]] += 1
             streams.add(event.get("args", {}).get("stream"))
     global_candidates = sum(e.get("cat") == "kernel" and "m1_maps_expand" in e.get("name", "") for e in complete)
-    require(global_candidates == (32 if lane == "fused" else 0), "Unexpected candidate launch outside the bounded call set")
+    require(global_candidates == (request_count+artificial_count if lane == "fused" else 0), "Unexpected candidate launch outside the bounded call set")
     require(len(streams) == 1 and None not in streams and 0 not in streams, "Consumer kernels lack one owned nondefault stream")
     incumbent = []
     for counts in counters:
@@ -265,8 +289,8 @@ def correlate_trace(events, lane, scopes):
                 "Missing positive preparation replacement or unchanged GEMMs")
         incumbent.append({k:v for k,v in counts.items() if "m1_maps_expand" not in k
                           and "fusedBuildExpertMapsSortFirstTokenKernel" not in k and "expandInputRowsKernel<" not in k})
-    return {"routed_spans": len(outer), "request_spans": 30, "artificial_spans": 2, "positive_request_fused_launches": 30 if lane == "fused" else 0,
-            "positive_artificial_fused_launches": 2 if lane == "fused" else 0, "installed_gemm_launches": 64,
+    return {"routed_spans": len(outer), "request_spans": request_count, "artificial_spans": artificial_count, "positive_request_fused_launches": request_count if lane == "fused" else 0,
+            "positive_artificial_fused_launches": artificial_count if lane == "fused" else 0, "installed_gemm_launches": 2*(request_count+artificial_count),
             "cpu_launch_kernel_correlation_verified": True, "owned_nondefault_stream_verified": True,
             "incumbent_kernel_counts": incumbent}
 

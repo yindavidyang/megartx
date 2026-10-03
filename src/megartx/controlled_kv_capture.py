@@ -109,10 +109,16 @@ class SlotLedger:
 
 
 def gather_rows(cache, slots, head_dim, torch):
-    """Index logical BHNC axes, respecting strides; copy exactly two BF16 rows."""
+    if len(slots) != 2:
+        raise RuntimeError("K/V gather requires two distinct populated writer slots")
+    return gather_writer_rows(cache, slots, head_dim, torch)
+
+
+def gather_writer_rows(cache, slots, head_dim, torch):
+    """Index logical BHNC axes, respecting strides; copy at most two BF16 rows."""
     if cache.dtype != torch.bfloat16 or len(cache.shape) != 4 or cache.shape[3] != 2 * head_dim or cache.stride()[-1] != 1:
         raise RuntimeError("K/V gather requires the pinned BF16 BHNC content layout")
-    if len(slots) != 2 or slots[0] == slots[1] or any(type(s) is not int or not 0 <= s < cache.shape[0] * cache.shape[2] for s in slots):
+    if not 1 <= len(slots) <= 2 or len(set(slots)) != len(slots) or any(type(s) is not int or not 0 <= s < cache.shape[0] * cache.shape[2] for s in slots):
         raise RuntimeError("K/V gather requires two distinct populated writer slots")
     rows = [cache[slot // cache.shape[2], :, slot % cache.shape[2], :] for slot in slots]
     # stack copies only selected rows; never call cpu/contiguous on the cache.
@@ -137,7 +143,10 @@ def validate_metadata(meta, rows):
 
 
 class ControlledKV:
-    def __init__(self, model, plan, mode):
+    def __init__(self, model, plan, mode, diagnostics=True):
+        if type(diagnostics) is not bool:
+            raise RuntimeError("K/V diagnostics flag must be explicit boolean")
+        self.diagnostics = diagnostics
         _origin(plan)
         if mode not in {"native", "paired_reference", "gate_only_negative_control"}:
             raise RuntimeError("Unknown controlled K/V arithmetic lane")
@@ -147,6 +156,10 @@ class ControlledKV:
         if self.token_sha256 != plan["token_sha256"]:
             raise RuntimeError("K/V canonical token digest differs")
         self.schedule_sha256, self.mode = plan["schedule_sha256"], mode
+        self.bind_owners(model)
+
+    def bind_owners(self, model):
+        """Bind the pinned writer/cache owners without changing routing or cache."""
         checked, self.layers = set(), {}
         for path, module in model.named_modules():
             if type(module).__module__ != "vllm.model_executor.models.gemma4" or type(module).__name__ != "Gemma4Attention":
@@ -176,7 +189,8 @@ class ControlledKV:
         if self.directory is not None:
             raise RuntimeError("Prior K/V case was not finalized")
         self.directory = Path(directory)
-        if not self.directory.is_dir() or self.directory.name not in {"full", "cached", "chunked"}:
+        if ((self.diagnostics and not self.directory.is_dir())
+                or self.directory.name not in {"full", "cached", "chunked"}):
             raise RuntimeError("K/V output must be the fresh declared controlled case directory")
         self.ledger, self.snapshots, self.bindings = SlotLedger(self.tokens), None, None
 
@@ -186,6 +200,22 @@ class ControlledKV:
 
         if self.directory is None or self.snapshots is not None:
             raise RuntimeError("K/V capture has no active incomplete case")
+        slots, capacities, identities, bindings = self.read_frame(positions, tokens)
+        positions, tokens = [int(p) for p in positions.tolist()], [int(t) for t in tokens.tolist()]
+        self.ledger.record(positions, tokens, slots, capacities, identities)
+        self.bindings = bindings
+        if self.ledger.complete:
+            snapshots = []
+            for ordinal in range(30):
+                keys, values = gather_rows(self.layers[ordinal][2].kv_cache, self.ledger.selected(ordinal), self.descriptors[ordinal]["head_dim"], torch)
+                snapshots.append((keys, values))
+            self.snapshots = snapshots
+
+    def read_frame(self, positions, tokens):
+        """Validate actual eager writer metadata; return only bounded row mappings."""
+        import torch
+        from vllm.forward_context import get_forward_context
+
         context = get_forward_context()
         path = Path(inspect.getsourcefile(get_forward_context))
         if _digest(path) != SOURCE_HASHES["vllm.forward_context"]:
@@ -223,20 +253,18 @@ class ControlledKV:
             bindings.append({"layer": ordinal, "layer_name": name, "cache_view_shape": list(shape), "cache_view_strides": list(strides),
                              "resolved_layout": impl.kv_cache_layout.name, "writer": "FlashInferImpl.do_kv_cache_update",
                              "registry_owner_verified": True, "metadata_writer_slots_equal": True, "dtype": "bf16"})
-        self.ledger.record(positions, tokens, slots, capacities, identities)
-        self.bindings = bindings
-        if self.ledger.complete:
-            snapshots = []
-            for ordinal in range(30):
-                keys, values = gather_rows(self.layers[ordinal][2].kv_cache, self.ledger.selected(ordinal), self.descriptors[ordinal]["head_dim"], torch)
-                snapshots.append((keys, values))
-            self.snapshots = snapshots
+        return slots, capacities, identities, bindings
 
     def finish_case(self):
         import numpy as np
 
         if self.directory is None or not self.ledger.complete or self.snapshots is None:
             raise RuntimeError("K/V case lacks committed logical positions 31/32 at all thirty layers")
+        if not self.diagnostics:
+            # Owner/slot/content validation and the two-row finite check still
+            # ran in capture(). Omit only serialization of these snapshots.
+            self.directory = None
+            return []
         source_sha = hashlib.sha256(json.dumps(SOURCE_HASHES, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         contract = {"checkpoint_revision": REVISION, "provenance": {"scope": "installed_runtime_confirmed", "config_sha256": CONFIG_SHA256,
                     "source_sha256": source_sha, "kv_owner_layout_confirmed": True}, "layers": self.descriptors}

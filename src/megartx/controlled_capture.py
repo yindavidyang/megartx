@@ -7,6 +7,8 @@ import re
 
 import numpy as np
 
+from .m1_execution import EXECUTION_MODES
+
 ORIGIN = {"route_origin": "controlled", "routing_intervention": True,
           "routing_unchanged": False, "scope": "controlled_routing_fixture"}
 
@@ -32,9 +34,15 @@ def save_npz(path, arrays):
 
 
 class ControlledCapture:
-    def __init__(self, model, layers, mode):
+    def __init__(self, model, layers, mode, execution_mode="captured", external_observer=None):
         import controlled_reference as ref
         self.ref, self.mode = ref, mode
+        if execution_mode not in EXECUTION_MODES or (execution_mode == "capture-free" and mode != "native"):
+            raise RuntimeError("Unknown or incompatible controlled execution mode")
+        self.diagnostics = execution_mode == "captured"
+        self.external_observer = external_observer
+        if external_observer is not None and (self.diagnostics or execution_mode != "capture-free"):
+            raise RuntimeError("external M1 observer requires the capture-free controlled lane")
         self.output = Path(os.environ["MEGARTX_CONTROLLED_DIR"])
         self.output.mkdir(exist_ok=False)
         self.marker = self.output.parent / "capture-request.json"
@@ -58,10 +66,12 @@ class ControlledCapture:
         if set(self.layers) != set(range(30)):
             raise RuntimeError("Controlled capture requires all thirty exact layer identities")
         from .controlled_kv_capture import ControlledKV
-        self.kv = ControlledKV(model, self.plan, self.mode)
+        self.kv = ControlledKV(model, self.plan, self.mode) if self.diagnostics else ControlledKV(
+            model, self.plan, self.mode, diagnostics=False)
         self.context = None
         self.case = None
         self.profiler = None
+        self.external_trace = None
         self.layer0 = None
         if os.environ.get("MEGARTX_LAYER0_BOUNDARIES") == "1":
             from .controlled_layer0_capture import ControlledLayer0
@@ -82,6 +92,8 @@ class ControlledCapture:
         case = request["controlled_path"]
         if case not in {"full", "cached", "chunked"} or request["schedule_sha256"] != self.plan["schedule_sha256"]:
             raise RuntimeError("Unknown or changed controlled request plan")
+        if not self.diagnostics and case != "cached":
+            raise RuntimeError("Capture-free execution requires the bounded cached controlled request")
         if input_ids is None or input_ids.ndim != 1 or positions.ndim != 1 or input_ids.numel() != positions.numel():
             raise RuntimeError("Controlled input needs actual one-sequence token/position rows")
         pos = positions.long().cpu().numpy()
@@ -93,12 +105,20 @@ class ControlledCapture:
                 raise RuntimeError("Previous controlled request was not completed")
             self.case = case
             self.directory = self.output / case
-            self.directory.mkdir(exist_ok=False)
+            if self.diagnostics:
+                self.directory.mkdir(exist_ok=False)
             self.records, self.routes_seen, self.stages = [], {i: [] for i in range(30)}, []
             self.logit_counter, self.forward_counter, self.complete = 0, 0, False
+            self.logit_positions = set()
             self.kv.begin_case(self.directory)
-            self.profiler = torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA])
-            self.profiler.__enter__()
+            if self.external_observer is not None:
+                self.external_observer.begin_case(case, {"request_id": request.get("id"),
+                    "token_sha256": self.plan["token_sha256"],
+                    "schedule_sha256": self.plan["schedule_sha256"],
+                    "route_origin": "controlled", "artificial_routes": True})
+            if self.diagnostics or self.external_observer is not None:
+                self.profiler = torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA])
+                self.profiler.__enter__()
         if self.complete or self.forward_counter >= 4:
             raise RuntimeError("Repeated or excessive controlled model forward")
         self.context = {"positions": pos, "tokens": tokens, "seen": set()}
@@ -110,7 +130,9 @@ class ControlledCapture:
         if self.profiler is not None:
             self.profiler.__exit__(type(error), error, error.__traceback__)
             self.profiler = None
-        if self.case is not None:
+        if self.external_observer is not None:
+            self.external_observer.abort_case(error)
+        if self.case is not None and self.diagnostics:
             (self.directory / "INVALIDATED.json").write_text(json.dumps({**ORIGIN,
                 "reason": "Controlled model capture failed", "error": str(error),
                 "quality_gate_passed": False, "timing_qualified": False}, indent=2))
@@ -131,9 +153,17 @@ class ControlledCapture:
         weight_bits = self.plan["weight_bits"][ordinal, pos].copy()
         ids = torch.as_tensor(ids_np, device=original_ids.device, dtype=original_ids.dtype).clone()
         weights = torch.as_tensor(weight_bits.view(np.float32), device=original_weights.device).clone()
-        file = f"routes-{self.forward_counter:02d}-{ordinal:02d}.npz"
-        sha = save_npz(self.directory / file, {"positions": pos, "tokens": self.context["tokens"], "ids": ids.int().cpu().numpy(), "weight_bits": bits(weights)})
-        self.records.append({"file": file, "sha256": sha, "layer": ordinal, "layer_name": layer.layer_name, "forward": self.forward_counter})
+        if self.diagnostics:
+            file = f"routes-{self.forward_counter:02d}-{ordinal:02d}.npz"
+            sha = save_npz(self.directory / file, {"positions": pos, "tokens": self.context["tokens"], "ids": ids.int().cpu().numpy(), "weight_bits": bits(weights)})
+            self.records.append({"file": file, "sha256": sha, "layer": ordinal, "layer_name": layer.layer_name, "forward": self.forward_counter})
+        elif self.external_observer is not None:
+            file = f"routes-{self.forward_counter:02d}-{ordinal:02d}.npz"
+            self.external_observer.write_model_npz("routes", file,
+                {"positions": pos, "tokens": self.context["tokens"],
+                 "ids": ids.int().cpu().numpy(), "weight_bits": bits(weights)},
+                {"layer": ordinal, "layer_name": layer.layer_name,
+                 "forward": self.forward_counter})
         self.context["seen"].add(ordinal)
         self.routes_seen[ordinal].extend(pos.tolist())
         return ids, weights
@@ -143,11 +173,20 @@ class ControlledCapture:
         if not self.active:
             raise RuntimeError("Controlled stage collection has no active input context")
         positions = self.context["positions"][rows.long().cpu().numpy()]
-        if len(positions) != 1 or int(positions[0]) != self.ref.TARGET_POSITIONS[layer._megartx["ordinal"], expert.index]:
+        key = (layer._megartx["ordinal"], expert.index)
+        if (key not in self.ref.TARGET_POSITIONS or len(positions) != 1
+                or int(positions[0]) != self.ref.TARGET_POSITIONS[key]):
             raise RuntimeError("Controlled expert did not execute its single declared row")
+        if any((record["layer"], record["expert"]) == key for record in self.stages):
+            raise RuntimeError("Controlled expert executed its declared row twice")
         down = stages["down"]
         if not torch.isfinite(down).all() or int((down != 0).sum().item()) == 0 or not bool((weights > 0).all()):
             raise RuntimeError("Controlled expert did not produce finite nonzero output with positive weight")
+        if not self.diagnostics and self.external_observer is None:
+            # Preserve live row/finite/nonzero/positive-weight checks; the
+            # retained stage count is an execution bound, not saved evidence.
+            self.stages.append({"layer": layer._megartx["ordinal"], "expert": expert.index})
+            return
         arrays = {}
         for name in ("input", "gate", "up", "activation", "down", "gate_alpha", "up_alpha", "down_alpha", "quant1_global", "quant2_global"):
             arrays[name + "_bits"] = bits(stages[name])
@@ -159,8 +198,12 @@ class ControlledCapture:
                       token_ids=self.plan["tokens"][positions])
         ordinal = layer._megartx["ordinal"]
         file = f"stage-{ordinal:02d}-{expert.index:03d}.npz"
-        sha = save_npz(self.directory / file, arrays)
-        self.stages.append({**ORIGIN, "file": file, "stage_capture_sha256": sha, "mode": self.mode,
+        if self.diagnostics:
+            sha = save_npz(self.directory / file, arrays)
+            stage_record = {**ORIGIN, "file": file, "stage_capture_sha256": sha}
+        else:
+            stage_record = self.external_observer.write_model_npz("stages", file, arrays, {})
+        self.stages.append({**stage_record, "mode": self.mode,
                             "layer": ordinal, "layer_name": layer.layer_name, "expert": expert.index,
                             "position": int(positions[0]), "slot": int(slots[0].item()), "weight_bits": int(bits(weights)[0]),
                             "completed": True, "finite_output": True, "nonzero_output_elements": int((down != 0).sum().item()),
@@ -182,6 +225,22 @@ class ControlledCapture:
             if all(sorted(rows) == list(range(33)) for rows in self.routes_seen.values()):
                 if len(self.stages) != 6:
                     raise RuntimeError("Controlled model missed positive correction coverage")
+                if {(record["layer"], record["expert"]) for record in self.stages} != set(self.ref.TARGETS):
+                    raise RuntimeError("Controlled model executed the wrong correction set")
+                if not self.diagnostics:
+                    if self.external_observer is not None:
+                        self._capture_external_kv()
+                    self.kv.finish_case()
+                    self.complete = True
+                    if self.external_observer is not None:
+                        torch.cuda.synchronize()
+                        self.profiler.__exit__(None, None, None)
+                        trace = self.external_observer.root / "controlled-trace.json.gz"
+                        self.profiler.export_chrome_trace(str(trace))
+                        self.profiler = None
+                        self.external_trace = trace
+                        self._finish_external_case_if_ready()
+                    return
                 torch.cuda.synchronize()
                 self.profiler.__exit__(None, None, None)
                 trace = self.directory / "controlled-trace.json.gz"
@@ -219,6 +278,24 @@ class ControlledCapture:
         actual_tokens = np.asarray([tokens[i] for i in indices], dtype=np.int64)
         if not np.array_equal(actual_tokens, self.plan["tokens"][selected_pos]):
             raise RuntimeError("Controlled raw-logit rows have wrong actual tokens")
+        if not self.diagnostics:
+            import torch
+            selected = result[indices]
+            if tuple(selected.shape) != (len(indices), 262144) or not bool(torch.isfinite(selected).all()):
+                raise RuntimeError("Controlled raw logits are not finite full-vocabulary rows")
+            self.logit_positions.update(int(p) for p in selected_pos)
+            if self.complete and self.logit_positions != {31, 32}:
+                raise RuntimeError("Both actual input positions 31 and 32 need validated pre-sampler raw logits")
+            if self.external_observer is not None:
+                values = selected.detach().float().cpu().numpy().copy()
+                file = f"logits-{self.logit_counter:02d}.npz"
+                self.external_observer.write_model_npz("logits", file,
+                    {"input_positions": selected_pos, "input_token_ids": actual_tokens,
+                     "logits": values}, {"row_correspondence": method,
+                     "source_rows": source_rows, "mode": self.mode, "path": self.case})
+            self.logit_counter += 1
+            self._finish_external_case_if_ready()
+            return
         # .cpu() is a separate copy before the sampler mutates CUDA storage.
         logits = result[indices].detach().float().cpu().numpy().copy()
         if logits.shape != (len(indices), 262144) or not np.isfinite(logits).all():
@@ -231,3 +308,23 @@ class ControlledCapture:
                                      "source_rows": source_rows, "token_sha256": self.plan["token_sha256"],
                                      "schedule_sha256": self.plan["schedule_sha256"]}) + "\n")
         self.logit_counter += 1
+
+    def _capture_external_kv(self):
+        if self.external_observer is None:
+            return
+        if self.kv.snapshots is None or not self.kv.ledger.complete:
+            raise RuntimeError("external observer K/V snapshot is incomplete")
+        for ordinal, (keys, values) in enumerate(self.kv.snapshots):
+            filename = f"kv-{ordinal:02d}.npz"
+            self.external_observer.write_model_npz("kv", filename,
+                {"logical_positions": np.asarray([31, 32], dtype=np.int64),
+                 "key_bits": keys, "value_bits": values},
+                {"layer": ordinal, "writer_slots": list(self.kv.ledger.selected(ordinal)),
+                 "logical_mapping_verified": True})
+
+    def _finish_external_case_if_ready(self):
+        if (self.external_observer is None or not self.complete or self.external_trace is None
+                or self.logit_positions != {31, 32}):
+            return
+        self.external_observer.finish_case(self.external_trace)
+        self.external_observer = None

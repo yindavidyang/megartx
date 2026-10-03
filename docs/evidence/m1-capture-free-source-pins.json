@@ -1,0 +1,23 @@
+{
+  "scope": "Source overlay for CPU-tested capture-free execution; no compiled native, GPU, graph or timing qualification is asserted.",
+  "base_commit": "cc82e59c8053a72af37d9e06a76405d1ef31181e",
+  "previous_ledger_sha256": "015426cd18349c3f5be6a437a3bef8256e1b9697a836ecd4f18410f5042bb7b7",
+  "gpu_execution_verified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false,
+  "superseded_inputs": [
+    {
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "previous_sha256": "f073549eee892cf5cb1da0861e89095f4b1cf4c36491721d87b6693e18c6c92d",
+      "current_sha256": "598711e6c29a7245497b8435ceef3730ffb7e233488656bac8c07c8c42d525d8"
+    }
+  ],
+  "controller_source_hashes": {
+    "m1_live.py": "ffef42a0d3f40a2eba4bea8e34c2c1f5d831463b0465557cc9526c416950934b",
+    "vllm_scale_plugin.py": "598711e6c29a7245497b8435ceef3730ffb7e233488656bac8c07c8c42d525d8",
+    "m1_execution.py": "2a2ce6f2dab19ad01f9454d45adedbce1bdc5f2b95350ff0e0bc40a2814d37fa",
+    "controlled_capture.py": "556c7fea3296533f7c14b47e9881f75b7b05a9600aee94475b6624e14880d8bd",
+    "controlled_kv_capture.py": "e83f734303b28d79238a9f4e23b1b6629ce7744a42f86d807f2efc641d7c832b"
+  },
+  "native_source_sha256": "a4abc401455910afd19e2774e9ce5923bf7f8e87d3c7ed44296b6aa569be74c1"
+}

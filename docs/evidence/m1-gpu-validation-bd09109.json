@@ -1,0 +1,180 @@
+{
+  "schema": "megartx-m1-gpu-validation-v1",
+  "scope": "Bounded native and GPU execution for the combined PR11/PR12 capture-free path with a validation-only external observer. This does not qualify quality, unconstrained generation, natural routing, timing, performance, CUDA graphs, or asynchronous request/frame identity.",
+  "tested_source_head": "bd09109fd59c9767c1f81ec49dbc54555f1fd29f",
+  "source_history": [
+    "05807d660d041bc1542f916f90c6328abaa94d31",
+    "129f5ce78f77e678340ce47c05100dbc2f23a9e0",
+    "0fe75d10c9cadfbd034d8a203f4efc9d1a4f0d56",
+    "ec78b5c05e17080c485d7d9b7d0903bec8738339",
+    "12cc5bfa0450fed79ad57895aabdb28875a1b4c4",
+    "14053c6cc1aea18c430c46ae3b95736eb238ef51",
+    "ba6da1aac7dd44ca5fcf8c2a3f009110f4e8d084",
+    "bd09109fd59c9767c1f81ec49dbc54555f1fd29f"
+  ],
+  "source_bundle": {
+    "path": "/home/yyang/projects/megartx-baseline-20260930/correctness-20260930/m1-combined-12cc5bf/analysis-bd09109.bundle",
+    "sha256": "6ff9c245ce41a5b67630e600a732843bcb3415170f831bad1ec91bda5104aa05"
+  },
+  "environment": {
+    "gpu": "NVIDIA GeForce RTX 5090",
+    "python": "3.12.3",
+    "vllm": "0.30.0",
+    "torch": "2.13.0+cu130",
+    "flashinfer": "0.6.18.post1",
+    "cupti": {
+      "distribution": "nvidia-cuda-cupti",
+      "version": "13.0.85",
+      "library": "libcupti.so.13",
+      "sha256": "e2f9ed861fe27c492b8bb52b5e3220ef5120f3edcda36312e96b7fd8a186be3e"
+    },
+    "model": "nvidia/Gemma-4-26B-A4B-NVFP4",
+    "model_revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6"
+  },
+  "native_build": {
+    "path": "/home/yyang/projects/megartx-baseline-20260930/correctness-20260930/m1-combined-12cc5bf/build-observer-guard",
+    "receipt_sha256": "f6599e4a9e290f205a6b93806f3a64638fb426ccdd79befab8f16e800ec2d5a7",
+    "binary_sha256": "e07c6a9e4f8e1420a1fe541945eeaa671b881c1dce617407cd1d9ccd260b5249",
+    "returncode": 0,
+    "reason": null,
+    "compile_seconds": 6.162209242000245,
+    "peak_aggregate_rss_bytes": 730832896,
+    "compiler_rss_limit_bytes": 2147483648,
+    "compile_time_limit_seconds": 300,
+    "required_exports_present": true,
+    "compiled_lease_controls_returncode": 0,
+    "compiled_binding_controls_returncode": 0,
+    "installed_pins_unchanged": true
+  },
+  "plans": {
+    "normal_plan_sha256": "34218e21ec9bae675fbd0cddec2901496de14aad098225777d479ea86271f3fe",
+    "normal_plan_file_sha256": "76bba5251842646c601c806ad55266773b5ea8e2e26fe922b2d50ca5a1696779",
+    "normal_manifest_file_sha256": "3a72263fbc5a294bf95394d5d5e3f10edb63aa1fcd71657fc0fd668a4ced7822",
+    "controlled_schedule_sha256": "f1f65ce56aeb47f9866cb23ea9e461279a281dd8d5aabac41a6b5664f228c0c6",
+    "controlled_token_sha256": "ba85b6ee55debd42d8ad445823aaa902410839f921e795229fcb3d0809c954dd",
+    "controlled_manifest_file_sha256": "69456ecb73f45d4641878b25ef6326978919060cf028cf3c3347a02342336698",
+    "controlled_cache_contract_sha256": "f20924f6a310a7eb956d8444fc241356fef0d95c5dc7d85c9e36b42ec64527b8",
+    "controlled_route_table_sha256": "b2a7dce4d5a189f1128982e27376bf5222b51f06fe31eead91de022bc07d88cf"
+  },
+  "comparisons": {
+    "normal_captured": {
+      "path": "/home/yyang/projects/megartx-baseline-20260930/correctness-20260930/m1-combined-12cc5bf/reports/normal-final-comparison.json",
+      "sha256": "dbd4f90011eb3c8e6af7dc59e6aa59d281e8179e807f18eccf988b86c8927aa6",
+      "passed": true,
+      "scheduling": "explicit_synchronous",
+      "m1_calls_per_lane": 210,
+      "stock_fallback_calls_per_lane": 150,
+      "preparation_masks_and_routed_outputs_bit_exact": true,
+      "model_arrays": {
+        "npz_files": 938,
+        "arrays": 3324,
+        "elements": 5326728,
+        "bit_exact": true
+      },
+      "additional_scratch_bytes": 3185440
+    },
+    "controlled_captured": {
+      "path": "/home/yyang/projects/megartx-baseline-20260930/correctness-20260930/m1-combined-12cc5bf/reports/controlled-final-comparison.json",
+      "sha256": "8bbc6e0117cbdf8ab264c30c82f0410d5f718c6cdb487d0a9e6aadd037033a15",
+      "passed": true,
+      "request_bound_layers": 30,
+      "labeled_route_controls": 2,
+      "fallback_calls_per_lane": 30,
+      "preparation_payloads_physical_masks_and_routed_outputs_bit_exact": true,
+      "model_arrays": {
+        "npz_files": 99,
+        "arrays": 471,
+        "elements": 1306330,
+        "bit_exact": true
+      },
+      "candidate_launches": {
+        "stock_request": 0,
+        "stock_route_controls": 0,
+        "fused_request": 30,
+        "fused_route_controls": 2
+      },
+      "incumbent_gemm_launches_per_lane": 64
+    },
+    "capture_free_external_observer": {
+      "path": "/home/yyang/projects/megartx-baseline-20260930/correctness-20260930/m1-combined-12cc5bf/reports/observer-final-comparison.json",
+      "sha256": "65198778abc58c3826e402782a5d0edb2a1b726436e37fd8c19972b8ecd2281a",
+      "passed": true,
+      "route_controls": 0,
+      "native_calls_per_lane": 30,
+      "candidate_launches_correlated": {
+        "stock": 0,
+        "fused": 30
+      },
+      "model_arrays_per_lane": 99,
+      "native_payloads_and_model_arrays_bit_exact_to_captured": true,
+      "physical_masks_and_consumer_descriptors_match": true,
+      "incumbent_gemms_per_m1_call": 2,
+      "stock_fused_incumbent_kernels_match": true,
+      "stream_id_mapping_api": "cuptiGetStreamIdEx",
+      "profiler_stream_ids": [29],
+      "raw_cuda_handle_assumed_equal_to_profiler_id": false,
+      "internal_capture_hooks_inactive": true,
+      "observer_perturbs_execution": true,
+      "timing_qualified": false
+    }
+  },
+  "observer_off_fresh_process_checks": {
+    "stock": {
+      "run": "observer-off-final-stock",
+      "returncode": 0,
+      "cleanup_complete": true,
+      "observer_requested": false,
+      "observer_environment_override_present": false,
+      "observer_sidecar_present": false,
+      "internal_preparation_directory_present": false,
+      "trace_or_profiler_artifacts_present": false
+    },
+    "fused": {
+      "run": "observer-off-final-fused",
+      "returncode": 0,
+      "cleanup_complete": true,
+      "observer_requested": false,
+      "observer_environment_override_present": false,
+      "observer_sidecar_present": false,
+      "internal_preparation_directory_present": false,
+      "trace_or_profiler_artifacts_present": false
+    },
+    "scheduling": "explicit_synchronous"
+  },
+  "observer_lifecycle_regression": {
+    "repeat_initialization_of_same_native_bridge_in_one_process": "fails closed before replacing the registered callback",
+    "second_observer_instance_sharing_a_destination": "fails closed rather than overwriting evidence",
+    "cpu_test_counts": {
+      "external_observer": 14,
+      "m1_live": 22,
+      "m1_execution": 8
+    }
+  },
+  "resource_guards": {
+    "gpu_free_memory_below_2gib_action": "owned server terminated; all final runs completed without guard trip",
+    "host_available_below_8gib_action": "owned server terminated; all final runs completed without guard trip",
+    "additional_device_scratch_limit_bytes": 8388608,
+    "final_idle_gpu_used_mib": 41,
+    "final_idle_gpu_utilization_percent": 0,
+    "final_host_memavailable_kib": 61928220,
+    "owned_servers_cleanup_complete": true
+  },
+  "preserved_startup_failure": {
+    "path": "/home/yyang/projects/megartx-baseline-20260930/correctness-20260930/m1-combined-12cc5bf/results/observed-stock/server.log",
+    "cause": "vLLM loaded the plugin in API server and EngineCore processes; eager shared-sidecar creation made the second process fail with FileExistsError before any client request.",
+    "client_request_started": false,
+    "owned_process_group_cleanup_complete": true,
+    "resolution": "Lazy sidecar ownership at first native call, plus a same-process bridge callback registration guard. Final-source capture-free runs and comparator passed."
+  },
+  "qualification_limits": {
+    "quality_qualified": false,
+    "broad_natural_routing_qualified": false,
+    "unconstrained_generation_qualified": false,
+    "performance_qualified": false,
+    "timing_qualified": false,
+    "graphs_qualified": false,
+    "asynchronous_scheduling_qualified": false,
+    "remote_ci_established": false
+  },
+  "remote_packet_root": "/home/yyang/projects/megartx-baseline-20260930/correctness-20260930/m1-combined-12cc5bf"
+}

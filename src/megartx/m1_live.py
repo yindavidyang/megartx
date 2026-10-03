@@ -9,10 +9,13 @@ import json
 import os
 from pathlib import Path
 
+from .m1_execution import (CAPTURE_FREE_BEGIN, CONTROLLER_SOURCES,
+                           EXECUTION_MODES, EXTERNAL_OBSERVER_SETTER,
+                           execution_mode, profile_scope)
+
 
 LIVE_ABI_VERSION = 2
 LIVE_VIEW_COUNT = 15
-CONTROLLER_SOURCES = ("m1_live.py", "vllm_scale_plugin.py")
 
 
 class View(ctypes.Structure):
@@ -36,7 +39,18 @@ def digest(path):
     return result.hexdigest()
 
 
+def _valid_cupti_stream_provider(value):
+    return (isinstance(value, dict)
+            and value.get("distribution") == "nvidia-cuda-cupti"
+            and isinstance(value.get("version"), str) and bool(value["version"])
+            and value.get("library_name") == "libcupti.so.13"
+            and isinstance(value.get("library_sha256"), str)
+            and len(value["library_sha256"]) == 64
+            and all(char in "0123456789abcdef" for char in value["library_sha256"]))
+
+
 def load_controller(mode):
+    execution_mode()  # Reject contradictory diagnostics even without a live opt-in.
     lane = os.environ.get("MEGARTX_M1_PREPARATION")
     if lane is None:
         return None
@@ -49,6 +63,8 @@ class LivePreparation:
     def __init__(self, lane):
         import torch
         self.lane = lane
+        self.execution_mode = execution_mode()
+        self.diagnostics = self.execution_mode == "captured"
         library = Path(os.environ["MEGARTX_M1_BRIDGE"]).resolve()
         receipt = json.loads(Path(os.environ["MEGARTX_M1_BUILD_RECEIPT"]).read_text())
         if (receipt.get("returncode") != 0 or receipt.get("reason")
@@ -57,12 +73,26 @@ class LivePreparation:
                 or not receipt.get("required_exports_present")
                 or digest(library) != receipt.get("binary_sha256")):
             raise RuntimeError("live bridge has no matching successful bounded build")
+        cupti_provider = receipt.get("cupti_stream_id_provider")
+        installed_pins = receipt.get("installed_pins", {})
+        if (not _valid_cupti_stream_provider(cupti_provider)
+                or receipt.get("live_contract", {}).get("cupti_stream_id_provider") != cupti_provider
+                or receipt.get("installed_package_versions", {}).get("nvidia-cuda-cupti")
+                    != cupti_provider["version"]
+                or sum(1 for path, sha256 in installed_pins.items()
+                       if Path(path).name == cupti_provider["library_name"]
+                       and sha256 == cupti_provider["library_sha256"]) != 1):
+            raise RuntimeError("live bridge source contract lacks a source-bound CUPTI stream-ID provider identity")
         expected_contract = {
             "abi_version": LIVE_ABI_VERSION, "view_count": LIVE_VIEW_COUNT,
             "view_bytes": ctypes.sizeof(View),
             "controller_source_hashes": {name: digest(Path(__file__).with_name(name))
                                          for name in CONTROLLER_SOURCES},
             "native_source_sha256": receipt.get("source_hashes", {}).get("probes/m1_live_bridge.cu"),
+            "cupti_stream_id_provider": cupti_provider,
+            "execution_modes": list(EXECUTION_MODES), "capture_free_begin": CAPTURE_FREE_BEGIN,
+            "external_observer": {"registration": EXTERNAL_OBSERVER_SETTER,
+                                  "callback_abi_version": 1},
         }
         if (receipt.get("live_contract") != expected_contract
                 or not expected_contract["native_source_sha256"]):
@@ -83,11 +113,14 @@ class LivePreparation:
             if json.loads(contract().decode()) != expected_contract:
                 raise RuntimeError("compiled live bridge contract differs from controller/receipt")
             begin = self.native.megartx_m1_begin_v2
+            capture_free_begin = getattr(self.native, CAPTURE_FREE_BEGIN)
         except (AttributeError, ValueError, UnicodeError) as error:
             raise RuntimeError("live bridge lacks the required versioned ABI") from error
         begin.argtypes = [ctypes.c_uint32, ctypes.POINTER(View), ctypes.c_uint32,
                           ctypes.c_uint32, ctypes.c_uint64, ctypes.c_int, ctypes.c_char_p]
         begin.restype = ctypes.c_int
+        capture_free_begin.argtypes = begin.argtypes[:-1]
+        capture_free_begin.restype = ctypes.c_int
         self.native.megartx_m1_end.restype = ctypes.c_int
         self.native.megartx_m1_error.restype = ctypes.c_char_p
         self.native.megartx_m1_metadata.restype = ctypes.c_char_p
@@ -96,7 +129,14 @@ class LivePreparation:
         self.native.megartx_m1_verify_bindings.restype = ctypes.c_int
         if self.native.megartx_m1_verify_bindings(os.fsencode(library)):
             raise RuntimeError(self.native.megartx_m1_error().decode())
-        self.directory = Path(os.environ["MEGARTX_M1_CAPTURE_DIR"])
+        self.external_observer = None
+        observer_dir = os.environ.get("MEGARTX_M1_EXTERNAL_OBSERVER_DIR")
+        if observer_dir:
+            if self.diagnostics or os.environ.get("MEGARTX_M1_ROUTE_CONTROLS") == "1":
+                raise RuntimeError("external M1 observer requires capture-free validation without route controls")
+            from .m1_external_observer import ExternalObserver
+            self.external_observer = ExternalObserver(self.native, observer_dir, expected_contract)
+        self.directory = Path(os.environ["MEGARTX_M1_CAPTURE_DIR"]) if self.diagnostics else None
         # Plugin registration also runs in the API process. Allocate/capture
         # only inside the verified model's first marked request.
         self.stream = None
@@ -110,6 +150,16 @@ class LivePreparation:
         self.live_contract = expected_contract
         self.route_controls = os.environ.get("MEGARTX_M1_ROUTE_CONTROLS") == "1"
         self.route_controls_done = False
+        self.normal_plan = None
+        self.call_limit = 64
+        if os.environ.get("MEGARTX_M1_NORMAL_PLAN"):
+            from .m1_normal_plan import load_plan, LIVE_CALLS
+            if not self.diagnostics:
+                raise RuntimeError("normal M1 validation requires the captured diagnostic lane")
+            self.normal_plan = load_plan(os.environ["MEGARTX_M1_NORMAL_PLAN"])
+            if self.route_controls:
+                raise RuntimeError("normal M1 plan forbids artificial route controls")
+            self.call_limit = LIVE_CALLS
 
     def begin_forward(self, input_ids, positions):
         if self.failed:
@@ -122,6 +172,12 @@ class LivePreparation:
         if input_ids is None or positions.ndim != 1 or input_ids.numel() != positions.numel():
             raise RuntimeError("live preparation needs actual model token/position rows")
         request = json.loads(marker.read_text())
+        if self.normal_plan is not None:
+            from .m1_normal_plan import request as planned_request
+            cases = [c for c in self.normal_plan["cases"] if c["id"] == request.get("id")]
+            if len(cases) != 1 or request != planned_request(self.normal_plan,cases[0]):
+                self.failed = True
+                raise RuntimeError("normal live request differs from the exact admitted plan")
         self.forward = {"request": request, "forward_index": self.forward_index,
                         "tokens": input_ids.detach().cpu().tolist(),
                         "positions": positions.detach().cpu().tolist()}
@@ -131,11 +187,14 @@ class LivePreparation:
         self.forward = None
         self.layer = None
         if self.native.megartx_m1_active():
+            self.failed = True
             self.native.megartx_m1_end()
             raise RuntimeError("native lease escaped the routed call")
 
     def routed(self, incumbent, layer, *args):
         import torch
+        if self.failed:
+            raise RuntimeError("failed live preparation context requires an owned process restart")
         if self.forward is None:
             return incumbent(layer, *args)
         if self.layer is not None:
@@ -144,19 +203,22 @@ class LivePreparation:
         # owner, method, kernel and callable. Keep these exact objects alive.
         self.layer = layer
         first_call = self.call_index
-        if self.stream is None:
-            self.directory.mkdir(parents=True, exist_ok=False)
-            self.stream = torch.cuda.Stream()
-            self.shadow = torch.empty(32, dtype=torch.uint8, device="cuda")
-        producer = torch.cuda.current_stream()
-        self.stream.wait_stream(producer)
-        for tensor in args:
-            if isinstance(tensor, torch.Tensor):
-                tensor.record_stream(self.stream)
+        producer = None
         primary_error = None
         dependency_inserted = False
         try:
-            with torch.cuda.stream(self.stream), torch.profiler.record_function("megartx::m1_routed_" + self.lane):
+            if self.stream is None:
+                if self.diagnostics:
+                    self.directory.mkdir(parents=True, exist_ok=False)
+                self.stream = torch.cuda.Stream()
+                self.shadow = torch.empty(32, dtype=torch.uint8, device="cuda")
+            producer = torch.cuda.current_stream()
+            self.stream.wait_stream(producer)
+            for tensor in args:
+                if isinstance(tensor, torch.Tensor):
+                    tensor.record_stream(self.stream)
+            with torch.cuda.stream(self.stream), profile_scope("megartx::m1_routed_" + self.lane,
+                    self.diagnostics or self.external_observer is not None):
                 result = incumbent(layer, *args)
         except BaseException as error:
             primary_error = error
@@ -168,8 +230,9 @@ class LivePreparation:
             # protects mutation/reuse after a late submission/capture error.
             cleanup_error = None
             try:
-                producer.wait_stream(self.stream)
-                dependency_inserted = True
+                if producer is not None and self.stream is not None:
+                    producer.wait_stream(self.stream)
+                    dependency_inserted = True
             except BaseException as error:
                 cleanup_error = error
                 self.failed = True
@@ -178,7 +241,7 @@ class LivePreparation:
                 if hasattr(primary_error, "add_note"):
                     primary_error.add_note("Caller stream dependency failed: " + str(error))
             try:
-                for index in range(first_call, self.call_index):
+                for index in range(first_call, self.call_index) if self.diagnostics else ():
                     path = self.directory / f"call-{index:04d}" / "receipt.json"
                     if not path.exists():
                         continue
@@ -205,16 +268,19 @@ class LivePreparation:
 
     def invoke(self, incumbent, args, kwargs):
         import torch
+        if self.failed:
+            raise RuntimeError("failed live preparation context requires an owned process restart")
         if self.layer is None or self.forward is None or args:
             return incumbent(*args, **kwargs)
         x = kwargs.get("input")
         if x is None or x.shape[0] != 1 or torch.cuda.is_current_stream_capturing():
-            with (self.directory / "stock-fallbacks.jsonl").open("a") as stream:
-                stream.write(json.dumps({"layer_name": self.layer.layer_name,
-                                        "forward_index": self.forward["forward_index"],
-                                        "request_id": self.forward["request"]["id"],
-                                        "rows": None if x is None else x.shape[0],
-                                        "reason": "unsupported_geometry_or_capture"}) + "\n")
+            if self.diagnostics:
+                with (self.directory / "stock-fallbacks.jsonl").open("a") as stream:
+                    stream.write(json.dumps({"layer_name": self.layer.layer_name,
+                                            "forward_index": self.forward["forward_index"],
+                                            "request_id": self.forward["request"]["id"],
+                                            "rows": None if x is None else x.shape[0],
+                                            "reason": "unsupported_geometry_or_capture"}) + "\n")
             return incumbent(**kwargs)
         # Unsupported Python states keep the entire ordinary call untouched.
         sf = kwargs.get("input_sf")
@@ -237,6 +303,7 @@ class LivePreparation:
                 or any(quant[i].dtype != torch.int32 for i in (1, 4))):
             return incumbent(**kwargs)
         from flashinfer.fused_moe import cutlass_fused_moe_workspace_size
+        workspace_reused = self.workspace is not None
         if self.workspace is None:
             size = cutlass_fused_moe_workspace_size(
                 1, 2816, 704, 128, 8, x_dtype=x.dtype,
@@ -253,15 +320,23 @@ class LivePreparation:
         views = (View * LIVE_VIEW_COUNT)(*(tensor_view(t) for t in tensors))
         for tensor in tensors:
             tensor.record_stream(self.stream)
-        directory = self.directory / f"call-{self.call_index:04d}"
-        directory.mkdir(exist_ok=False)
-        if self.call_index >= 64:
+        if self.call_index >= self.call_limit:
+            self.failed = True
             raise RuntimeError("bounded live preparation call count exceeded")
+        directory = self.directory / f"call-{self.call_index:04d}" if self.diagnostics else None
+        if self.diagnostics:
+            directory.mkdir(exist_ok=False)
+        call_index = self.call_index
         self.call_index += 1
-        record = {"schema": "megartx-m1-live-v2", "scope": "controlled_live_request", "lane": self.lane,
+        record = {"schema": "megartx-m1-live-v2",
+                  "scope": "normal_live_request" if self.normal_plan is not None else "controlled_live_request",
+                  "lane": self.lane, "diagnostics_mode": self.execution_mode,
                   "layer_name": self.layer.layer_name, **self.forward,
                   "binary_sha256": self.binary_sha256, "live_contract": self.live_contract,
                   "workspace_bytes": self.workspace.numel(),
+                  "workspace_reused": workspace_reused,
+                  "workspace_storage_pointer": self.workspace.untyped_storage().data_ptr(),
+                  "additional_scratch_bytes": self.workspace.untyped_storage().nbytes() + self.shadow.untyped_storage().nbytes(),
                   "owner_extents": [v.bytes for v in views], "execution_mode": "eager",
                   "quantization_owners": [{"role": role, "dtype": str(t.dtype),
                                            "shape": list(t.shape), "view_bytes": v.bytes,
@@ -270,35 +345,61 @@ class LivePreparation:
                                               "fc1_weight_sf", "fc1_global", "fc2_act_global", "fc2_weight_sf", "fc2_global"),
                                               tensors[7:], views[7:])],
                   "producer_wait_inserted": True, "consumer_wait_required": True,
-                  "pdl": False, "finalize_fusion": False}
-        started = self.native.megartx_m1_begin_v2(LIVE_ABI_VERSION, views, len(views), ctypes.sizeof(View),
-                                                self.stream.cuda_stream,
-                                             int(self.lane == "fused"), os.fsencode(directory))
+                  "pdl": False, "finalize_fusion": False} if self.diagnostics else None
+        framing = (LIVE_ABI_VERSION, views, len(views), ctypes.sizeof(View),
+                   self.stream.cuda_stream, int(self.lane == "fused"))
+        if self.external_observer is not None:
+            frame = {"forward_index": self.forward["forward_index"],
+                     "request_id": self.forward["request"]["id"],
+                     "layer_name": self.layer.layer_name,
+                     "token_ids": self.forward["tokens"],
+                     "positions": self.forward["positions"],
+                     "workspace_bytes": self.workspace.numel(),
+                     "owner_extents": [v.bytes for v in views],
+                     "binary_sha256": self.binary_sha256}
+            self.external_observer.begin_call(call_index, self.lane,
+                                              int(self.stream.cuda_stream), frame)
+        if self.diagnostics:
+            started = self.native.megartx_m1_begin_v2(*framing, os.fsencode(directory))
+        else:
+            started = getattr(self.native, CAPTURE_FREE_BEGIN)(*framing)
         if started:
-            raise RuntimeError(self.native.megartx_m1_error().decode())
+            self.failed = True
+            error = RuntimeError(self.native.megartx_m1_error().decode())
+            if self.external_observer is not None:
+                self.external_observer.finish_call(-1, False, error)
+            raise error
         primary_error = None
         try:
-            with torch.profiler.record_function("megartx::m1_preparation_" + self.lane):
+            enabled = self.diagnostics or self.external_observer is not None
+            with profile_scope(f"megartx::m1_external_call_{call_index:04d}",
+                    self.external_observer is not None), profile_scope(
+                    "megartx::m1_preparation_" + self.lane, enabled):
                 result = incumbent(**kwargs)
         except BaseException as error:
             primary_error = error
             self.failed = True
-            record["error"] = type(error).__name__
+            if self.diagnostics:
+                record["error"] = type(error).__name__
             raise
         finally:
             try:
                 status = self.native.megartx_m1_end()
-                record["actual_backend"] = "fused" if status == 1 else "stock" if status == 0 else "unbound"
-                record["native_metadata"] = self.native.megartx_m1_metadata().decode()
-                record["lease_released"] = self.native.megartx_m1_active() == 0
-                (directory / "receipt.json").write_text(json.dumps(record, indent=2))
+                released = self.native.megartx_m1_active() == 0
+                if self.diagnostics:
+                    record["actual_backend"] = "fused" if status == 1 else "stock" if status == 0 else "unbound"
+                    record["native_metadata"] = self.native.megartx_m1_metadata().decode()
+                    record["lease_released"] = released
+                    (directory / "receipt.json").write_text(json.dumps(record, indent=2))
+                if self.external_observer is not None:
+                    self.external_observer.finish_call(status, released, primary_error)
             except BaseException as error:
                 self.failed = True
                 if primary_error is None:
                     raise
                 if hasattr(primary_error, "add_note"):
                     primary_error.add_note("Native lease/receipt cleanup failed: " + str(error))
-        if status < 0 or not record["lease_released"]:
+        if status < 0 or not released:
             self.failed = True
             raise RuntimeError("request did not bind/release the actual native runner")
         if self.route_controls and not self.route_controls_done:

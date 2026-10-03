@@ -30,7 +30,13 @@ class Tensor:
 class Native:
     def __init__(self, reject=False):
         self.reject, self.active, self.ends = reject, False, 0
+        self.begins = []
     def megartx_m1_begin_v2(self, *args):
+        self.begins.append(("captured", args))
+        if self.reject: return -1
+        self.active = True;return 0
+    def megartx_m1_begin_capture_free_v2(self, *args):
+        self.begins.append(("capture-free", args))
         if self.reject: return -1
         self.active = True;return 0
     def megartx_m1_end(self):
@@ -63,13 +69,24 @@ class TestLiveLease(unittest.TestCase):
         library.write_bytes(b"CPU mock binary")
         module = Path(directory) / "fused_moe_120.so"
         module.write_bytes(b"installed mock")
+        cupti = Path(directory) / "libcupti.so.13"
+        cupti.write_bytes(b"CPU mock CUPTI provider")
+        provider = {"distribution": "nvidia-cuda-cupti", "version": "13.0.85",
+                    "library_name": cupti.name, "library_sha256": digest(cupti)}
         contract = {"abi_version": 2, "view_count": 15, "view_bytes": ctypes.sizeof(View),
                     "controller_source_hashes": {name: digest(Path(m1_live.__file__).with_name(name))
                                                  for name in CONTROLLER_SOURCES},
-                    "native_source_sha256": "b" * 64}
+                    "native_source_sha256": "b" * 64,
+                    "cupti_stream_id_provider": provider}
+        contract.update(execution_modes=list(m1_live.EXECUTION_MODES), capture_free_begin=m1_live.CAPTURE_FREE_BEGIN)
+        contract["external_observer"] = {"registration": m1_live.EXTERNAL_OBSERVER_SETTER,
+                                          "callback_abi_version": 1}
         report = {"returncode": 0, "reason": None, "compiled_lease_controls_returncode": 0,
                   "compiled_binding_controls_returncode": 0, "required_exports_present": True,
-                  "binary_sha256": digest(library), "installed_pins": {str(module): "d" * 64},
+                  "binary_sha256": digest(library),
+                  "installed_pins": {str(module): "d" * 64, str(cupti): provider["library_sha256"]},
+                  "installed_package_versions": {"nvidia-cuda-cupti": provider["version"]},
+                  "cupti_stream_id_provider": provider,
                   "source_hashes": {"probes/m1_live_bridge.cu": "b" * 64}, "live_contract": contract}
         receipt = Path(directory) / "build.json"
         env = {"MEGARTX_M1_BRIDGE": str(library), "MEGARTX_M1_BUILD_RECEIPT": str(receipt),
@@ -123,6 +140,7 @@ class TestLiveLease(unittest.TestCase):
         obj = LivePreparation.__new__(LivePreparation)
         obj.native, obj.lane, obj.directory = native, "fused", Path(directory)
         obj.failed = False
+        obj.execution_mode, obj.diagnostics = "captured", True
         obj.forward = {"request": {"id": "bounded"}, "forward_index": 0, "tokens": [11], "positions": [32]}
         obj.layer = SimpleNamespace(layer_name="model.layers.0")
         obj.workspace = Tensor(0x50000, 3185408, shape=(3185408,))
@@ -130,6 +148,8 @@ class TestLiveLease(unittest.TestCase):
         obj.stream = SimpleNamespace(cuda_stream=7)
         obj.binary_sha256, obj.call_index = "a" * 64, 0
         obj.live_contract = {"abi_version": 2}
+        obj.call_limit, obj.external_observer = 64, None
+        obj.normal_plan = None
         obj.route_controls, obj.route_controls_done = False, False
         return obj
 
@@ -267,6 +287,184 @@ class TestLiveLease(unittest.TestCase):
             self.assertIs(raised.exception, error)
             self.assertEqual(calls, [1]);self.assertEqual(native.ends, 1)
             self.assertFalse(native.active);self.assertTrue(obj.failed)
+
+    def capture_free(self, obj):
+        obj.execution_mode, obj.diagnostics, obj.directory = "capture-free", False, None
+        return obj
+
+    def test_modes_preserve_operator_arguments_and_exact_owner_views(self):
+        for lane in ("stock", "fused"):
+            invocations = []
+            for diagnostics in (True, False):
+                with self.subTest(lane=lane, diagnostics=diagnostics), tempfile.TemporaryDirectory() as directory:
+                    modules = self.modules()
+                    native = Native();obj = self.controller(directory, native);obj.lane = lane
+                    if not diagnostics:
+                        self.capture_free(obj)
+                        modules["torch"].profiler.record_function = lambda *a: self.fail("disabled profiler hook")
+                        native.megartx_m1_metadata = lambda: self.fail("disabled metadata read")
+                    kwargs = self.kwargs();output = object();calls = []
+                    def operator(**kw): calls.append(kw);return output
+                    with patch.dict("sys.modules", modules):
+                        if diagnostics:
+                            self.assertIs(obj.invoke(operator, (), kwargs), output)
+                        else:
+                            with patch.object(Path, "mkdir", side_effect=AssertionError("diagnostic mkdir")), \
+                                 patch.object(Path, "open", side_effect=AssertionError("diagnostic file I/O")), \
+                                 patch.object(Path, "write_text", side_effect=AssertionError("diagnostic receipt")):
+                                self.assertIs(obj.invoke(operator, (), kwargs), output)
+                    self.assertEqual(len(calls), 1)
+                    for key, value in kwargs.items(): self.assertIs(calls[0][key], value)
+                    self.assertIs(calls[0]["workspace_buffer"], obj.workspace)
+                    self.assertIs(calls[0]["enable_pdl"], False)
+                    self.assertIs(calls[0]["use_fused_finalize"], False)
+                    mode, begin = native.begins[0]
+                    self.assertEqual(mode, "captured" if diagnostics else "capture-free")
+                    self.assertEqual((begin[0], begin[2], begin[3], begin[4], begin[5]), (2, 15, 32, 7, int(lane == "fused")))
+                    self.assertEqual(len(begin), 7 if diagnostics else 6)
+                    pointers = [view.pointer for view in begin[1]]
+                    tensors = (kwargs["input"], kwargs["input_sf"], kwargs["token_selected_experts"],
+                               kwargs["token_final_scales"], kwargs["output"], obj.workspace, obj.shadow,
+                               kwargs["fc1_expert_weights"], kwargs["fc2_expert_weights"], *kwargs["quant_scales"])
+                    self.assertEqual(pointers, [tensor.data_ptr() for tensor in tensors])
+                    invocations.append(pointers)
+                    self.assertEqual(native.ends, 1);self.assertFalse(native.active)
+                    self.assertEqual(bool(list(Path(directory).iterdir())), diagnostics)
+            self.assertEqual(invocations[0], invocations[1])
+
+    def test_capture_free_submission_failure_keeps_waits_and_primary_error(self):
+        for fail_wait in (False, True):
+            with self.subTest(fail_wait=fail_wait), tempfile.TemporaryDirectory() as directory:
+                events = [];modules, stream = self.routed_modules(events, fail_wait=fail_wait)
+                modules["torch"].profiler.record_function = lambda *a: self.fail("disabled profiler hook")
+                native = Native();obj = self.capture_free(self.controller(directory, native))
+                obj.layer = None;obj.stream = stream
+                error = RuntimeError("candidate submission failed")
+                def operator(**kw): events.append("queued native work");raise error
+                with patch.dict("sys.modules", modules), \
+                     patch.object(Path, "open", side_effect=AssertionError("disabled diagnostic I/O")), \
+                     self.assertRaises(RuntimeError) as raised:
+                    obj.routed(lambda layer: obj.invoke(operator, (), self.kwargs()),
+                               SimpleNamespace(layer_name="model.layers.0"))
+                self.assertIs(raised.exception, error)
+                self.assertEqual(events, ["bridge wait caller", "enter bridge", "queued native work",
+                                          "exit bridge", "caller wait bridge"])
+                self.assertFalse(native.active);self.assertEqual(native.ends, 1)
+                self.assertIsNone(obj.layer);self.assertTrue(obj.failed)
+                with patch.dict("sys.modules", modules), self.assertRaisesRegex(RuntimeError, "process restart"):
+                    obj.invoke(lambda **kw: self.fail("failed context reused"), (), self.kwargs())
+
+    def test_capture_free_unsupported_geometry_and_capture_keep_full_stock_call(self):
+        for capturing in (False, True):
+            with self.subTest(capturing=capturing), tempfile.TemporaryDirectory() as directory:
+                modules = self.modules();modules["torch"].cuda.is_current_stream_capturing = lambda: capturing
+                native = Native();obj = self.capture_free(self.controller(directory, native))
+                kwargs = self.kwargs()
+                if not capturing: kwargs["input"].shape = (32, 1408)
+                calls = []
+                with patch.dict("sys.modules", modules), patch.object(Path, "open", side_effect=AssertionError("fallback trace")):
+                    result = obj.invoke(lambda **kw: calls.append(kw) or 9, (), kwargs)
+                self.assertEqual(result, 9);self.assertEqual(calls, [kwargs])
+                self.assertEqual(native.begins, []);self.assertEqual(native.ends, 0)
+
+    def test_capture_free_unbound_or_unreleased_runner_is_fatal_without_diagnostics(self):
+        for unbound in (False, True):
+            with self.subTest(unbound=unbound), tempfile.TemporaryDirectory() as directory:
+                native = Native();obj = self.capture_free(self.controller(directory, native))
+                if unbound:
+                    def end(): native.active = False;return -1
+                else:
+                    def end(): return 1
+                native.megartx_m1_end = end
+                with patch.dict("sys.modules", self.modules()), self.assertRaisesRegex(RuntimeError, "bind/release"):
+                    obj.invoke(lambda **kw: 9, (), self.kwargs())
+                self.assertTrue(obj.failed)
+
+    def test_every_execution_source_is_bound_before_loading_in_both_modes(self):
+        for execution in ("captured", "capture-free"):
+            for source in CONTROLLER_SOURCES:
+                with self.subTest(execution=execution, source=source), tempfile.TemporaryDirectory() as directory:
+                    report, receipt, env = self.admission_fixture(directory)
+                    report["live_contract"]["controller_source_hashes"][source] = "c" * 64
+                    receipt.write_text(json.dumps(report))
+                    if execution == "capture-free":
+                        env.pop("MEGARTX_M1_CAPTURE_DIR")
+                        env.update(MEGARTX_M1_EXECUTION=execution, MEGARTX_M1_PREPARATION="fused",
+                                   MEGARTX_SCALE_MODE="native", MEGARTX_CONTROLLED_DIR="controlled",
+                                   MEGARTX_CONTROLLED_PLAN="plan", MEGARTX_LOGITS_DIR="logits")
+                    with patch.dict("os.environ", env, clear=True), patch.dict("sys.modules", {"torch": SimpleNamespace()}), \
+                         patch("ctypes.CDLL") as loader, self.assertRaisesRegex(RuntimeError, "source contract"):
+                        LivePreparation("fused")
+                    loader.assert_not_called()
+
+    def test_compiled_mode_capability_is_required_before_binding_and_allocation(self):
+        class Function:
+            def __init__(self, value): self.value, self.calls = value, []
+            def __call__(self, *args): self.calls.append(args);return self.value
+        for execution in ("captured", "capture-free"):
+            for missing in (False, True):
+                with self.subTest(execution=execution, missing=missing), tempfile.TemporaryDirectory() as directory:
+                    report, receipt, env = self.admission_fixture(directory)
+                    module = env["MEGARTX_M1_STOCK_MODULE"]
+                    pinned = "dc26a85431c946b0f636ddd2e08aa676f6340fd085361b21e8b0fe00617d28f9"
+                    report["installed_pins"][module] = pinned
+                    receipt.write_text(json.dumps(report))
+                    env.update(MEGARTX_M1_EXECUTION=execution, MEGARTX_M1_PREPARATION="stock",
+                               MEGARTX_SCALE_MODE="native", MEGARTX_CONTROLLED_DIR="controlled",
+                               MEGARTX_CONTROLLED_PLAN="plan", MEGARTX_LOGITS_DIR="logits")
+                    if execution == "capture-free": env.pop("MEGARTX_M1_CAPTURE_DIR")
+                    native = SimpleNamespace(**{name: Function(value) for name, value in {
+                        "megartx_m1_contract_v2": json.dumps(report["live_contract"]).encode(),
+                        "megartx_m1_begin_v2": 0, "megartx_m1_begin_capture_free_v2": 0,
+                        "megartx_m1_end": 1, "megartx_m1_error": b"", "megartx_m1_metadata": b"",
+                        "megartx_m1_active": 0, "megartx_m1_verify_bindings": 0}.items()})
+                    if missing: delattr(native, "megartx_m1_begin_capture_free_v2")
+                    def fake_digest(path): return pinned if str(path) == module else digest(path)
+                    with patch.dict("os.environ", env, clear=True), patch.dict("sys.modules", {"torch": SimpleNamespace()}), \
+                         patch("megartx.m1_live.digest", side_effect=fake_digest), patch("ctypes.CDLL", return_value=native):
+                        if missing:
+                            with self.assertRaisesRegex(RuntimeError, "versioned ABI"): LivePreparation("stock")
+                            self.assertEqual(native.megartx_m1_verify_bindings.calls, [])
+                        else:
+                            obj = LivePreparation("stock")
+                            self.assertEqual(obj.execution_mode, execution)
+                            self.assertEqual(obj.diagnostics, execution == "captured")
+                            self.assertIsNone(obj.workspace);self.assertIsNone(obj.stream)
+                            self.assertEqual(len(native.megartx_m1_verify_bindings.calls), 1)
+                    self.assertEqual(native.megartx_m1_begin_v2.calls, [])
+                    self.assertFalse((Path(directory)/"unused").exists())
+    def test_failed_controller_blocks_direct_routed_and_invoke_reentry(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict("sys.modules",self.modules()):
+            obj = self.controller(directory,Native());obj.failed = True
+            calls = []
+            for action in (lambda: obj.invoke(lambda **kw: calls.append(kw),(),self.kwargs()),
+                           lambda: obj.routed(lambda *a: calls.append(a),object())):
+                with self.assertRaisesRegex(RuntimeError,"process restart"): action()
+            self.assertEqual(calls,[])
+            self.assertEqual(obj.call_index,0)
+            self.assertEqual(obj.native.ends,0)
+
+    def test_producer_wait_failure_clears_layer_without_submission_or_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            events = [];modules,stream = self.routed_modules(events)
+            error = RuntimeError("real producer stream query failed")
+            def failed_wait(other): raise error
+            stream.wait_stream = failed_wait
+            obj = self.controller(directory,Native());obj.layer = None;obj.stream = stream
+            calls = []
+            with patch.dict("sys.modules",modules),self.assertRaises(RuntimeError) as raised:
+                obj.routed(lambda *a: calls.append(a),object())
+            self.assertIs(raised.exception,error)
+            self.assertIsNone(obj.layer);self.assertTrue(obj.failed)
+            self.assertEqual(calls,[])
+            self.assertEqual(events,["caller wait bridge"])
+
+    def test_total_call_cap_is_checked_before_receipt_directory_or_submission(self):
+        with tempfile.TemporaryDirectory() as directory,patch.dict("sys.modules",self.modules()):
+            obj = self.controller(directory,Native());obj.call_limit = 210;obj.call_index = 210
+            with self.assertRaisesRegex(RuntimeError,"call count"): obj.invoke(lambda **kw: None,(),self.kwargs())
+            self.assertFalse((Path(directory)/"call-0210").exists())
+            self.assertEqual(obj.native.ends,0);self.assertTrue(obj.failed)
 
 
 if __name__ == "__main__": unittest.main()

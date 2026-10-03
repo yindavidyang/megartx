@@ -15,6 +15,8 @@ from run_m1_installed_probe import sha, installed_flags, available, gpu, rss
 
 # Source-bound scheduler, physical SF TMA domain and exact typed FFI lane.
 LIVE_CONSUMER_PINS = {'data/cutlass/include/cutlass/gemm/kernel/sm90_gemm_array_tma_warpspecialized_cooperative.hpp': 'e01bcc4eb6ae05ecbee7251514519c3d7b8e9b37ae4e955f58f7c85591e2df9e', 'data/cutlass/include/cutlass/gemm/kernel/sm90_tile_scheduler_group.hpp': '8dd4fcdd5706e6c8c6111e71791c113e34f137c106eb5c514685069dc6ebac44', 'data/cutlass/include/cutlass/gemm/kernel/tile_scheduler.hpp': 'acc90548b9e2b19f944764ced57e1459d5c2ed7e118d6a1af476add26c3d5e73', 'data/cutlass/include/cutlass/gemm/kernel/tile_scheduler_params.h': 'ef48a12e8920183e88259d0b685279c2232fc2fb12c4fb4db7e8d0fbfdc019e9', 'data/cutlass/include/cutlass/gemm/collective/builders/sm120_blockscaled_mma_builder.inl': 'c81e6473efc15a07ac5707febd2a8db69edd2949afd2af64fb87cfb020632989', 'data/cutlass/include/cutlass/gemm/collective/sm120_blockscaled_mma_array_tma.hpp': '66fcea9bab8db40e22201d4a78f2de9777c616c15d800716d8446172fbcd9824', 'data/csrc/fused_moe/cutlass_backend/flashinfer_cutlass_fused_moe_binding.cu': '9588117b6f8d6431dd19935bdffd428f56b8de938f3f4335cf9b6f96d6ef80a5', 'data/csrc/fused_moe/cutlass_backend/cutlass_fused_moe_instantiation.cu': '2aa95ebe6fb2f4f45c09fba824df18d18fbe95f9950ac6e37507f4432a077a9d'}
+CUPTI_PACKAGE_VERSION = "13.0.85"
+CUPTI_LIBRARY_SHA256 = "e2f9ed861fe27c492b8bb52b5e3220ef5120f3edcda36312e96b7fd8a186be3e"
 
 
 def control_commands(python, work, module):
@@ -31,12 +33,26 @@ def build(args):
     module, ninja = cache / "fused_moe_120.so", cache / "build.ninja"
     ffi = fi.parent / "tvm_ffi/lib/libtvm_ffi.so"
     cuda_runtime = fi.parent / "nvidia/cu13/lib/libcudart.so.13"
+    cupti_distribution = importlib.metadata.distribution("nvidia-cuda-cupti")
+    cupti_files = [cupti_distribution.locate_file(path).resolve()
+                   for path in (cupti_distribution.files or ())
+                   if Path(str(path)).name == "libcupti.so.13"
+                   and cupti_distribution.locate_file(path).is_file()]
+    if (cupti_distribution.metadata.get("Name") != "nvidia-cuda-cupti"
+            or cupti_distribution.version != CUPTI_PACKAGE_VERSION
+            or len(cupti_files) != 1 or sha(cupti_files[0]) != CUPTI_LIBRARY_SHA256):
+        raise RuntimeError("installed CUPTI stream-ID provider identity changed")
+    cupti_identity = {"distribution": "nvidia-cuda-cupti",
+                      "version": cupti_distribution.version,
+                      "library_name": "libcupti.so.13",
+                      "library_sha256": sha(cupti_files[0])}
     pins = {fi / p: digest for p, digest in (PINS | LIVE_CONSUMER_PINS).items()} | {
         module: MODULE_SHA, ninja: NINJA_SHA, ffi: TVM_FFI_SHA,
-        cuda_runtime: sha(cuda_runtime)}
+        cuda_runtime: sha(cuda_runtime), cupti_files[0]: cupti_identity["library_sha256"]}
     if any(sha(p) != digest for p, digest in pins.items()):
         raise RuntimeError("installed identity changed")
-    expected = {"vllm": "0.30.0", "flashinfer-python": "0.6.18.post1", "torch": "2.13.0"}
+    expected = {"vllm": "0.30.0", "flashinfer-python": "0.6.18.post1",
+                "torch": "2.13.0", "nvidia-cuda-cupti": CUPTI_PACKAGE_VERSION}
     if sys.version.split()[0] != "3.12.3" or any(importlib.metadata.version(p) != v for p, v in expected.items()):
         raise RuntimeError("installed package/Python pin changed")
     work = args.output.resolve()
@@ -46,7 +62,12 @@ def build(args):
                "kernels/m1_installed_preparation.cuh", "kernels/m1_maps_expand.cuh",
                "scripts/build_m1_live_bridge.py", "scripts/check_m1_live_bridge.py",
                "scripts/check_m1_live_bindings.py",
-               "src/megartx/m1_live.py", "src/megartx/vllm_scale_plugin.py")
+               "src/megartx/m1_live.py", "src/megartx/vllm_scale_plugin.py",
+               "src/megartx/m1_execution.py", "src/megartx/controlled_capture.py",
+               "src/megartx/controlled_kv_capture.py",
+               "src/megartx/m1_normal_plan.py", "src/megartx/m1_normal_capture.py",
+               "src/megartx/m1_external_observer.py",
+               )
     for name in sources:
         target = work / name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -94,8 +115,16 @@ def build(args):
     header += ''.join('{"' + r["symbol"] + '", ' + hex(r["offset"]) + '},\n' for r in relocations)
     live_contract = {"abi_version": 2, "view_count": 15, "view_bytes": 32,
                      "controller_source_hashes": {name: sha(work / "src/megartx" / name)
-                          for name in ("m1_live.py", "vllm_scale_plugin.py")},
-                     "native_source_sha256": sha(work / "probes/m1_live_bridge.cu")}
+                          for name in ("m1_live.py", "vllm_scale_plugin.py", "m1_execution.py",
+                                       "controlled_capture.py", "controlled_kv_capture.py",
+                                       "m1_normal_plan.py", "m1_normal_capture.py",
+                                       "m1_external_observer.py")},
+                     "native_source_sha256": sha(work / "probes/m1_live_bridge.cu"),
+                     "cupti_stream_id_provider": cupti_identity,
+                     "execution_modes": ["captured", "capture-free"],
+                     "capture_free_begin": "megartx_m1_begin_capture_free_v2",
+                     "external_observer": {"registration": "megartx_m1_set_external_observer_v1",
+                                           "callback_abi_version": 1}}
     header += '};\n#define M1_LIVE_CONTRACT_JSON ' + json.dumps(json.dumps(live_contract, sort_keys=True)) + '\n'
     (work / "m1_live_symbols.h").write_text(header)
     command = [compiler, *flags, "--shared", "--cudart=shared", "--generate-dependencies-with-compile",
@@ -108,7 +137,9 @@ def build(args):
               "limits": {"compiler_rss_bytes": 2 << 30, "compile_seconds": 300,
                          "host_available_bytes": 8 << 30, "gpu_free_bytes": 2 << 30,
                          "additional_device_workspace_bytes": 8 << 20},
-              "live_contract": live_contract, "source_hashes": {p: sha(work / p) for p in sources}, "hook_relocations": relocations,
+              "live_contract": live_contract, "cupti_stream_id_provider": cupti_identity,
+              "installed_package_versions": expected,
+              "source_hashes": {p: sha(work / p) for p in sources}, "hook_relocations": relocations,
               "installed_pins": {str(p): digest for p, digest in pins.items()}, "before": before}
     start, peak, reason = time.monotonic(), 0, None
     with (work / "compile.stdout").open("xb") as out, (work / "compile.stderr").open("xb") as err:
@@ -128,13 +159,16 @@ def build(args):
                 except subprocess.TimeoutExpired:
                     os.killpg(proc.pid, signal.SIGKILL);proc.wait(timeout=5)
     report.update(returncode=proc.returncode, reason=reason, seconds=time.monotonic()-start,
-                  peak_aggregate_rss_bytes=peak, installed_pins_unchanged=all(sha(p)==v for p,v in pins.items()),
+                  peak_aggregate_rss_bytes=peak,
+                  installed_pins_unchanged=(all(sha(p)==v for p,v in pins.items())
+                      and all(importlib.metadata.version(p)==v for p,v in expected.items())),
                   after=gpu())
     if proc.returncode == 0 and not reason:
         report["binary_sha256"] = sha(work / "m1_live_bridge.so")
         exported = subprocess.check_output(["nm", "-D", str(work / "m1_live_bridge.so")], text=True)
         required = {"megartx_m1_begin_v2", "megartx_m1_contract_v2", "megartx_m1_end", "megartx_m1_active",
-                    "megartx_m1_error", "megartx_m1_metadata", "megartx_m1_verify_bindings"} | hooks
+                    "megartx_m1_begin_capture_free_v2", "megartx_m1_error", "megartx_m1_metadata",
+                    "megartx_m1_verify_bindings", "megartx_m1_set_external_observer_v1"} | hooks
         actual = {line.split()[-1] for line in exported.splitlines() if len(line.split()) >= 3}
         if (not required.issubset(actual) or "megartx_m1_begin" in actual
                 or any(name.startswith("cuda") for name in actual)):

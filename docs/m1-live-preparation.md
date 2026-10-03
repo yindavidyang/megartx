@@ -1,6 +1,12 @@
 # Request-bound M1 live preparation
 
+The CPU-only [capture-free execution mode and graph plan](m1-capture-free-execution.md)
+extends these sources behind a default-off switch. Its native/GPU, graph and
+performance qualification is pending; the results below remain historical.
+
 This milestone connects the PR9 preparation adapter to the installed model runner behind an explicit, default-off opt-in. The bounded stock/fused pair passed with **30 actual request-bound fused launches**, plus two separately labeled artificial route controls. Both paths retain the installed TMA setup, grouped GEMMs, activation and routing finalization. This establishes compatibility for the captured controlled cached request; natural routing, model quality, CUDA graphs and performance remain unqualified.
+
+A subsequent [bounded normal-routing milestone](m1-normal-correctness.md) adds two fixed prompts with constrained continuation, repeated decode and scratch reuse. Its results and limitations are separate from the controlled evidence below.
 
 The base is PR9 main `955832939062ac6b9e7bb2698b4181c1472225c3`. Its post-merge [CPU CI](https://github.com/yindavidyang/megartx/actions/runs/36926171758) and [numerical CI](https://github.com/yindavidyang/megartx/actions/runs/36926171754) succeeded before this isolated work began. [PR9 installed compatibility](m1-installed-compatibility.md), its source ledger, four synthetic sanitizer results and prior baseline evidence are preserved. [The source overlay](evidence/m1-live-source-pins.json) explicitly replaces only the changed plugin hash in the historical source test; it does not rewrite the earlier evidence.
 

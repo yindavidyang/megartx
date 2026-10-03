@@ -4,10 +4,12 @@
 #include "m1_installed_bridge.cuh"
 #include "m1_live_symbols.h"
 #include <algorithm>
+#include <atomic>
 #include <filesystem>
 #include <fstream>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <vector>
 
@@ -20,6 +22,10 @@ using Desc = sk::TmaWarpSpecializedGroupedGemmInput;
 // whose parameter type is declared in an anonymous namespace.
 struct View { void* pointer; uint64_t bytes; void* storage; uint64_t storage_bytes; };
 static_assert(sizeof(View)==32, "live View ABI changed");
+using M1ExternalObserver = int (*)(char const*,char const*,void const*,uint64_t,uint64_t,int);
+static std::atomic<M1ExternalObserver> m1_external_observer{nullptr};
+static std::atomic<unsigned> m1_active_leases{0};
+static std::mutex m1_observer_mutex;
 
 namespace {
 constexpr char runner_symbol[] = "_ZN12tensorrt_llm7kernels15cutlass_kernels18CutlassMoeFCRunnerI13__nv_fp4_e2m1S3_13__nv_bfloat16S3_S4_Lb0ELNS1_21Sm90Wfp4Afp8ScaleModeE0EvE6runMoeEPKvS8_bPKiPKfS8_S8_NS1_16ActivationParamsES8_S8_NS1_11QuantParamsElllliiPcPvPiNS1_20MOEParallelismConfigEbbRNS0_10LoraParamsEbbbRNS1_19MoeMinLatencyParamsEbP11CUstream_st";
@@ -36,6 +42,8 @@ struct Lease {
   cudaStream_t stream{};
   bool active=false, fused_requested=false, runner_seen=false, maps_seen=false;
   bool qualified=false, candidate=false, expand_seen=false;
+  bool capture_enabled=true;
+  M1ExternalObserver observer=nullptr;
   std::string directory, error, metadata;
 };
 thread_local Lease lease;
@@ -66,6 +74,12 @@ bool contains(View const& v, void const* p, size_t bytes) {
   return q>=start && q-start<=v.bytes && bytes<=v.bytes-(q-start);
 }
 void require(bool yes,char const* error) { if(!yes)throw std::runtime_error(error); }
+void observe(char const* event,char const* name,void const* data,size_t bytes,
+             cudaStream_t stream,int value) {
+  if(!lease.observer)return;
+  require(lease.observer(event,name,data,bytes,reinterpret_cast<uint64_t>(stream),value)==0,
+          "external observer callback failed");
+}
 bool pinned_callsite(void* pc) {
   Dl_info origin{};
   auto path=std::getenv("MEGARTX_M1_STOCK_MODULE");
@@ -73,16 +87,20 @@ bool pinned_callsite(void* pc) {
       std::filesystem::equivalent(origin.dli_fname,path);
 }
 void capture(char const* name,void const* p,size_t bytes,cudaStream_t stream) {
+  if(!lease.capture_enabled && !lease.observer)return;
   require(bytes<=8u<<20,"capture exceeds 8 MiB");
   std::vector<unsigned char> data(bytes);
   mx::require_cuda_success(cudaMemcpyAsync(data.data(),p,bytes,cudaMemcpyDeviceToHost,stream),"live capture copy");
   mx::require_cuda_success(cudaStreamSynchronize(stream),"live capture fence");
+  if(lease.observer)observe("payload",name,data.data(),data.size(),stream,0);
+  if(!lease.capture_enabled)return;
   auto path=std::filesystem::path(lease.directory)/name;
   require(!std::filesystem::exists(path),"refusing to replace live capture");
   std::ofstream out(path,std::ios::binary);out.write(reinterpret_cast<char*>(data.data()),data.size());
   require(bool(out),"live capture write failed");
 }
 void capture_preparation(bool before) {
+  if(!lease.capture_enabled && !lease.observer)return;
   auto const& b=invocation->call.buffers;
   if(before) {
     capture("sf-before.bin",b.expanded_sf,mx::kSFBytes,lease.stream);
@@ -108,16 +126,25 @@ void capture_preparation(bool before) {
 extern "C" __attribute__((visibility("default"))) char const* megartx_m1_contract_v2() {
   return M1_LIVE_CONTRACT_JSON;
 }
-extern "C" __attribute__((visibility("default"))) int megartx_m1_begin_v2(
+extern "C" __attribute__((visibility("default"))) int megartx_m1_set_external_observer_v1(
+    M1ExternalObserver callback) {
+  std::lock_guard<std::mutex> lock(m1_observer_mutex);
+  if(m1_active_leases.load(std::memory_order_acquire)!=0)return -1;
+  m1_external_observer.store(callback,std::memory_order_release);
+  return 0;
+}
+namespace {
+int begin_lease(
     uint32_t abi_version,View const* views,uint32_t view_count,uint32_t view_bytes,
-    uint64_t stream,int fused,char const* directory) {
+    uint64_t stream,int fused,char const* directory,bool capture_enabled) {
+  bool owns_lease=false;
   try {
     require(!lease.active && !invocation,"nested live lease");
     // Validate framing before any array access (including bad pointer tests).
     require(abi_version==2 && view_count==15 && view_bytes==sizeof(View),
             "live lease ABI/version/view framing mismatch");
     lease=Lease{};
-    require(views && stream && directory && (fused==0 || fused==1),"invalid live lease");
+    require(views && stream && (!capture_enabled || directory) && (fused==0 || fused==1),"invalid live lease");
     for(int i=0;i<15;++i) {
       auto const& v=views[i];
       require(v.pointer && v.storage && v.bytes && v.storage_bytes,"missing exact owner extent");
@@ -142,17 +169,60 @@ extern "C" __attribute__((visibility("default"))) int megartx_m1_begin_v2(
               "original quantization owner overlaps a mutable live view");
     }
     lease.stream=reinterpret_cast<cudaStream_t>(stream);
-    lease.fused_requested=fused;lease.directory=directory;lease.active=true;
+    lease.fused_requested=fused;lease.capture_enabled=capture_enabled;
+    if(capture_enabled)lease.directory=directory;
+    {
+      // Serialize callback registration against lease admission so the setter
+      // cannot succeed in the interval before this live lease is counted.
+      std::lock_guard<std::mutex> lock(m1_observer_mutex);
+      lease.observer=m1_external_observer.load(std::memory_order_acquire);
+      require(!capture_enabled || !lease.observer,
+              "external observer is limited to capture-free validation");
+      lease.active=true;
+      m1_active_leases.fetch_add(1,std::memory_order_acq_rel);
+      owns_lease=true;
+    }
+    if(lease.observer)
+      observe("lease_begin",fused?"fused":"stock",nullptr,0,lease.stream,capture_enabled?1:0);
     return 0;
-  } catch(std::exception const& e) { lease.error=e.what();return -1; }
+  } catch(std::exception const& e) {
+    // A rejected nested begin must not erase or rewrite the pre-existing
+    // thread-local lease. Only roll back state admitted by this invocation.
+    if(owns_lease) {
+      lease.error=e.what();
+      lease.active=false;
+      m1_active_leases.fetch_sub(1,std::memory_order_acq_rel);
+    } else if(!lease.active) lease.error=e.what();
+    return -1;
+  }
+}
+}
+// Preserve the captured v2 ABI and its required directory. The distinct export
+// is the explicit capture-free capability; no environment flag reaches native
+// admission, owner validation, operator selection or CUDA error handling.
+extern "C" __attribute__((visibility("default"))) int megartx_m1_begin_v2(
+    uint32_t abi_version,View const* views,uint32_t view_count,uint32_t view_bytes,
+    uint64_t stream,int fused,char const* directory) {
+  return begin_lease(abi_version,views,view_count,view_bytes,stream,fused,directory,true);
+}
+extern "C" __attribute__((visibility("default"))) int megartx_m1_begin_capture_free_v2(
+    uint32_t abi_version,View const* views,uint32_t view_count,uint32_t view_bytes,
+    uint64_t stream,int fused) {
+  return begin_lease(abi_version,views,view_count,view_bytes,stream,fused,nullptr,false);
 }
 extern "C" __attribute__((visibility("default"))) char const* megartx_m1_error() { return lease.error.c_str(); }
 extern "C" __attribute__((visibility("default"))) int megartx_m1_active() { return lease.active; }
 extern "C" __attribute__((visibility("default"))) int megartx_m1_end() {
   if(invocation) { lease.error="cannot end an executing native lease";return -2; }
   bool seen=lease.runner_seen;
+  int status=seen ? (lease.candidate ? 1 : 0) : -1;
+  if(lease.active && lease.observer) {
+    try { observe("lease_end",lease.fused_requested?"fused":"stock",nullptr,0,lease.stream,status); }
+    catch(std::exception const& e) { lease.error=e.what();status=-2; }
+  }
+  if(lease.active)m1_active_leases.fetch_sub(1,std::memory_order_acq_rel);
   lease.active=false;
-  return seen ? (lease.candidate ? 1 : 0) : -1;
+  return status;
 }
 extern "C" __attribute__((visibility("default"))) char const* megartx_m1_metadata() { return lease.metadata.c_str(); }
 extern "C" __attribute__((visibility("default"))) int megartx_m1_verify_bindings(char const* bridge_path) {
@@ -201,19 +271,22 @@ template<> __attribute__((visibility("default"))) void Runner::runMoe(void const
   require(pinned_callsite(__builtin_return_address(0)),"live runner caller is not the pinned module");
   require(!lease.runner_seen,"multiple native runners in one retained lease");
   lease.runner_seen=true;
-  std::ostringstream observed;
-  observed<<"rows="<<rows<<" hidden="<<hidden<<" unpadded="<<unpadded<<" inter="<<inter
-      <<" experts="<<experts<<" topk="<<topk<<" activation="<<int(activation.activation_type)
-      <<" expected_activation="<<int(ActivationType::Geglu)<<" parallel="<<parallel
-      <<" alltoall="<<alltoall<<" lora="<<lora<<" deepseek="<<deepseek<<" mxfp8="<<mxfp8
-      <<" minlat="<<minlat<<" pdl="<<pdl<<" swizzled="<<swizzled
-      <<" bias1="<<bool(bias1)<<" bias2="<<bool(bias2)
-      <<" per_expert_scale="<<quant.fp4.fc1.use_per_expert_act_scale
-      <<" fc2_per_expert_scale="<<quant.fp4.fc2.use_per_expert_act_scale
-      <<" groupwise_scale="<<bool(quant.groupwise.fc1.act_scales)
-      <<"\nfc1="<<(gemm1_config_?gemm1_config_->toString():"unset")
-      <<"\nfc2="<<(gemm2_config_?gemm2_config_->toString():"unset")<<"\n";
-  lease.metadata=observed.str();
+  if(lease.capture_enabled || lease.observer) {
+    std::ostringstream observed;
+    observed<<"rows="<<rows<<" hidden="<<hidden<<" unpadded="<<unpadded<<" inter="<<inter
+        <<" experts="<<experts<<" topk="<<topk<<" activation="<<int(activation.activation_type)
+        <<" expected_activation="<<int(ActivationType::Geglu)<<" parallel="<<parallel
+        <<" alltoall="<<alltoall<<" lora="<<lora<<" deepseek="<<deepseek<<" mxfp8="<<mxfp8
+        <<" minlat="<<minlat<<" pdl="<<pdl<<" swizzled="<<swizzled
+        <<" bias1="<<bool(bias1)<<" bias2="<<bool(bias2)
+        <<" per_expert_scale="<<quant.fp4.fc1.use_per_expert_act_scale
+        <<" fc2_per_expert_scale="<<quant.fp4.fc2.use_per_expert_act_scale
+        <<" groupwise_scale="<<bool(quant.groupwise.fc1.act_scales)
+        <<"\nfc1="<<(gemm1_config_?gemm1_config_->toString():"unset")
+        <<"\nfc2="<<(gemm2_config_?gemm2_config_->toString():"unset")<<"\n";
+    lease.metadata=observed.str();
+    observe("runner_identity","runner.json",lease.metadata.data(),lease.metadata.size(),stream,0);
+  }
   if(rows!=1 || hidden!=2816 || unpadded!=2816 || inter!=704 || experts!=128 || topk!=8 ||
      parallel.tp_size!=1 || parallel.ep_size!=1 || parallel.cluster_size!=1 ||
      parallel.tp_rank || parallel.ep_rank || parallel.cluster_rank || alltoall || lora ||
@@ -266,11 +339,15 @@ template<> __attribute__((visibility("default"))) void Runner::runMoe(void const
   Invocation current{call,regions};
   require(!invocation,"recursive native runner");invocation=&current;
   struct ClearInvocation { ~ClearInvocation(){invocation=nullptr;} } clear_invocation;
-  std::ostringstream meta;
-  meta << "workspace_bytes=" << lease.views[5].bytes << "\nfc1=" << gemm1_config_->toString()
-       << "\nfc2=" << gemm2_config_->toString() << "\n";
-  for(auto const& r:regions)meta<<r.first<<":"<<r.second.second<<":"<<r.second.first<<"\n";
-  lease.metadata+=meta.str();
+  if(lease.capture_enabled || lease.observer) {
+    std::ostringstream meta;
+    meta << "workspace_bytes=" << lease.views[5].bytes << "\nfc1=" << gemm1_config_->toString()
+         << "\nfc2=" << gemm2_config_->toString() << "\n";
+    for(auto const& r:regions)meta<<r.first<<":"<<r.second.second<<":"<<r.second.first<<"\n";
+    auto layout=meta.str();
+    lease.metadata+=layout;
+    observe("runner_workspace","workspace.json",layout.data(),layout.size(),stream,0);
+  }
   stock();
   if(lease.qualified)capture("routed-output.bin",output,2816*2,stream);
   require(lease.maps_seen && lease.expand_seen,"installed preparation call sites bypassed bridge");
@@ -288,12 +365,22 @@ __attribute__((visibility("default"))) bool fusedBuildExpertMapsSortFirstToken(i
       "actual map ABI differs from source-bound workspace ledger");
   // Successful unsupported queries delegate unchanged to the incumbent. Errors
   // escape before the map callback, capture, or candidate output mutation.
-  if(!mx::candidate_eligible(c,true))return original(ids,inverse,source,offsets,rows,experts,topk,start,end,pdl,stream);
+  if(!mx::candidate_eligible(c,true)) {
+    observe("installed_map_call","map",nullptr,0,stream,0);
+    return original(ids,inverse,source,offsets,rows,experts,topk,start,end,pdl,stream);
+  }
   lease.qualified=true;
   capture_preparation(true);
   bool map_result=false;
-  auto backend=mx::prepare(c,[&] { map_result=original(ids,inverse,source,offsets,rows,experts,topk,start,end,pdl,stream); },lease.fused_requested);
+  auto backend=mx::prepare(c,[&] {
+    observe("installed_map_call","map",nullptr,0,stream,0);
+    map_result=original(ids,inverse,source,offsets,rows,experts,topk,start,end,pdl,stream);
+  },lease.fused_requested);
   lease.candidate=backend==mx::PreparationBackend::Fused;
+  auto decision=std::string("{\"backend\":\"")+(lease.candidate?"fused":"stock")+
+      "\",\"incumbent_map_result\":"+(map_result?"true":"false")+"}";
+  observe("candidate_status","preparation.json",decision.data(),decision.size(),stream,
+          lease.candidate?1:0);
   return lease.candidate || map_result; // Preserve the caller's three-step fallback.
 }
 
@@ -310,7 +397,10 @@ template<> __attribute__((visibility("default"))) void expandInputRowsKernelLaun
   require(pinned_callsite(__builtin_return_address(0)),"expand caller is not the pinned module");
   auto const& b=invocation->call.buffers;
   require(!lease.expand_seen,"duplicate expand call");lease.expand_seen=true;
-  if(!lease.qualified) { stock();return; }
+  if(!lease.qualified) {
+    observe("installed_expand_call","expand",nullptr,0,stream,0);
+    stock();return;
+  }
   require(input==reinterpret_cast<__nv_fp4_e2m1 const*>(b.aq) &&
       expanded==reinterpret_cast<__nv_fp4_e2m1*>(b.expanded_aq) &&
       weights==reinterpret_cast<float const*>(b.weight_bits) && inverse==b.sorted_to_slot &&
@@ -322,7 +412,10 @@ template<> __attribute__((visibility("default"))) void expandInputRowsKernelLaun
   require(quant.fp4.fc1.act_global_scale==invocation->call.quant.fp4.fc1.act_global_scale &&
       quant.fp4.fc1.weight_block_scale==invocation->call.quant.fp4.fc1.weight_block_scale,
       "typed quantization identity changed");
-  if(!lease.candidate)stock();
+  if(!lease.candidate) {
+    observe("installed_expand_call","expand",nullptr,0,stream,0);
+    stock();
+  }
   capture_preparation(false);
 }
 
@@ -343,14 +436,18 @@ template<> __attribute__((visibility("default"))) std::pair<Desc,Desc> Runner::s
   if(!invocation || !lease.qualified)return result;
   require(pinned_callsite(__builtin_return_address(0)),"TMA setup caller is not pinned");
   require(lease.expand_seen && stream==lease.stream,"consumer setup precedes preparation");
-  // Read actual descriptor carriers, never substitute or modify a descriptor.
+  // Descriptor checks remain mandatory in both execution modes. These D2H
+  // copies, fences and layout enumeration are validation, not optional evidence.
   using Shape=Desc::ProblemShape::UnderlyingProblemShape;
   using Layout=Desc::NVFP4BlockScaledConfig::LayoutSF;
-  std::ostringstream out;out<<"{\"scope\":\"actual_descriptor_sf_carrier_envelopes\",\"stages\":[";
+  std::ostringstream out;
   std::ostringstream masks;
-  masks<<"{\"scope\":\"source_bound_actual_sm120_grouped_tma_payload_masks\","
-      "\"tile_mn\":[128,128],\"physical_tile_k\":256,\"sf_vector_size\":16,"
-      "\"inactive_group_metadata_may_be_read\":true,\"stages\":[";
+  if(lease.capture_enabled || lease.observer) {
+    out<<"{\"scope\":\"actual_descriptor_sf_carrier_envelopes\",\"stages\":[";
+    masks<<"{\"scope\":\"source_bound_actual_sm120_grouped_tma_payload_masks\","
+        "\"tile_mn\":[128,128],\"physical_tile_k\":256,\"sf_vector_size\":16,"
+        "\"inactive_group_metadata_may_be_read\":true,\"stages\":[";
+  }
   Desc descs[2]={result.first,result.second};
   for(int stage=0;stage<2;++stage) {
     auto const& d=descs[stage];
@@ -381,13 +478,15 @@ template<> __attribute__((visibility("default"))) std::pair<Desc,Desc> Runner::s
     mx::require_cuda_success(cudaMemcpyAsync(output_strides.data(),d.stride_d,128*sizeof(Desc::StrideD),
         cudaMemcpyDeviceToHost,stream),"descriptor output stride copy");
     mx::require_cuda_success(cudaStreamSynchronize(stream),"descriptor consumer fence");
-    if(stage)out<<',';out<<"{\"stage\":"<<stage+1<<",\"swap_ab\":"<<(d.swap_ab?"true":"false")<<",\"experts\":[";
-    if(stage)masks<<',';
-    masks<<"{\"stage\":"<<stage+1<<",\"aq_lifetime\":\""
-        <<(stage?"after_incumbent_activation_reuses_preparation_owner":"preparation_to_fc1_consumption")
-        <<"\",\"sf_lifetime\":\""
-        <<(stage?"after_incumbent_activation_overwrites_shared_sf_owner":"preparation_to_fc1_consumption")
-        <<"\",\"active_payloads\":[";
+    if(lease.capture_enabled || lease.observer) {
+      if(stage)out<<',';out<<"{\"stage\":"<<stage+1<<",\"swap_ab\":"<<(d.swap_ab?"true":"false")<<",\"experts\":[";
+      if(stage)masks<<',';
+      masks<<"{\"stage\":"<<stage+1<<",\"aq_lifetime\":\""
+          <<(stage?"after_incumbent_activation_reuses_preparation_owner":"preparation_to_fc1_consumption")
+          <<"\",\"sf_lifetime\":\""
+          <<(stage?"after_incumbent_activation_overwrites_shared_sf_owner":"preparation_to_fc1_consumption")
+          <<"\",\"active_payloads\":[";
+    }
     bool first=true;
     for(int e=0;e<128;++e) {
       auto m=int64_t(cute::get<0>(shapes[e])),n=int64_t(cute::get<1>(shapes[e])),k=int64_t(cute::get<2>(shapes[e]));
@@ -403,8 +502,10 @@ template<> __attribute__((visibility("default"))) std::pair<Desc,Desc> Runner::s
             " expert="+std::to_string(e)+" M="+std::to_string(m)+" N="+std::to_string(n)+
             " K="+std::to_string(k)+" relative_offset="+
             std::to_string(int64_t(p)-int64_t(base))+" bytes="+std::to_string(bytes));
-      if(e)out<<',';out<<"["<<m<<','<<n<<','<<k<<','<<(token_rows?int64_t(p)-int64_t(base):-1)
-          <<','<<(token_rows?bytes:0)<<"]";
+      if(lease.capture_enabled || lease.observer) {
+        if(e)out<<',';out<<"["<<m<<','<<n<<','<<k<<','<<(token_rows?int64_t(p)-int64_t(base):-1)
+            <<','<<(token_rows?bytes:0)<<"]";
+      }
       if(!token_rows)continue;
       require(!d.swap_ab && m==1 && n==(stage?2816:1408) && k==(stage?704:2816) &&
           cute::size<0>(layouts[e])==128 && cute::size<1>(layouts[e])==k &&
@@ -424,16 +525,26 @@ template<> __attribute__((visibility("default"))) std::pair<Desc,Desc> Runner::s
           cute::get<0>(output_strides[e])==n && cute::get<1>(output_strides[e])==1 &&
           contains(lease.views[5],aq[e],k/2) && contains(lease.views[5],destinations[e],n*2),
           "actual AQ/output consumer stride or extent differs");
-      auto ws=reinterpret_cast<uintptr_t>(lease.views[5].pointer);
-      if(!first)masks<<',';first=false;
-      masks<<"{\"expert\":"<<e<<",\"shape\":["<<m<<','<<n<<','<<k<<"],"
-          "\"aq_read_range\":["<<(reinterpret_cast<uintptr_t>(aq[e])-ws)<<','<<k/2<<"],"
-          "\"sf_read_range\":["<<(p-base)<<','<<bytes<<"],"
-          "\"gemm_output_write_range\":["<<(reinterpret_cast<uintptr_t>(destinations[e])-ws)
-          <<','<<n*2<<"]}";
+      if(lease.capture_enabled || lease.observer) {
+        auto ws=reinterpret_cast<uintptr_t>(lease.views[5].pointer);
+        if(!first)masks<<',';first=false;
+        masks<<"{\"expert\":"<<e<<",\"shape\":["<<m<<','<<n<<','<<k<<"],"
+            "\"aq_read_range\":["<<(reinterpret_cast<uintptr_t>(aq[e])-ws)<<','<<k/2<<"],"
+            "\"sf_read_range\":["<<(p-base)<<','<<bytes<<"],"
+            "\"gemm_output_write_range\":["<<(reinterpret_cast<uintptr_t>(destinations[e])-ws)
+            <<','<<n*2<<"]}";
+      }
     }
-    out<<"]}";
-    masks<<"]}";
+    if(lease.capture_enabled || lease.observer) { out<<"]}";masks<<"]}"; }
+  }
+  if(!lease.capture_enabled) {
+    if(lease.observer) {
+      out<<"]}";masks<<"]}";
+      auto envelopes=out.str(),physical_masks=masks.str();
+      observe("json","consumer-envelopes.json",envelopes.data(),envelopes.size(),stream,0);
+      observe("json","consumer-masks.json",physical_masks.data(),physical_masks.size(),stream,0);
+    }
+    return result;
   }
   out<<"]}";
   auto path=std::filesystem::path(lease.directory)/"consumer-envelopes.json";

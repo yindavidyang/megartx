@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 
+from .m1_execution import profile_scope
+
 
 def install():
     mode = os.environ.get("MEGARTX_SCALE_MODE")
@@ -48,6 +50,8 @@ def install():
     router_score = os.environ.get("MEGARTX_ROUTER_SCORE_DIR")
     router_observer = None
     controlled_observer = None
+    normal = os.environ.get("MEGARTX_M1_NORMAL_DIR")
+    normal_observer = None
     if not os.environ.get("MEGARTX_ACTIVATION_PROOF_PATH") or not os.environ.get("MEGARTX_ACTIVATION_TRACE_PATH"):
         raise RuntimeError("Experimental adapter requires explicit bounded integration-proof destinations")
     if route_audit and not capture:
@@ -58,8 +62,20 @@ def install():
         raise RuntimeError("Controlled routing requires its isolated capture/plan without natural audit destinations")
     from .m1_live import load_controller
     m1 = load_controller(mode)
-    if m1 is not None and not controlled:
-        raise RuntimeError("live preparation requires the bounded controlled request collector")
+    if normal and (controlled or router_score or route_audit or not capture or not os.environ.get("MEGARTX_M1_NORMAL_PLAN")):
+        raise RuntimeError("normal M1 collector requires its isolated exact plan")
+    if m1 is not None and not (controlled or normal):
+        raise RuntimeError("live preparation requires a bounded controlled or normal request collector")
+    if normal and m1 is None:
+        raise RuntimeError("normal M1 collector requires explicit preparation opt-in")
+    if m1 is not None and normal and (not m1.diagnostics or m1.normal_plan is None):
+        raise RuntimeError("normal M1 validation requires its captured exact-plan controller")
+    if m1 is not None and controlled and m1.normal_plan is not None:
+        raise RuntimeError("controlled M1 cannot carry a natural normal plan")
+    if m1 is not None and m1.external_observer is not None and (not controlled or normal):
+        raise RuntimeError("external M1 observer is controlled-only")
+    diagnostics = m1 is None or m1.diagnostics
+    validation_profile = diagnostics or (m1 is not None and m1.external_observer is not None)
 
     def deterministic_fused(*args, **kwargs):
         kwargs["use_fused_finalize"] = False
@@ -120,6 +136,9 @@ def install():
         controlled_request = controlled_observer is not None and controlled_observer.active and "fixture_mode" not in data
         if controlled_request:
             topk_ids, topk_weights = controlled_observer.routes(layer, x, topk_ids, topk_weights)
+        if normal_observer is not None:
+            topk_ids, topk_weights = normal_observer.routes(layer, x, topk_ids, topk_weights)
+        normal_stages = normal_observer is not None and normal_observer.active and x.shape[0] == 1
         if router_observer is not None:
             router_observer.consume(layer, topk_ids, topk_weights)
         # Diagnostic CPU histograms are confined to quality runs and marked
@@ -140,7 +159,8 @@ def install():
                     f.write(json.dumps({"case_id": request["id"], "prompt_sha256": request["prompt_sha256"], "mode": mode, "loader_ordinal": data["ordinal"], "layer_name": layer.layer_name, "input_rows": x.shape[0], "selected_slots": ids.numel(), "counts": all_counts, "nonzero_weight_counts": nonzero_counts}) + "\n")
         execution_mode = data.get("fixture_mode", mode)
         if not experts or execution_mode == "control":
-            return incumbent_routed(layer, x, topk_weights, topk_ids, shared_experts, shared_experts_input)
+            result = incumbent_routed(layer, x, topk_weights, topk_ids, shared_experts, shared_experts_input)
+            return result if normal_observer is None else normal_observer.output(layer,result)
         if x.dtype != torch.bfloat16:
             raise RuntimeError("Adapter input must be BF16")
         # Data-dependent gather intentionally runs eagerly. Original router
@@ -159,10 +179,14 @@ def install():
             if locations.shape[0] == 0:
                 continue
             rows, slots = locations[:, 0], locations[:, 1]
-            with torch.profiler.record_function("megartx::corrected_expert_" + execution_mode):
+            with profile_scope("megartx::corrected_expert_" + execution_mode,
+                               validation_profile or "fixture_mode" in data):
                 if controlled_request:
-                    with torch.profiler.record_function("megartx::controlled_expert_" + execution_mode):
+                    with profile_scope("megartx::controlled_expert_" + execution_mode, diagnostics):
                         y, stages = run_expert(x[rows], e, mode=execution_mode, return_stages=True)
+                    captured.append((e, rows, slots, topk_weights[rows, slots], stages))
+                elif normal_stages:
+                    y, stages = run_expert(x[rows], e, mode=execution_mode, return_stages=True)
                     captured.append((e, rows, slots, topk_weights[rows, slots], stages))
                 else:
                     y = run_expert(x[rows], e, mode=execution_mode)
@@ -177,8 +201,10 @@ def install():
             accumulator.index_add_(0, rows, y.float() * topk_weights[rows, slots].float().unsqueeze(1))
         corrected = accumulator.to(routed.dtype)
         for e, rows, slots, weights, stages in captured:
-            controlled_observer.expert(layer, e, rows, slots, weights, stages, routed, corrected)
-        return (output[0], corrected) if pair else corrected
+            observer = controlled_observer if controlled_request else normal_observer
+            observer.expert(layer, e, rows, slots, weights, stages, routed, corrected)
+        result = (output[0], corrected) if pair else corrected
+        return result if normal_observer is None else normal_observer.output(layer,result)
 
     ModelOptNvFp4FusedMoE.process_weights_after_loading = load
     RoutedExperts.forward_modular = routed_adapter
@@ -193,7 +219,7 @@ def install():
     integration_report = None
 
     def model_forward(self, input_ids, positions, *args, **kwargs):
-        nonlocal context, forward_counter, integration_layers, integration_report, router_observer, controlled_observer
+        nonlocal context, forward_counter, integration_layers, integration_report, router_observer, controlled_observer, normal_observer
         if integration_layers is None:
             integration_layers, integration_report = prepare(self, routed_adapter)
             if router_score:
@@ -201,15 +227,23 @@ def install():
                 router_observer = RouterScoreCapture(self, integration_layers)
             if controlled:
                 from .controlled_capture import ControlledCapture
-                controlled_observer = ControlledCapture(self, integration_layers, mode)
+                controlled_observer = ControlledCapture(self, integration_layers, mode,
+                    execution_mode="captured" if m1 is None else m1.execution_mode,
+                    external_observer=None if m1 is None else m1.external_observer)
+            if normal:
+                from .m1_normal_capture import NormalCapture
+                normal_observer = NormalCapture(self, integration_layers, mode)
         before = [layer._megartx["dispatch_calls"] for layer in integration_layers]
-        if router_observer is not None:
-            router_observer.begin(input_ids, positions)
-        if controlled_observer is not None:
-            controlled_observer.begin(input_ids, positions)
-        if m1 is not None:
-            m1.begin_forward(input_ids, positions)
+        primary_error = None
         try:
+            if router_observer is not None:
+                router_observer.begin(input_ids, positions)
+            if controlled_observer is not None:
+                controlled_observer.begin(input_ids, positions)
+            if normal_observer is not None:
+                normal_observer.begin(input_ids, positions)
+            if m1 is not None:
+                m1.begin_forward(input_ids, positions)
             result = old_forward(self, input_ids, positions, *args, **kwargs)
             if router_observer is not None:
                 router_observer.end()
@@ -221,14 +255,31 @@ def install():
                 write_proof(integration_report)
             if controlled_observer is not None:
                 controlled_observer.end()
-        except Exception as error:
-            if controlled_observer is not None:
-                controlled_observer.abort(error)
+            if normal_observer is not None:
+                normal_observer.end()
+        except BaseException as error:
+            primary_error = error
+            if m1 is not None:
+                m1.failed = True
+            for observer in (controlled_observer,normal_observer):
+                if observer is not None:
+                    try:
+                        observer.abort(error)
+                    except BaseException as cleanup:
+                        if hasattr(error,"add_note"):
+                            error.add_note("Capture cleanup failed: "+str(cleanup))
             context = None
             raise
         finally:
             if m1 is not None:
-                m1.end_forward()
+                try:
+                    m1.end_forward()
+                except BaseException as cleanup:
+                    m1.failed = True
+                    if primary_error is None:
+                        raise
+                    if hasattr(primary_error,"add_note"):
+                        primary_error.add_note("Forward lease cleanup failed: "+str(cleanup))
         if not capture:
             return result
         if not isinstance(result, torch.Tensor) or result.ndim != 2 or result.shape[1] != 2816:
@@ -287,7 +338,11 @@ def install():
             if request["teacher_forced"]:
                 if token_ids is None or any(p < 0 or p >= len(request["prompt_token_ids"]) or t != request["prompt_token_ids"][p] for p, t in zip(pos, token_ids)):
                     raise RuntimeError("Captured row does not match the supplied teacher-forced prefix")
-            if controlled_observer is not None:
+            if normal_observer is not None:
+                if token_ids is None:
+                    raise RuntimeError("normal M1 logits require actual input IDs")
+                normal_observer.logits(result[-rows:], pos, token_ids, method, result.shape[0])
+            elif controlled_observer is not None:
                 if token_ids is None:
                     raise RuntimeError("Controlled logits require actual input IDs")
                 controlled_observer.logits(result[-rows:], pos, token_ids, method, result.shape[0])
