@@ -1,0 +1,159 @@
+{
+  "schema": "megartx-speculative-verifier-source-review-v1",
+  "review_date_utc": "2026-10-03",
+  "megartx_base": "09341f2ad3f6e4b03e8f264b9e3c59fe5ddb52ed",
+  "status": "local design/CPU reference only; no native qualification",
+  "retrieval_bound_bytes_per_file": 1000000,
+  "metadata_is_not_weight_or_tokenizer_identity_proof": true,
+  "source_revisions": {
+    "inferact_tpu_megakernels": "4048f0820aa4ff8787f707ca9d99b2bada9751aa",
+    "vllm_repository_pinned_source": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+    "google_gemma_4_26B_A4B_it_assistant": "6e5aaaf4c42b98394530b8fda2e95cadd65c151c",
+    "redhat_gemma_4_31B_it_speculator_dspark": "0026c7d1899651ca3c45ede471712f04849723ac",
+    "redhat_Kimi_K3_speculator_dspark": "38a88101e0d46bb22134b9da340f381b954d40d4",
+    "dspark_paper": "arXiv:2607.05147v1",
+    "generic_rejection_sampling_paper": "arXiv:2211.17192v2"
+  },
+  "read_via_web_without_retained_bytes": [
+    {
+      "url": "https://inferact.ai/blog/tpu-megakernels",
+      "mutable": true,
+      "sha256": null,
+      "scope": "source report; hardware/model/checkpoint attribution only"
+    },
+    {
+      "url": "https://arxiv.org/html/2211.17192v2",
+      "mutable": false,
+      "sha256": null,
+      "scope": "generic exact acceptance/residual algorithm"
+    }
+  ],
+  "files": [
+    {
+      "url": "https://huggingface.co/api/models/google/gemma-4-26B-A4B-it-assistant",
+      "sha256": "f257b59e4163cba0b729c7b5e0eaa4b27aa1450bb5693e95a41e5c0ddee8fcf6",
+      "bytes": 1610,
+      "local_artifact": "artifacts/source-review/google--gemma-4-26B-A4B-it-assistant--metadata.json",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://huggingface.co/google/gemma-4-26B-A4B-it-assistant/resolve/6e5aaaf4c42b98394530b8fda2e95cadd65c151c/config.json",
+      "sha256": "f393dd4bbdbb1de9bfade9de224493de4e728ba020f9078db8de93cc66a551b2",
+      "bytes": 2315,
+      "local_artifact": "artifacts/source-review/google--gemma-4-26B-A4B-it-assistant--config.json",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://huggingface.co/google/gemma-4-26B-A4B-it-assistant/resolve/6e5aaaf4c42b98394530b8fda2e95cadd65c151c/README.md",
+      "sha256": "0872790782ba6233fa05028628dbed94d246043f363f627781e8bbae826c66b8",
+      "bytes": 29800,
+      "local_artifact": "artifacts/source-review/google--gemma-4-26B-A4B-it-assistant--README.md",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://huggingface.co/api/models/RedHatAI/gemma-4-31B-it-speculator.dspark",
+      "sha256": "0682e00b467393cc72c0de1443fdec2146ec1398d9e07b5ff993c3fb9266586a",
+      "bytes": 1147,
+      "local_artifact": "artifacts/source-review/RedHatAI--gemma-4-31B-it-speculator.dspark--metadata.json",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://huggingface.co/RedHatAI/gemma-4-31B-it-speculator.dspark/resolve/0026c7d1899651ca3c45ede471712f04849723ac/config.json",
+      "sha256": "7dc09da7085d7dac9d1cb0cae87f284da70b7686ec5f7ce01a7158434232efed",
+      "bytes": 2010,
+      "local_artifact": "artifacts/source-review/RedHatAI--gemma-4-31B-it-speculator.dspark--config.json",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://huggingface.co/RedHatAI/gemma-4-31B-it-speculator.dspark/resolve/0026c7d1899651ca3c45ede471712f04849723ac/README.md",
+      "sha256": "ed633775f6e6d2585aed5f9d19e9ef673a69c8e257b3b7e86ece77b1df201692",
+      "bytes": 3816,
+      "local_artifact": "artifacts/source-review/RedHatAI--gemma-4-31B-it-speculator.dspark--README.md",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://huggingface.co/api/models/RedHatAI/Kimi-K3-speculator.dspark",
+      "sha256": "3bb9e7e71b65677221f4d0d84f37ea4abb644a8862c5924a6d5322945302ee87",
+      "bytes": 1065,
+      "local_artifact": "artifacts/source-review/RedHatAI--Kimi-K3-speculator.dspark--metadata.json",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://huggingface.co/RedHatAI/Kimi-K3-speculator.dspark/resolve/38a88101e0d46bb22134b9da340f381b954d40d4/config.json",
+      "sha256": "c8e00b0a103d8b04ecf5b8a2b1d7c9c015f4a50a72fe4fa9a3adaaee3c44ef15",
+      "bytes": 2045,
+      "local_artifact": "artifacts/source-review/RedHatAI--Kimi-K3-speculator.dspark--config.json",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://huggingface.co/RedHatAI/Kimi-K3-speculator.dspark/resolve/38a88101e0d46bb22134b9da340f381b954d40d4/README.md",
+      "sha256": "f11f81004b96d7705b06ec300e557b1030451d7ef6a80115a0c38319bac236df",
+      "bytes": 17597,
+      "local_artifact": "artifacts/source-review/RedHatAI--Kimi-K3-speculator.dspark--README.md",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Inferact/tpu-megakernels/4048f0820aa4ff8787f707ca9d99b2bada9751aa/README.md",
+      "sha256": "32a710594a8b6250fe73962b111b7393a5562aa662da6f851adf68cfdc47c776",
+      "bytes": 6906,
+      "local_artifact": "artifacts/source-review/inferact--README.md",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Inferact/tpu-megakernels/4048f0820aa4ff8787f707ca9d99b2bada9751aa/kimi/decode_megakernel.py",
+      "sha256": "77caa07ff81665a5765038fbf19288cbd9e4d5906fdadf9320f18dd12ea6ef70",
+      "bytes": 221565,
+      "local_artifact": "artifacts/source-review/inferact--decode_megakernel.py",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/models/gemma4_mtp.py",
+      "sha256": "27a2fb3073c2a27192f1e5a383b49a5a4d6bca2e38e5d31c56c05d0f9022601a",
+      "bytes": 21824,
+      "local_artifact": "artifacts/source-review/vllm--gemma4_mtp.py",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://ai.google.dev/gemma/docs/mtp/overview",
+      "sha256": "511f449324de4c42013342150c6595376edf62467817db64542ed7e268b8334b",
+      "bytes": 136164,
+      "local_artifact": "artifacts/source-review/google--mtp-overview.html",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://arxiv.org/html/2607.05147v1",
+      "sha256": "d26ba29059c512f60eb02bed40f28a1214747c714cb82f996f0dc0eca591caea",
+      "bytes": 362897,
+      "local_artifact": "artifacts/source-review/dspark--paper-v1.html",
+      "artifact_kind": "public metadata or source text; no weights"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Inferact/tpu-megakernels/4048f0820aa4ff8787f707ca9d99b2bada9751aa/kimi/dspark.py",
+      "sha256": "0387a3c6fd95545f99e033818728a81849d59d5f4e13a7028580ae40e7ea4baa",
+      "bytes": 86288,
+      "local_artifact": "artifacts/source-review/inferact--dspark.py",
+      "artifact_kind": "public metadata or source text; no weights"
+    }
+  ],
+  "unknowns": [
+    "Target/draft exact tokenizer payload and template hashes",
+    "Loaded target/draft weight revisions and conversion fidelity",
+    "Installed NVFP4 and BF16-KV shared assistant compatibility and layer mapping",
+    "Actual supported short verifier row shapes and numerical parity",
+    "Native transaction, async writer, page/COW and RNG publication safety",
+    "Stochastic confidence-scheduling selection law and full target sampler support",
+    "Measured draft/verify/sample/cache cost, expert union, memory and end-to-end gain",
+    "Report checkpoint revision versus current card revision; no equality assumed"
+  ],
+  "excluded_actions": [
+    "SSH",
+    "GPU execution",
+    "runtime implementation",
+    "package/system changes",
+    "weight/tokenizer/dataset acquisition",
+    "training",
+    "paid resources",
+    "push",
+    "pull request"
+  ]
+}

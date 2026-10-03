@@ -1,0 +1,170 @@
+{
+  "schema": "megartx-speculative-verifier-cpu-reference-v1",
+  "date_utc": "2026-10-03",
+  "base_commit": "a1296262dcc75f7dec8cf994c9511c7e7676b098",
+  "base_tree": "6ea5e877d858e12f6c48afdf3fc2256e5431d3b5",
+  "scope": "independent synthetic sequence/cache and exact rational sampling witnesses; local CPU only",
+  "new_reference_dependencies": "Python standard library only",
+  "local_environment": {
+    "python": "3.12.8",
+    "numpy_for_existing_suites": "2.4.4",
+    "package_changes": false
+  },
+  "checks": [
+    {
+      "command": "python3 -m unittest discover -s numerical_reference -p test_speculative_verifier_reference.py -v",
+      "status": "passed",
+      "test_count": 38,
+      "elapsed_seconds": 11.977,
+      "local_log": "artifacts/rng-clarification-verifier-tests.log",
+      "log_sha256": "fbbc1882baf81f47dcc3b49b8b2314fc3b42ee165611fbde6dda7a1bfc6cfe26"
+    },
+    {
+      "command": "python3 -m unittest discover -s numerical_reference -v",
+      "status": "passed",
+      "test_count": 508,
+      "elapsed_seconds": 20.187,
+      "local_log": "artifacts/rng-clarification-numerical-reference-tests.log",
+      "log_sha256": "ccc23e3b323e68a26266e96cce9e84d6af00573ff2bf44a200511a82de6e7754"
+    },
+    {
+      "command": "PYTHONPATH=src python3 -m unittest discover -s tests -v",
+      "status": "passed",
+      "test_count": 97,
+      "elapsed_seconds": 1.286,
+      "local_log": "artifacts/rng-clarification-scaffold-tests.log",
+      "log_sha256": "46652faaa5850e084c2cbfd3842e45bc475191c8e14da47ba7e288251cdd1575"
+    },
+    {
+      "command": "PYTHONPATH=src python3 -m megartx validate configs",
+      "status": "passed",
+      "scope": "8 structural contracts; no numerical/GPU gate"
+    },
+    {
+      "command": "python3 numerical_reference/nvfp4_reference.py --self-test-summary",
+      "status": "passed",
+      "finite_products": 4064,
+      "products_not_exact_in_bf16": 0,
+      "scope": "existing format algebra only"
+    },
+    {
+      "command": "python3 -m compileall -q src tests numerical_reference",
+      "status": "passed"
+    },
+    {
+      "command": "AST import allowlist, source hashes and new-file whitespace checks",
+      "status": "passed",
+      "source_file_count": 15
+    }
+  ],
+  "boundary_subcases": {
+    "prefix_lengths": [
+      7,
+      8,
+      9,
+      63,
+      64,
+      65,
+      1023,
+      1024,
+      1025,
+      2049
+    ],
+    "proposal_lengths": [
+      0,
+      1,
+      2,
+      4,
+      7
+    ],
+    "acceptance_lengths": "every value 0..k",
+    "combined_subcase_count": 190,
+    "full_synthetic_logits_and_physical_slots_compared": true
+  },
+  "negative_controls": [
+    "rejected suffix cache publication",
+    "future suffix attention leak",
+    "overwritten committed ring with length-only rollback",
+    "shifted target row",
+    "duplicate anchor/missing bonus",
+    "wrong consumed input count",
+    "absolute RoPE tag with physical-slot positional payload",
+    "independent token agreement sampling",
+    "verification length selected from sampled token without correcting conditional draft law",
+    "reused proposal/acceptance or acceptance/correction RNG draw"
+  ],
+  "qualification": {
+    "native_gpu_execution": false,
+    "native_numerical_gates": false,
+    "model_quality": false,
+    "end_to_end_speedup": false,
+    "graphs": false
+  },
+  "new_file_sha256": {
+    "numerical_reference/speculative_verifier_reference.py": "9b292f172c08f61e032bc548b31bd3dd06e8cba6c1e9e145a7fe93b798849ede",
+    "numerical_reference/test_speculative_verifier_reference.py": "9571c2561e3c431c645c27c6fb262cf72d9856eed38ecbaf4e249a5ed00cdc4c",
+    "docs/design/speculative-verifier-contract.md": "d8257c35648f53410c3b5a8112c6b2532f5e084a85ca14ce242ffd1a6ba8b2b3",
+    "docs/evidence/speculative-verifier-source-pins.json": "e307b9c274683aa19ae28decda718d9252b06fd2f52dfbc3bbead084fee51c3e"
+  },
+  "remaining_gates": [
+    "owner interface review",
+    "stable accepted target path",
+    "separately approved model/GPU feasibility work",
+    "native short-row and transactional cache/sampler qualification",
+    "same-draft full cost/quality comparison",
+    "separate training/data/compute approval if needed",
+    "focused independent review of RNG clarification before any merge"
+  ],
+  "rng_assumption": {
+    "scope": "Caller draws must be conditionally independent given history; the API cannot infer joint RNG laws from provided numeric values.",
+    "algorithm_ast_unchanged_excluding_docstrings": true,
+    "comparison_base": "a1296262dcc75f7dec8cf994c9511c7e7676b098",
+    "exact_uniform_grid": "[1/8,3/8,5/8,7/8]",
+    "witnesses": [
+      {
+        "target_p": [
+          "3/4",
+          "1/4"
+        ],
+        "draft_q": [
+          "1/2",
+          "1/2"
+        ],
+        "independent_draw_law": [
+          "3/4",
+          "1/4"
+        ],
+        "reused_proposal_acceptance_draw_law": [
+          "1",
+          "0"
+        ],
+        "independent_grid_cases": 64,
+        "correlated_grid_cases": 16
+      },
+      {
+        "target_p": [
+          "1/2",
+          "1/4",
+          "1/4"
+        ],
+        "draft_q": [
+          "1",
+          "0",
+          "0"
+        ],
+        "independent_draw_law": [
+          "1/2",
+          "1/4",
+          "1/4"
+        ],
+        "reused_acceptance_correction_draw_law": [
+          "1/2",
+          "0",
+          "1/2"
+        ],
+        "independent_grid_cases": 16,
+        "correlated_grid_cases": 4
+      }
+    ]
+  }
+}
