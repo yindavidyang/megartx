@@ -176,7 +176,8 @@ def build(args):
         exported = subprocess.check_output(["nm", "-D", str(work / "m1_live_bridge.so")], text=True)
         required = {"megartx_m1_begin_v2", "megartx_m1_contract_v2", "megartx_m1_end", "megartx_m1_active",
                     "megartx_m1_begin_capture_free_v2", "megartx_m1_error", "megartx_m1_metadata",
-                    "megartx_m1_verify_bindings", "megartx_m1_set_external_observer_v1"} | hooks
+                    "megartx_m1_verify_bindings", "megartx_m1_set_external_observer_v1",
+                    "megartx_m1_attribution_v1"} | hooks
         actual = {line.split()[-1] for line in exported.splitlines() if len(line.split()) >= 3}
         if (not required.issubset(actual) or "megartx_m1_begin" in actual
                 or any(name.startswith("cuda") for name in actual)):

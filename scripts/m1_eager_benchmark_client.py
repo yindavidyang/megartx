@@ -97,6 +97,10 @@ def validate_dispatch(plan, report, records):
 
 def summarize_run(directory):
     directory = Path(directory)
+    launch = directory / "launch-manifest.json"
+    if ((directory / "decode-profile").exists() or
+            (launch.is_file() and json.loads(launch.read_text()).get("m1_decode_profile_requested"))):
+        raise RuntimeError("instrumented decode attribution cannot admit performance timings")
     plan = load_plan(directory / "eager-benchmark-plan.json")
     records = [json.loads(line) for line in (directory / "eager-requests.jsonl").read_text().splitlines()]
     dispatch = json.loads((directory / "eager-benchmark/dispatch.json").read_text())

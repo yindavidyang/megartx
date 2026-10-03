@@ -18,6 +18,109 @@ LIVE_ABI_VERSION = 2
 LIVE_VIEW_COUNT = 15
 
 
+class DecodeAttribution:
+    """Four complete eager decode steps per 2K lane, outside timing admission.
+
+    Start before the first frame's marker/token checks; stop at the next frame
+    boundary after four forwards, heads, samplers and scheduler intervals.
+    No shapes, stacks, tensor memory or token contents are collected.
+    """
+    def __init__(self, benchmark, native, directory):
+        if benchmark is None or benchmark.plan["trials"] != 1 or benchmark.plan["warmups"] != 1:
+            raise RuntimeError("decode attribution requires the exact one-pair eager pilot")
+        self.benchmark, self.native, self.directory = benchmark, native, Path(directory)
+        self.active = False
+        self.profiler = None
+        self.completed = set()
+        self.steps = 0
+        self.lane = None
+        self.native_stats = (ctypes.c_uint64 * 10)()
+        function = native.megartx_m1_attribution_v1
+        function.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint32]
+        function.restype = ctypes.c_int
+
+    def before_frame(self, input_ids):
+        import torch
+        if self.active:
+            if self.steps == 4:
+                self.finish()
+            else:
+                self.steps += 1
+                return
+        b = self.benchmark
+        if b.index < 0 or b.drained or input_ids is None or input_ids.numel() != 1:
+            return
+        row = b.plan["schedule"][b.index]
+        if (row["phase"] != "measurement" or row["case"] != "2048"
+                or b.frame != 8 or row["lane"] in self.completed):
+            return
+        self.lane, self.steps = row["lane"], 1
+        if not self.completed:
+            self.directory.mkdir(parents=True, exist_ok=False)
+        if self.native.megartx_m1_attribution_v1(1, self.native_stats, 10):
+            raise RuntimeError("native attribution admission failed")
+        try:
+            self.profiler = torch.profiler.profile(
+                activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
+                record_shapes=False, with_stack=False, with_flops=False, profile_memory=False)
+            self.profiler.start()
+            self.active = True
+        except BaseException as error:
+            self.release(error)
+            raise
+
+    def release(self, primary=None):
+        if self.native.megartx_m1_attribution_v1(0, self.native_stats, 10):
+            if primary is not None:
+                if hasattr(primary, "add_note"):
+                    primary.add_note("Native attribution release failed")
+            else:
+                raise RuntimeError("native attribution release failed")
+
+    def finish(self):
+        # stop() adds profiler fences only in this explicit instrumented run.
+        self.active = False
+        try:
+            self.profiler.stop()
+        except BaseException as error:
+            self.release(error)
+            raise
+        self.release()
+        self.profiler.export_chrome_trace(str(self.directory / (self.lane + ".json")))
+        phases = ("native_runner", "map_eligibility", "map_dispatch",
+                  "descriptor_readback_fence", "descriptor_validation_enumeration")
+        report = {"schema": "megartx-m1-decode-attribution-v1", "lane": self.lane,
+                  "request_id": self.benchmark.plan["schedule"][self.benchmark.index]["id"],
+                  "source_head": self.benchmark.plan["source_head"],
+                  "plan_sha256": self.benchmark.plan["plan_sha256"],
+                  "decode_steps": self.steps, "positions_relative_to_context": [0, 1, 2, 3],
+                  "host_phases": {name: {"nanoseconds": int(self.native_stats[2*i]),
+                                         "count": int(self.native_stats[2*i+1])}
+                                  for i, name in enumerate(phases)},
+                  "phase_overlap": "native_runner contains all other phases; do not add inclusive totals",
+                  "timing_qualified": False}
+        (self.directory / (self.lane + "-scalars.json")).write_text(json.dumps(report, indent=2))
+        self.completed.add(self.lane)
+        self.profiler = None
+
+    def require_complete(self):
+        if self.active or self.completed != {"stock", "fused"}:
+            raise RuntimeError("decode attribution did not complete both bounded windows")
+
+    def abort(self):
+        if self.active:
+            self.active = False
+            try:
+                self.profiler.stop()
+            except BaseException as error:
+                self.release(error)
+                raise
+            else:
+                self.release()
+            finally:
+                self.profiler = None
+
+
 class View(ctypes.Structure):
     _fields_ = [("pointer", ctypes.c_void_p), ("bytes", ctypes.c_uint64),
                 ("storage", ctypes.c_void_p), ("storage_bytes", ctypes.c_uint64)]
@@ -168,6 +271,7 @@ class LivePreparation:
         self.normal_plan = None
         self.call_limit = 64
         self.benchmark = None
+        self.attribution = None
         if os.environ.get("MEGARTX_M1_EAGER_BENCHMARK_PLAN"):
             from .m1_eager_benchmark import EagerBenchmark, load_plan
             plan = load_plan(os.environ["MEGARTX_M1_EAGER_BENCHMARK_PLAN"],
@@ -178,6 +282,9 @@ class LivePreparation:
                 raise RuntimeError("eager benchmark bridge/driver sources differ")
             self.benchmark = EagerBenchmark(plan, os.environ["MEGARTX_M1_EAGER_BENCHMARK_DIR"], lane)
             self.call_limit = self.benchmark.call_limit
+        if os.environ.get("MEGARTX_M1_DECODE_PROFILE_DIR"):
+            self.attribution = DecodeAttribution(self.benchmark, self.native,
+                                                 os.environ["MEGARTX_M1_DECODE_PROFILE_DIR"])
         if os.environ.get("MEGARTX_M1_NORMAL_PLAN"):
             from .m1_normal_plan import load_plan, LIVE_CALLS
             if not self.diagnostics:
@@ -192,6 +299,9 @@ class LivePreparation:
             raise RuntimeError("failed live preparation context requires an owned process restart")
         if self.forward is not None:
             raise RuntimeError("nested model preparation context")
+        attribution = getattr(self, "attribution", None)
+        if attribution is not None:
+            attribution.before_frame(input_ids)
         benchmark = getattr(self, "benchmark", None)
         marker = (benchmark.directory.parent if benchmark is not None else
                   Path(os.environ["MEGARTX_LOGITS_DIR"]).parent) / "capture-request.json"
@@ -222,6 +332,8 @@ class LivePreparation:
                         "tokens": input_ids.detach().cpu().tolist(),
                         "positions": positions.detach().cpu().tolist()}
         if benchmark is not None and not benchmark.begin(request, self.forward["tokens"], self.forward["positions"]):
+            if attribution is not None:
+                attribution.require_complete()
             self.forward = None
             return
         if benchmark is not None:
@@ -233,10 +345,15 @@ class LivePreparation:
     def end_forward(self):
         self.forward = None
         self.layer = None
+        attribution = getattr(self, "attribution", None)
         if self.native.megartx_m1_active():
             self.failed = True
             self.native.megartx_m1_end()
+            if attribution is not None:
+                attribution.abort()
             raise RuntimeError("native lease escaped the routed call")
+        if self.failed and attribution is not None:
+            attribution.abort()
         benchmark = getattr(self, "benchmark", None)
         if benchmark is not None and not self.failed:
             benchmark.end()
@@ -268,7 +385,7 @@ class LivePreparation:
                 if isinstance(tensor, torch.Tensor):
                     tensor.record_stream(self.stream)
             with torch.cuda.stream(self.stream), profile_scope("megartx::m1_routed_" + self.lane,
-                    self.diagnostics or self.external_observer is not None):
+                    self.diagnostics or self.external_observer is not None or self.profile_active()):
                 result = incumbent(layer, *args)
         except BaseException as error:
             primary_error = error
@@ -426,10 +543,10 @@ class LivePreparation:
             raise error
         primary_error = None
         try:
-            enabled = self.diagnostics or self.external_observer is not None
+            enabled = self.diagnostics or self.external_observer is not None or self.profile_active()
             with profile_scope(f"megartx::m1_external_call_{call_index:04d}",
                     self.external_observer is not None), profile_scope(
-                    "megartx::m1_preparation_" + self.lane, enabled):
+                    "megartx::m1_preparation_" + self.lane + "::" + self.layer.layer_name, enabled):
                 result = incumbent(**kwargs)
         except BaseException as error:
             primary_error = error
@@ -463,6 +580,10 @@ class LivePreparation:
         if self.route_controls and not self.route_controls_done:
             self.run_route_controls(incumbent, kwargs)
         return result
+
+    def profile_active(self):
+        attribution = getattr(self, "attribution", None)
+        return attribution is not None and attribution.active
 
     def run_route_controls(self, incumbent, kwargs):
         """Two explicitly artificial calls; controlled request routing/output is unchanged."""

@@ -29,6 +29,16 @@ def check(library):
     for name in ("megartx_m1_begin_v2", "megartx_m1_begin_capture_free_v2", "megartx_m1_end", "megartx_m1_active"):
         getattr(native, name).restype = ctypes.c_int
     native.megartx_m1_error.restype = native.megartx_m1_metadata.restype = ctypes.c_char_p
+    native.megartx_m1_attribution_v1.argtypes = [ctypes.c_int, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint32]
+    native.megartx_m1_attribution_v1.restype = ctypes.c_int
+    counters = (ctypes.c_uint64 * 10)()
+    assert native.megartx_m1_attribution_v1(0, counters, 10) == -1
+    assert native.megartx_m1_attribution_v1(2, counters, 10) == -1
+    assert native.megartx_m1_attribution_v1(1, None, 10) == -1
+    assert native.megartx_m1_attribution_v1(1, counters, 9) == -1
+    assert native.megartx_m1_attribution_v1(1, counters, 10) == 0
+    assert list(counters) == [0] * 10
+    assert native.megartx_m1_attribution_v1(1, counters, 10) == -1
     # Deliberately invalid CPU address is safe only if framing is checked first.
     poison = ctypes.cast(ctypes.c_void_p(1), ctypes.POINTER(View))
     for version, count, size in ((1, 15, 32), (2, 7, 32), (2, 16, 32), (2, 15, 16)):
@@ -45,6 +55,7 @@ def check(library):
         for cycle in range(3):
             assert begin(2, views, 15, ctypes.sizeof(View), 7, 1) == 0
             assert native.megartx_m1_active() == 1
+            assert native.megartx_m1_attribution_v1(0, counters, 10) == -1
             for nested in begins:
                 assert nested(2, views, 15, ctypes.sizeof(View), 7, 1) == -1
                 assert native.megartx_m1_active() == 1  # The outer lease must survive rejection.
@@ -74,6 +85,8 @@ def check(library):
     assert native.megartx_m1_set_external_observer_v1(callback_type()) == 0
     assert observer_events == [("lease_begin", "fused", 0, 7, 0),
                                ("lease_end", "fused", 0, 7, -1)]
+    assert native.megartx_m1_attribution_v1(0, counters, 10) == 0
+    assert native.megartx_m1_attribution_v1(0, counters, 10) == -1
     return {"scope": "compiled C ABI controls with synthetic CPU addresses; no CUDA dispatch",
             "live_contract": contract, "invalid_framing_before_dereference": True,
             "historical_begin_symbol_absent": True, "repeat_cycles": 3, "nested_rejection_preserves_outer": True,
@@ -84,6 +97,7 @@ def check(library):
             "external_observer_export": "megartx_m1_set_external_observer_v1",
             "external_observer_registration_guarded_by_live_leases": True,
             "external_observer_capture_free_begin_end_events": observer_events,
+            "attribution_framing_nested_and_release_controls": True,
             "active_after": native.megartx_m1_active()}
 
 
