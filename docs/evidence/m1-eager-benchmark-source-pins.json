@@ -63,7 +63,7 @@
     "scripts/m1_eager_benchmark_client.py": "a7b871b71d7b1d19a7813405602592f9562e7e0269e48d78a50950f49f20d34d",
     "scripts/prepare_m1_eager_benchmark.py": "8d7b7203284daad286f61f69933a7e02370a782e17ed06371be7e50eebe8333e",
     "tests/test_m1_eager_benchmark.py": "2a60038a6583a9635df9010dbd0211c5ad78db6f899d54c3155ae0db49a469b9",
-    "docs/m1-matched-eager-benchmark.md": "ee68b1a0b3958e1af6d51d535fdaf6b605dbc6f368b1224ed85d9ff7522c20c7",
+    "docs/m1-matched-eager-benchmark.md": "e77f5c5681b4f5c9e98dfe6f73faca02069992279e5eb5aec3325912935eb798",
     "scripts/m1_owned_processes.py": "eac1f7d983e324e9ec38d7a646163a530dfaa7ccf17262a42e06886c0d9f46bd",
     "scripts/m1_private_aot.py": "2369dfac5f41c5c07dd6a0f9dcac8af4aa5b11a819f5d6add1cf11d64d8ddbee",
     "scripts/check_m1_private_aot.py": "9e1e94b0c9859f05fd69d8ae3e9cd632f46006f89cfc22f513f3ab525ccb5f62",
@@ -98,5 +98,17 @@
     "default_enabled": false,
     "scope": "Eager-plan-bound exact tileiras --help argv/path/binary/caller hashes, actual process identity and stable file versions; permanent unknown/work history; untimed preflight/final hashing. Resource accounting, cleanup and timing interval boundaries retained. No GPU execution or pilot-2 acceptance.",
     "historical_receipt_edit": "Correct Linux v6.8 pidfd_prepare permalink only; prior pilot measurements, rejection and cleanup receipts unchanged."
+  },
+  "results_documentation_publication": {
+    "scope": "Documentation/scalar-only publication after independent source clearance and fresh eecfc13 pilot/six-pair validation. All runtime pins unchanged; original CPU ledger and measured source remain recoverable at that commit.",
+    "measured_source_head": "eecfc13e1be9aaf4e361888d5f4c65ad22fb41c4",
+    "measured_source_tree": "3c9e248405d2f97677223759e86174f09f068d08",
+    "prior_document_sha256": "ee68b1a0b3958e1af6d51d535fdaf6b605dbc6f368b1224ed85d9ff7522c20c7",
+    "published_document_sha256": "e77f5c5681b4f5c9e98dfe6f73faca02069992279e5eb5aec3325912935eb798",
+    "scalar_receipt": "docs/evidence/m1-eager-eecfc13-gpu-scalars.json",
+    "scalar_receipt_sha256": "dae4d4ca46ede1a66d6a274af27460d3ba9bf8d3733761d2d10b6bd263d4330e",
+    "quality_qualified": false,
+    "graphs_qualified": false,
+    "performance_qualified": false
   }
 }
