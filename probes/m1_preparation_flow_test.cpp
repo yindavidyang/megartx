@@ -91,6 +91,8 @@ struct Fixture {
 int main(int argc,char** argv) {
   try {
     if(argc<2)throw std::runtime_error("test case required");
+    bool lean=std::string(argv[1])=="lean";
+    if(lean) { --argc;++argv; }
     auto fixture=std::make_unique<Fixture>();fixture->register_ranges();
     tensorrt_llm::kernels::cutlass_kernels::QuantParams quant{};
     quant.fp4.fc1.weight_block_scale=fixture->sf.data();
@@ -115,6 +117,15 @@ int main(int argc,char** argv) {
       quant.fp4.fc1.use_per_expert_act_scale=true;
       call.fc1_input_lane=Fc1InputLane::InstalledPrequantizedFP4;
     }
+    else if(test=="stock_supported")opt_in=false;
+    else if(test=="changed_after_previous") {
+      if(!lean)throw std::runtime_error("stale decision test requires lean helper");
+      auto previous=prepare_capture_free(call,[]{throw std::runtime_error("unexpected first fallback");},true);
+      if(!previous.qualified || previous.backend!=PreparationBackend::Fused)
+        throw std::runtime_error("first dynamic check was not qualified");
+      fixture->ids[0]=fixture->ids[1];mock.output=0;
+      opt_in=previous.qualified;  // A previous result is only a request, never admission.
+    }
     else if(test=="supported"){}
     else if(test=="incumbent_failure")opt_in=false;
     else throw std::runtime_error("unknown control");
@@ -123,8 +134,13 @@ int main(int argc,char** argv) {
       ++mock.incumbent_calls;mock.output=2;
       if(test=="incumbent_failure")throw std::runtime_error("incumbent failure");
     };
-    bool threw=false;PreparationBackend backend=PreparationBackend::Stock;
-    try {backend=prepare(call,incumbent,opt_in);}
+    bool threw=false,qualified=false;PreparationBackend backend=PreparationBackend::Stock;
+    try {
+      if(lean) {
+        auto decision=prepare_capture_free(call,incumbent,opt_in);
+        qualified=decision.qualified;backend=decision.backend;
+      } else backend=prepare(call,incumbent,opt_in);
+    }
     catch(std::runtime_error const& e) {
       threw=true;
       auto operation=mock.failing_api=="launch"?"candidate launch":mock.failing_api;
@@ -140,11 +156,25 @@ int main(int argc,char** argv) {
     } else if(test=="supported" || test=="per_expert_copy") {
       if(threw || backend!=PreparationBackend::Fused || mock.incumbent_calls || mock.calls["launch"]!=1 || mock.output!=3)
         throw std::runtime_error("supported control did not launch once");
+    } else if(test=="stock_supported") {
+      if(threw || backend!=PreparationBackend::Stock || !qualified || mock.incumbent_calls!=1 ||
+          mock.calls["launch"] || mock.output!=2)
+        throw std::runtime_error("stock path lost fresh descriptor qualification");
+    } else if(test=="changed_after_previous") {
+      if(threw || qualified || backend!=PreparationBackend::Stock || mock.incumbent_calls!=1 ||
+          mock.calls["launch"]!=1 || mock.output!=2 || mock.calls["cudaMemcpyAsync"]!=2 ||
+          mock.calls["cudaStreamSynchronize"]!=2 || mock.calls["cudaPointerGetAttributes"]!=20)
+        throw std::runtime_error("previous decision bypassed the current dynamic check");
     } else if(test=="incumbent_failure") {
       if(!threw || mock.incumbent_calls!=1 || mock.calls["launch"] || mock.output!=2)
         throw std::runtime_error("incumbent error did not propagate once");
     } else if(threw || backend!=PreparationBackend::Stock || mock.incumbent_calls!=1 || mock.calls["launch"] || mock.output!=2)
       throw std::runtime_error("unsupported control did not invoke incumbent exactly once");
+    if(lean && (test=="supported" || test=="per_expert_copy" || test=="stock_supported")) {
+      if(!qualified || mock.calls["cudaMemcpyAsync"]!=1 || mock.calls["cudaStreamSynchronize"]!=1 ||
+          mock.calls["cudaPointerGetAttributes"]!=10 || mock.calls["cuMemGetAddressRange"]!=10)
+        throw std::runtime_error("lean dispatch did not perform exactly one complete fresh check");
+    }
     std::cout<<"prepare control flow passed\n";return 0;
   } catch(std::exception const& e) {std::cerr<<e.what()<<'\n';return 1;}
 }

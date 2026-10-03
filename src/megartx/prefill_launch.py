@@ -26,6 +26,7 @@ REQUIRED = {"source_review", "launcher_review", "gpu_scope", "ownership", "clean
 FILES = {"src/megartx/prefill_collect.py", "src/megartx/prefill_kv.py", "src/megartx/prefill_observe.py",
          "src/megartx/prefill_launch.py", "tests/test_prefill_collect.py", "tests/test_prefill_launch.py",
          "docs/prefill/live-protocol.md", "docs/prefill/runtime-sites.json"}
+CURRENT_CATALOG = ("live-attribution-plan.json", "live-attribution-binding.json")
 
 
 class LifecycleProvider(Protocol):
@@ -53,6 +54,14 @@ class LifecycleProvider(Protocol):
 def load_packet(root, plan_path=None, binding_path=None):
     root = Path(root).resolve()
     docs = root / "docs/prefill"
+    if (plan_path is None) != (binding_path is None):
+        raise ValueError("Live plan and binding must be selected together")
+    if plan_path is None:
+        current = tuple(docs / name for name in CURRENT_CATALOG)
+        if any(path.exists() for path in current):
+            if not all(path.is_file() for path in current):
+                raise ValueError("Current live catalog must contain both plan and binding")
+            plan_path, binding_path = current
     manifest, plan = runner.load_inputs(docs / "runner-plan.json", docs / "profile-plan.json",
         docs / "source-binding.json", docs / "runner-binding.json", root)
     packet_path = plan_path or docs / "live-plan.json"

@@ -167,8 +167,8 @@ def verify_source_binding(plan, manifest_path, root):
         actual[name] = hashlib.sha256(source.read_bytes()).hexdigest()
     candidates = [files]
     overlays = manifest.get("reviewed_source_overlays", [])
-    if type(overlays) is not list or len(overlays) > 1:
-        raise ValueError("At most one explicit CPU source overlay is supported")
+    if type(overlays) is not list or len(overlays) > 2:
+        raise ValueError("At most two explicit CPU source overlays are supported")
     pair = {"src/megartx/m1_live.py", "src/megartx/vllm_scale_plugin.py"}
     for overlay in overlays:
         _keys(overlay, {"id", "source_head", "review_scope", "repo_files", "evidence_reference"}, "source overlay")

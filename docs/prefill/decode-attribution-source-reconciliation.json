@@ -1,0 +1,56 @@
+{
+  "schema": "megartx-prefill-decode-attribution-source-review-v1",
+  "review_scope": "cpu_source_compatibility_only",
+  "status": "candidate_pending_independent_review",
+  "prior_head": "0581f09259d18044ffb5f9e1363d0760f37ddd4f",
+  "prior_source_review_sha256": "51aaa3ce4bc39307536981c17016cee608db9409fce31cb2c3a16f2d98fa1851",
+  "gpu_qualified": false,
+  "files": {
+    "src/megartx/m1_live.py": {
+      "previous_sha256": "5c555e420c77a590c9fad47b45f6aff36af6f22279f29fdfbbd4641cd80368a4",
+      "candidate_sha256": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70"
+    },
+    "src/megartx/vllm_scale_plugin.py": {
+      "previous_sha256": "5bbdd7ba1b6777eb48cafae742ba7d808b28ef166292f8a1c2e79df2d621b54a",
+      "candidate_sha256": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
+    }
+  },
+  "exact_ast_replacements": [
+    {
+      "path": "src/megartx/m1_live.py",
+      "boundary": "LivePreparation.routed",
+      "kind": "expression",
+      "candidate_ast_sha256": "676037095802b5456eb3c569c17105045d7c75ba5f63158d313288d416eae47b",
+      "previous_source": "profile_scope('megartx::m1_routed_' + self.lane, self.diagnostics or self.external_observer is not None)"
+    },
+    {
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "boundary": "install.routed_adapter",
+      "kind": "statement",
+      "candidate_ast_sha256": "b7b52229de3edf651ab77b097489d5b7ff2faa01817fbed46eb2685f925a1750",
+      "previous_source": "locations = torch.nonzero(topk_ids == e.index)"
+    },
+    {
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "boundary": "install.model_forward",
+      "kind": "statement",
+      "candidate_ast_sha256": "ee56938e16b311f3f305188c9623618fab07646a3ec9b1f3efe27b65bb3dd3a0",
+      "previous_source": "result = old_forward(self, input_ids, positions, *args, **kwargs)"
+    },
+    {
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "boundary": "install.logits_forward",
+      "kind": "statement",
+      "candidate_ast_sha256": "612295a787ce84be2598f611f4e09ad6e3f9f7a59c9895d90e782ab10c74a3fb",
+      "previous_source": "result = old_logits(self, hidden_states, *args, **kwargs)"
+    }
+  ],
+  "semantic_delta": [
+    "Default-off four-step CPU/CUDA attribution per2K lane with source-bound request/layer/stream metadata.",
+    "Exact profiling wrappers preserve quantizer, routed arithmetic, model and head calls; original nvfp4_runtime byte hash unchanged.",
+    "Frame-ledger and logits-head errors mark contextfailed, stop profiler and reset native counters with primary-preserving cleanup; no retry.",
+    "Normalization recognizes only each entire reviewed node, not arbitrary calls or names; changed wrapper/body/cleanup fails exact AST signature."
+  ],
+  "quantizer_sha256": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
+  "source_head": "19b74de0400b4201550874bd7e9431c068876ef3"
+}

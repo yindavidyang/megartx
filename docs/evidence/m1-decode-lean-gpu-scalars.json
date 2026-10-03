@@ -1,0 +1,127 @@
+{
+  "schema": "megartx-m1-decode-lean-gpu-scalars-v1",
+  "gpu_source_head": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
+  "gpu_source_tree": "ee44a8a7d51e35573c61e862c59bd8e200b35c2b",
+  "source_inventory_sha256": "e350ac3bfbb6fa5aad656948fff5d6ebeb4c2c0f66551d2d4c8f583895a8d1e9",
+  "plan_sha256": "3efcab019adf977ea5a4532b0b5cfa63977e3433ddc8632aa815c78fd71dbb56",
+  "instrumented": true,
+  "diagnostic_admission": "compiler_accounted_operation_diagnostic_v1",
+  "source_bound_diagnostic_gate_passed": true,
+  "source_review_status": "independently_cleared_before_run",
+  "evidence_review_status": "candidate_pending_independent_evidence_review",
+  "timing_qualified": false,
+  "performance_gate_passed": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "historical_metadata_hold_preserved": true,
+  "failed_3f_run_still_rejected": true,
+  "build": {
+    "seconds": 6.14757160199224,
+    "peak_aggregate_rss_bytes": 731709440,
+    "binary_sha256": "52f92a37776821e6cc979fe7eba12f60e772d8405a392ab156a19f9652124156",
+    "compiled_lease_controls_returncode": 0,
+    "compiled_binding_controls_returncode": 0,
+    "installed_pins_unchanged": true
+  },
+  "validation": {
+    "requests": 8,
+    "output_tokens_per_request": 256,
+    "all_eight_sequences_equal_original": true,
+    "within_context_stock_fused_warmup_measurement_sequences_equal": true,
+    "six_forced_bf16_fixtures_passed": true,
+    "natural_correction_selected_rows": 0,
+    "actual_dispatch_totals": {
+      "stock": 30600,
+      "fused": 30600,
+      "prefill_fallback": 4800
+    }
+  },
+  "lanes": {
+    "stock": {
+      "gpu_operations": 6440,
+      "unique_gpu_api_correlations": 6440,
+      "gpu_operation_inventory_sha256": "c0189366d990def557ae2a9bbcb6b0027c9bf3e90e3ba12244d92e8cbfe4f033",
+      "model_frames": 4,
+      "head_frames": 4,
+      "sampler_frames": 4,
+      "preparation_calls": 120,
+      "routed_calls": 120,
+      "correction_selections": 24,
+      "preparation_d2h_copies": 1800,
+      "preparation_stream_fences": 360,
+      "preparation_pointer_queries": 1200,
+      "correction_layer_attribution": "withheld; selection is outside the routed annotation",
+      "stream_wait_dependency_duration": "not measured",
+      "trace_sha256": "b2c5ec5a6765d1d24f16e08d4a4819ecf83f8ad9a62a045ecc7a55afe039a463"
+    },
+    "fused": {
+      "gpu_operations": 6320,
+      "unique_gpu_api_correlations": 6320,
+      "gpu_operation_inventory_sha256": "e9ed3d4c73bfa0240adc6c0f8af176baaab33984cd690d6622ae0a09fd0f79cc",
+      "model_frames": 4,
+      "head_frames": 4,
+      "sampler_frames": 4,
+      "preparation_calls": 120,
+      "routed_calls": 120,
+      "correction_selections": 24,
+      "preparation_d2h_copies": 1800,
+      "preparation_stream_fences": 360,
+      "preparation_pointer_queries": 1200,
+      "correction_layer_attribution": "withheld; selection is outside the routed annotation",
+      "stream_wait_dependency_duration": "not measured",
+      "trace_sha256": "bdd606606b6114f9fd9dfa1ee36f6d9a81f8caaa37cd3df19e9be0c25589e372"
+    }
+  },
+  "count_comparison": {
+    "original_source_head": "2c65ebd3ef450b37dd88a9d89c630fd10165642d",
+    "original_fused_preparation_d2h_copies": 1920,
+    "original_fused_preparation_stream_fences": 480,
+    "original_fused_preparation_pointer_queries": 2400,
+    "fused_reduction_over_four_frames": {
+      "route_d2h_copies": 120,
+      "explicit_stream_fences": 120,
+      "pointer_queries": 1200
+    },
+    "scope": "Operation counts only; no original-versus-lean elapsed comparison."
+  },
+  "cleanup": {
+    "run_exit": 0,
+    "client_exit": 0,
+    "complete": true,
+    "owned_identities_remaining": 0,
+    "owned_gpu_pids_remaining": 0,
+    "gpu_released": true,
+    "actual_gpu_used_mib_after_cleanup": 41,
+    "actual_gpu_free_mib_after_cleanup": 32101,
+    "compiler_unknown_or_work_identities": 0,
+    "compiler_sampled_peak_rss_bytes": 35782656,
+    "compiler_shared_budget_seconds_observed": 29.203091047995258,
+    "timing_metadata_final_passed": true
+  },
+  "postrun_identity": {
+    "source_files_verified": 262,
+    "adapter_copies_verified": true,
+    "packages_unchanged": true,
+    "checkpoint_config_index_shard_stat_unchanged": true,
+    "frozen_receipt_hashes_unchanged": true
+  },
+  "private_evidence_sha256": {
+    "count_equality_review_packet": "2b25dbacd68ac07da4cb1f85e85ce75e0389c8b95f4c22066c00075c46f603bd",
+    "source_review_packet": "0ae50a3703f0f4ed929c5233aa245d5fd7e703ebb883c7a47167a94ff2e70b31",
+    "operational_freeze": "3202dcbecdb6509a9d8721849bf49811eab1938f4c8c3a133002558a84baef7a",
+    "profile_freeze": "caf6925e7f2400cd41fa0ac969f5da57ce70a82056363ad8a4ed162d9d67e78b",
+    "diagnostic_admission": "c9178006a883d7dd46fcb02e1be55e7636bb52e265d9aa60868cef45fd392152",
+    "postrun_verification": "ecc70f93c9f50581ea8ffe6cd7baedb0cb89d5689f4c6b7e8ccff4c34355bb9d",
+    "original_token_equality": "f3673fa9144a3e935caec8409dc6689e8e8a69a17fc1ca23d4cefdbc6f5a078d",
+    "accepted_original_packet": "0869789861942b9069a67d78e079fcd9cb1e47cf6595914191fb6028acf034f3",
+    "retained_failed_3f_packet": "52733c618f0bf51bf3fafa6a7a63a5e15069f9c72703f0d97ade44ac8a97cf1a"
+  },
+  "interpretation_limits": [
+    "Four instrumented 2K decode frames per lane; counts/equality only, no elapsed/gap/utilization/speedup comparison.",
+    "Compiler RSS peaks are sampled and shared seconds are resource accounting, not model performance.",
+    "No natural positive correction rows were selected; six forced BF16 fixtures do not establish general model quality.",
+    "Correction selections lack enclosing routed annotations; per-layer correction attribution remains withheld.",
+    "Stream wait operands/device durations are unmeasured; source dependencies are retained.",
+    "Checkpoint config/index hashes and shard stat matched; no fresh full-shard rehash or all-transient-mutation proof."
+  ]
+}

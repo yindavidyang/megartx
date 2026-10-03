@@ -5,6 +5,7 @@
 #include "m1_live_symbols.h"
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -52,6 +53,24 @@ struct Invocation {
   std::map<std::string,std::pair<size_t,size_t>> regions;
 };
 thread_local Invocation* invocation=nullptr;
+// Untimed attribution only. Each pair is accumulated host nanoseconds/count.
+// Thread-local state cannot affect eligibility, arithmetic or stream ordering.
+thread_local bool attribution_enabled=false;
+thread_local std::array<uint64_t,10> attribution{};
+struct AttributionPhase {
+  int index;
+  std::chrono::steady_clock::time_point start;
+  explicit AttributionPhase(int i):index(attribution_enabled?i:-1) {
+    if(index>=0)start=std::chrono::steady_clock::now();
+  }
+  ~AttributionPhase() {
+    if(index>=0) {
+      attribution[2*index]+=std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now()-start).count();
+      ++attribution[2*index+1];
+    }
+  }
+};
 
 void* stock_symbol(char const* name) {
   static void* module=[] {
@@ -212,6 +231,19 @@ extern "C" __attribute__((visibility("default"))) int megartx_m1_begin_capture_f
 }
 extern "C" __attribute__((visibility("default"))) char const* megartx_m1_error() { return lease.error.c_str(); }
 extern "C" __attribute__((visibility("default"))) int megartx_m1_active() { return lease.active; }
+extern "C" __attribute__((visibility("default"))) int megartx_m1_attribution_v1(
+    int enabled,uint64_t* counters,uint32_t count) {
+  if(lease.active || invocation || (enabled!=0 && enabled!=1) || !counters || count!=10)return -1;
+  if(enabled) {
+    if(attribution_enabled)return -1;
+    attribution.fill(0);attribution_enabled=true;
+  } else {
+    if(!attribution_enabled)return -1;
+    attribution_enabled=false;
+  }
+  std::copy(attribution.begin(),attribution.end(),counters);
+  return 0;
+}
 extern "C" __attribute__((visibility("default"))) int megartx_m1_end() {
   if(invocation) { lease.error="cannot end an executing native lease";return -2; }
   bool seen=lease.runner_seen;
@@ -268,6 +300,7 @@ template<> __attribute__((visibility("default"))) void Runner::runMoe(void const
       quant,rows,hidden,unpadded,inter,experts,topk,workspace,output,source_map,parallel,
       alltoall,lora,lp,deepseek,mxfp8,minlat,mp,pdl,stream); };
   if(!lease.active) { stock();return; }
+  AttributionPhase runner_phase(0);
   require(pinned_callsite(__builtin_return_address(0)),"live runner caller is not the pinned module");
   require(!lease.runner_seen,"multiple native runners in one retained lease");
   lease.runner_seen=true;
@@ -363,19 +396,35 @@ __attribute__((visibility("default"))) bool fusedBuildExpertMapsSortFirstToken(i
   require(ids==b.ids && inverse==b.sorted_to_slot && source==b.slot_to_sorted && offsets==b.offsets &&
       rows==1 && experts==128 && topk==8 && start==0 && end==128 && !pdl && stream==c.stream,
       "actual map ABI differs from source-bound workspace ledger");
+  if(!lease.capture_enabled && !lease.observer) {
+    bool map_result=false;
+    mx::PreparationDecision decision;
+    // The helper performs one fresh check followed by immediate dispatch. The
+    // phase includes eligibility here; the original diagnostic phases below
+    // remain separate. No capture/observer callback can mutate the checked state.
+    { AttributionPhase dispatch_phase(2);decision=mx::prepare_capture_free(c,[&] {
+      map_result=original(ids,inverse,source,offsets,rows,experts,topk,start,end,pdl,stream);
+    },lease.fused_requested); }
+    lease.qualified=decision.qualified;
+    lease.candidate=decision.backend==mx::PreparationBackend::Fused;
+    return lease.candidate || map_result;
+  }
   // Successful unsupported queries delegate unchanged to the incumbent. Errors
   // escape before the map callback, capture, or candidate output mutation.
-  if(!mx::candidate_eligible(c,true)) {
+  bool eligible;
+  { AttributionPhase eligibility_phase(1);eligible=mx::candidate_eligible(c,true); }
+  if(!eligible) {
     observe("installed_map_call","map",nullptr,0,stream,0);
     return original(ids,inverse,source,offsets,rows,experts,topk,start,end,pdl,stream);
   }
   lease.qualified=true;
   capture_preparation(true);
   bool map_result=false;
-  auto backend=mx::prepare(c,[&] {
+  mx::PreparationBackend backend;
+  { AttributionPhase dispatch_phase(2);backend=mx::prepare(c,[&] {
     observe("installed_map_call","map",nullptr,0,stream,0);
     map_result=original(ids,inverse,source,offsets,rows,experts,topk,start,end,pdl,stream);
-  },lease.fused_requested);
+  },lease.fused_requested); }
   lease.candidate=backend==mx::PreparationBackend::Fused;
   auto decision=std::string("{\"backend\":\"")+(lease.candidate?"fused":"stock")+
       "\",\"incumbent_map_result\":"+(map_result?"true":"false")+"}";
@@ -458,6 +507,7 @@ template<> __attribute__((visibility("default"))) std::pair<Desc,Desc> Runner::s
     std::vector<void const*> aq(128);std::vector<void*> destinations(128);
     std::vector<Desc::StrideA> aq_strides(128);
     std::vector<Desc::StrideD> output_strides(128);
+    { AttributionPhase readback_phase(3);
     mx::require_cuda_success(cudaMemcpyAsync(shapes.data(),d.shape_info.problem_shapes,
         shapes.size()*sizeof(Shape),cudaMemcpyDeviceToHost,stream),"descriptor shape copy");
     mx::require_cuda_success(cudaMemcpyAsync(layouts.data(),d.fpX_block_scaling_factors_stride_act,
@@ -477,7 +527,7 @@ template<> __attribute__((visibility("default"))) std::pair<Desc,Desc> Runner::s
         cudaMemcpyDeviceToHost,stream),"descriptor AQ stride copy");
     mx::require_cuda_success(cudaMemcpyAsync(output_strides.data(),d.stride_d,128*sizeof(Desc::StrideD),
         cudaMemcpyDeviceToHost,stream),"descriptor output stride copy");
-    mx::require_cuda_success(cudaStreamSynchronize(stream),"descriptor consumer fence");
+    mx::require_cuda_success(cudaStreamSynchronize(stream),"descriptor consumer fence"); }
     if(lease.capture_enabled || lease.observer) {
       if(stage)out<<',';out<<"{\"stage\":"<<stage+1<<",\"swap_ab\":"<<(d.swap_ab?"true":"false")<<",\"experts\":[";
       if(stage)masks<<',';
@@ -488,6 +538,7 @@ template<> __attribute__((visibility("default"))) std::pair<Desc,Desc> Runner::s
           <<"\",\"active_payloads\":[";
     }
     bool first=true;
+    AttributionPhase validation_phase(4);
     for(int e=0;e<128;++e) {
       auto m=int64_t(cute::get<0>(shapes[e])),n=int64_t(cute::get<1>(shapes[e])),k=int64_t(cute::get<2>(shapes[e]));
       auto token_rows=d.swap_ab?n:m;

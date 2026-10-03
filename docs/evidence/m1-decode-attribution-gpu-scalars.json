@@ -1,0 +1,445 @@
+{
+  "schema": "megartx-m1-decode-attribution-gpu-scalars-v1",
+  "source_head": "2c65ebd3ef450b37dd88a9d89c630fd10165642d",
+  "source_tree": "aa9e85522d88aac2407c070d4f1c6b75617584b6",
+  "plan_sha256": "41b4f41f2d26e8690ed5d055f1663659cbdf063d60d9f9a38defbe38d1bb9f8a",
+  "review_status": "candidate_pending_independent_evidence_review",
+  "instrumented": true,
+  "timing_qualified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_gate_passed": false,
+  "historical_metadata_hold_preserved": true,
+  "build": {
+    "seconds": 6.139749972993741,
+    "peak_aggregate_rss_bytes": 736940032,
+    "binary_sha256": "a9980ae980e7e3c4115cc229f95f0329018f67979c2fe945b578ec7706d6113c",
+    "compiled_lease_controls_returncode": 0,
+    "compiled_binding_controls_returncode": 0,
+    "installed_pins_unchanged": true
+  },
+  "validation": {
+    "requests": 8,
+    "matched_tokens_usage": true,
+    "actual_input_transcripts_verified": true,
+    "native_backends_verified": true,
+    "registered_layers": 30,
+    "forced_fixtures": 6,
+    "all_forced_bf16_equal": true,
+    "forced_all_six_executed": true,
+    "natural_model_forward_verified": true
+  },
+  "postrun_verification": {
+    "source_head": "2c65ebd3ef450b37dd88a9d89c630fd10165642d",
+    "source_tree": "aa9e85522d88aac2407c070d4f1c6b75617584b6",
+    "source_files_verified": 230,
+    "adapter_copies_verified": true,
+    "packages_unchanged": true,
+    "checkpoint_config_index_shard_stat_unchanged": true,
+    "frozen_receipt_hashes_unchanged": true,
+    "run_exit": 0,
+    "client_exit": 0,
+    "cleanup_complete": true,
+    "owned_gpu_processes_remaining": 0,
+    "owned_identities_remaining": 0,
+    "timing_metadata_final_passed": true,
+    "timing_unknown_or_work_identities": 0,
+    "timing_summary_present": false,
+    "timing_qualified": false
+  },
+  "cleanup": {
+    "cleanup_complete": true,
+    "sampled_peak_compiler_rss_bytes": 28311552,
+    "shared_compiler_elapsed_seconds": 0.009999999980209395,
+    "timing_metadata_policy_invalid": false,
+    "owned_gpu_pids_remaining": [],
+    "owned_identities_remaining": [],
+    "cleanup_errors": []
+  },
+  "private_evidence_sha256": {
+    "original_review_packet": "0869789861942b9069a67d78e079fcd9cb1e47cf6595914191fb6028acf034f3",
+    "postrun_verification": "13448d58f8cb03a066f7860ff68e322eda95956e8b63dfe6a8bdb508b76c4fac",
+    "analysis_script": "878495e58fb79267e8c602a36ee0d98dcdecbaf2d243ae55fbbd07688aae51bc",
+    "analysis": "07d1d0e6c624b2923d094d85eaa9f1a9984b4da0a8ef1e40078ffaac65dabb2b",
+    "profile_freeze": "3f3bfef1f2e0357c94d74e0b423a2cda5c5a9503a0b2f6a7b4f0dfbf2167d0a3"
+  },
+  "interpretation_limits": [
+    "Four instrumented decode steps per lane; no clean timing or speedup claim.",
+    "Native runner includes the other native phases; no addition of inclusive totals.",
+    "Descriptor readback phase includes preceding stream work and owner/submission checks.",
+    "GPU event gap is absence of observed kernel/copy events, not isolated CPU cause.",
+    "Stream wait operands/device wait durations are not exposed by this trace.",
+    "Correction selections have no enclosing routed parent; ordered layer association is inference and withheld.",
+    "No full checkpoint-shard rehash; config/index hashes and shard stat matched."
+  ],
+  "lanes": {
+    "stock": {
+      "trace_sha256": "2afef3b17f5e9c475dd59b61275409e79eeb935a22f011cdc552e90db22c96e1",
+      "coverage": {
+        "model_forward": 4,
+        "logits_head": 4,
+        "greedy_argmax": 4,
+        "preparation": 120,
+        "routed": 120,
+        "correction_selection": 24,
+        "correction_with_routed_parent": 0,
+        "gpu_events": 6440,
+        "unique_api_correlations": 6440,
+        "unmatched_correlations": 0,
+        "ambiguous_correlations": 0
+      },
+      "instrumented_cpu_ranges": {
+        "model_forward": {
+          "count": 4,
+          "sum_us": 190643.763
+        },
+        "logits_head": {
+          "count": 4,
+          "sum_us": 334.055
+        },
+        "greedy_argmax": {
+          "count": 4,
+          "sum_us": 48.394
+        },
+        "preparation": {
+          "count": 120,
+          "sum_us": 85560.377
+        },
+        "routed": {
+          "count": 120,
+          "sum_us": 105341.008
+        },
+        "correction_selection": {
+          "count": 24,
+          "sum_us": 1338.3
+        }
+      },
+      "head_end_to_next_model_start_us": [
+        2492.807,
+        2581.239,
+        2236.984
+      ],
+      "gpu_timeline": {
+        "first_to_last_event_us": 201369.998,
+        "busy_union_us": 27594.996,
+        "kernel_sum_us": 26861.32,
+        "event_sum_us": 27596.532,
+        "gap_union_us": 173775.002,
+        "streams": {
+          "25": 3672,
+          "33": 2760,
+          "13": 8
+        }
+      },
+      "preparation_d2h": {
+        "count": 1800,
+        "sum_us": 694.031,
+        "total_bytes": 2584320,
+        "size_counts": {
+          "32": 120,
+          "3072": 240,
+          "2560": 240,
+          "1024": 1200
+        }
+      },
+      "kernel_groups": {
+        "attention_decode": {
+          "count": 100,
+          "sum_us": 1614.893
+        },
+        "dense_gemv": {
+          "count": 600,
+          "sum_us": 10279.403
+        },
+        "gemma_router": {
+          "count": 120,
+          "sum_us": 204.349
+        },
+        "greedy_argmax": {
+          "count": 4,
+          "sum_us": 10.816
+        },
+        "kv_cache_write": {
+          "count": 120,
+          "sum_us": 213.304
+        },
+        "logits_head": {
+          "count": 16,
+          "sum_us": 3743.674
+        },
+        "moe_activation_requantization": {
+          "count": 120,
+          "sum_us": 335.798
+        },
+        "moe_descriptor_setup": {
+          "count": 120,
+          "sum_us": 231.573
+        },
+        "moe_finalize": {
+          "count": 120,
+          "sum_us": 619.181
+        },
+        "moe_grouped_gemm": {
+          "count": 240,
+          "sum_us": 4512.575
+        },
+        "original_input_quantizer": {
+          "count": 120,
+          "sum_us": 146.682
+        },
+        "other": {
+          "count": 1180,
+          "sum_us": 1853.788
+        },
+        "rms_norm": {
+          "count": 1324,
+          "sum_us": 2271.318
+        },
+        "rotary_embedding": {
+          "count": 120,
+          "sum_us": 287.25
+        },
+        "stock_expand": {
+          "count": 120,
+          "sum_us": 304.564
+        },
+        "stock_expert_maps": {
+          "count": 120,
+          "sum_us": 232.152
+        }
+      },
+      "host_phases": {
+        "native_runner": {
+          "nanoseconds": 65999245,
+          "count": 120
+        },
+        "map_eligibility": {
+          "nanoseconds": 2488138,
+          "count": 120
+        },
+        "map_dispatch": {
+          "nanoseconds": 969545,
+          "count": 120
+        },
+        "descriptor_readback_fence": {
+          "nanoseconds": 10326836,
+          "count": 240
+        },
+        "descriptor_validation_enumeration": {
+          "nanoseconds": 13998465,
+          "count": 240
+        }
+      },
+      "preparation_cuda_apis": {
+        "cudaMemcpyAsync": {
+          "count": 1800,
+          "sum_us": 11324.087
+        },
+        "cudaStreamSynchronize": {
+          "count": 360,
+          "sum_us": 227.075
+        },
+        "cudaPointerGetAttributes": {
+          "count": 1200,
+          "sum_us": 415.069
+        }
+      },
+      "stream_wait_enqueue": {
+        "count": 244,
+        "sum_us": 163.712
+      },
+      "attention_flashinfer_one_row": {
+        "count": 20,
+        "sum_us": 280.95
+      },
+      "per_layer_per_step": {
+        "descriptor_d2h": 14,
+        "route_d2h": 1,
+        "stream_fences": 3,
+        "preparation_kernels": 7
+      }
+    },
+    "fused": {
+      "trace_sha256": "7efa2add2eaf5b4e2581b5f05ff18dc1c6648dd80a4445b1ebc8d5430ad20735",
+      "coverage": {
+        "model_forward": 4,
+        "logits_head": 4,
+        "greedy_argmax": 4,
+        "preparation": 120,
+        "routed": 120,
+        "correction_selection": 24,
+        "correction_with_routed_parent": 0,
+        "gpu_events": 6440,
+        "unique_api_correlations": 6440,
+        "unmatched_correlations": 0,
+        "ambiguous_correlations": 0
+      },
+      "instrumented_cpu_ranges": {
+        "model_forward": {
+          "count": 4,
+          "sum_us": 188106.724
+        },
+        "logits_head": {
+          "count": 4,
+          "sum_us": 333.718
+        },
+        "greedy_argmax": {
+          "count": 4,
+          "sum_us": 50.613
+        },
+        "preparation": {
+          "count": 120,
+          "sum_us": 85238.128
+        },
+        "routed": {
+          "count": 120,
+          "sum_us": 104810.245
+        },
+        "correction_selection": {
+          "count": 24,
+          "sum_us": 1352.113
+        }
+      },
+      "head_end_to_next_model_start_us": [
+        2816.858,
+        2569.245,
+        2575.821
+      ],
+      "gpu_timeline": {
+        "first_to_last_event_us": 199192.871,
+        "busy_union_us": 27384.233,
+        "kernel_sum_us": 26611.475,
+        "event_sum_us": 27385.353,
+        "gap_union_us": 171808.638,
+        "streams": {
+          "25": 3672,
+          "33": 2760,
+          "13": 8
+        }
+      },
+      "preparation_d2h": {
+        "count": 1920,
+        "sum_us": 733.048,
+        "total_bytes": 2588160,
+        "size_counts": {
+          "32": 240,
+          "3072": 240,
+          "2560": 240,
+          "1024": 1200
+        }
+      },
+      "kernel_groups": {
+        "attention_decode": {
+          "count": 100,
+          "sum_us": 1612.194
+        },
+        "dense_gemv": {
+          "count": 600,
+          "sum_us": 10285.136
+        },
+        "fused_maps_expand": {
+          "count": 120,
+          "sum_us": 279.474
+        },
+        "gemma_router": {
+          "count": 120,
+          "sum_us": 203.768
+        },
+        "greedy_argmax": {
+          "count": 4,
+          "sum_us": 10.752
+        },
+        "kv_cache_write": {
+          "count": 120,
+          "sum_us": 213.528
+        },
+        "logits_head": {
+          "count": 16,
+          "sum_us": 3746.491
+        },
+        "moe_activation_requantization": {
+          "count": 120,
+          "sum_us": 335.575
+        },
+        "moe_descriptor_setup": {
+          "count": 120,
+          "sum_us": 231.125
+        },
+        "moe_finalize": {
+          "count": 120,
+          "sum_us": 616.335
+        },
+        "moe_grouped_gemm": {
+          "count": 240,
+          "sum_us": 4510.741
+        },
+        "original_input_quantizer": {
+          "count": 120,
+          "sum_us": 146.652
+        },
+        "other": {
+          "count": 1180,
+          "sum_us": 1861.985
+        },
+        "rms_norm": {
+          "count": 1324,
+          "sum_us": 2271.168
+        },
+        "rotary_embedding": {
+          "count": 120,
+          "sum_us": 286.551
+        }
+      },
+      "host_phases": {
+        "native_runner": {
+          "nanoseconds": 65819804,
+          "count": 120
+        },
+        "map_eligibility": {
+          "nanoseconds": 2440345,
+          "count": 120
+        },
+        "map_dispatch": {
+          "nanoseconds": 2071570,
+          "count": 120
+        },
+        "descriptor_readback_fence": {
+          "nanoseconds": 10213788,
+          "count": 240
+        },
+        "descriptor_validation_enumeration": {
+          "nanoseconds": 13354553,
+          "count": 240
+        }
+      },
+      "preparation_cuda_apis": {
+        "cudaMemcpyAsync": {
+          "count": 1920,
+          "sum_us": 11887.752
+        },
+        "cudaStreamSynchronize": {
+          "count": 480,
+          "sum_us": 250.158
+        },
+        "cudaPointerGetAttributes": {
+          "count": 2400,
+          "sum_us": 569.084
+        }
+      },
+      "stream_wait_enqueue": {
+        "count": 244,
+        "sum_us": 165.077
+      },
+      "attention_flashinfer_one_row": {
+        "count": 20,
+        "sum_us": 279.447
+      },
+      "per_layer_per_step": {
+        "descriptor_d2h": 14,
+        "route_d2h": 2,
+        "stream_fences": 4,
+        "preparation_kernels": 6
+      }
+    }
+  }
+}
