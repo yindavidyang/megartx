@@ -10,7 +10,8 @@ The goal is lower end-to-end decode latency than a tuned, compatible FlashInfer-
 - [Master engineering plan](docs/master-plan.md): requirements, interfaces, evidence gates and primary sources
 - [SM120 execution design](docs/design/megakernel-design.md): numerical DAG, layouts, barriers, lifetimes and experiments
 - [Mega MoE and Kimi K3 comparison](docs/design/reference-comparison.md): source-backed lessons and SM120 adaptations
-- [Action plans](docs/action-plans/README.md): 28 concrete tasks across WP0–WP6
+- [Action plans](docs/action-plans/README.md): 34 concrete tasks across WP0–WP7; existing IDs preserved
+- [Dedicated prefill optimization](docs/action-plans/wp7.md): full-prompt profiles, chunking, attention/projection/expert tuning and G7 guards
 - [Decision ledger](docs/decision_ledger.md): confirmed scope and proposed defaults
 - [Measurement protocol](docs/protocols/measurement.md): fairness, correctness catalog and paired timing
 - [Review protocol](docs/protocols/review.md): first sprint, gate packets and rebaseline triggers
@@ -30,9 +31,12 @@ The goal is lower end-to-end decode latency than a tuned, compatible FlashInfer-
 - Full-versus-cached divergence begins before the scale correction at layer 0 position 32; natural coverage and full quality/cache qualification remain blocked, and timed clients fail closed
 - Start without DSpark; [DSpark-style speculation and conditional draft-model training](docs/action-plans/wp5.md#dspark-and-draft-training-milestones) are planned after the stable target-only baseline
 - Custom kernels and wider fusion are gated follow-on experiments
+- Decode-first remains active; WP7 adds a separately gated full-prompt prefill branch, with short DSpark verification measured separately
 - Four RTX PRO 6000 Blackwell GPUs are future work; no topology or scaling benefit is assumed
 
 Current authorization covers isolated target-host setup, the selected model download, compatibility/baseline tests, investigation and correction of six gate/up scale mismatches, numerical checks, and a draft PR with sanitized evidence. It does not include training, merge or deployment. Read the [decision ledger](docs/decision_ledger.md) before extending scope. No checkpoint weights, private host records or large traces belong in source control.
+
+The owner separately approved publishing this prefill planning revision as a public draft PR. Merge, SSH, GPU experiments, package installation and runtime changes remain excluded. PR15 benchmark remediation remains separate; GPU ownership stays with `01a10079-c8d1-752e-991a-4e76b523704e`. Bounded M1 correctness/lifecycle evidence does not establish a speedup, broad G1 quality or graph eligibility.
 
 ## Try the CPU scaffold
 

@@ -98,6 +98,12 @@ The roadmap retains a separate WP5 draft-training workstream after a stable ordi
 
 A verifier with multiple proposal rows changes the workload. Its rows may route to different expert sets, increasing the union of weights read; the native single-token case remains eight distinct M=1 expert problems. Re-evaluate tile choices, memory, cache rollback and latency per **emitted** token. Measure draft, verify, acceptance, rejection and sampling together. The Kimi draft and its acceptance length cannot be imported as a Gemma performance assumption.
 
+## 5. Full-prompt prefill needs its own measurements
+
+[WP7](../action-plans/wp7.md) and the [prefill design](megakernel-design.md#11-full-prompt-prefill-is-a-separate-optimization-regime) append a separate 2K/8K optimization branch, with 32K conditional on peak fit. Many prompt rows change dense compute utilization, same-expert reuse, variable grouped-GEMM load balance and activation/KV working sets. Those opportunities are hypotheses to profile, not an M1 decode preparation extension or a transfer of Kimi's short DSpark verifier result.
+
+Tune chunking, supported SM120 attention and dense/grouped projections against the matched tuned incumbent before hotspot fusion. Preserve Gemma masks, RoPE, numerical lane and exact I03 handoff. Report full-prompt processing latency/throughput, memory and TTFT separately from short verifier/transaction cost, with fixed-decode regression guards. Kernel code can be shared after contract qualification; benchmark and gate evidence cannot. Decode-first and the conditional WP5 training roadmap remain unchanged; separate approval covers this documentation's draft PR publication, not experiments or merge.
+
 ## Decision
 
 Proceed with the smallest correct region that has measurable headroom beyond tuned FlashInfer plus graphs. Preserve T0 fallback and independently tuned attention/head paths. Adopt the scheduling discipline of both projects; adapt the storage and instruction mechanisms to SM120; reject transplanted semantics and hardware assumptions. A negative E06 result is useful: it says to keep the winning smaller boundary, not to force a whole-decoder megakernel.

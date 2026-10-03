@@ -3,7 +3,7 @@
 [Master plan](../master-plan.md) · [Action plan index](../action-plans/README.md)
 ### Decision ledger entry
 
-Proposed file: docs/decision_ledger.md. Preserve master IDs D01–D08: D01–D03 are confirmed; D04 checkpoint, D05 workload, D06 lanes and D07 margins are proposed; D08 authorizes Markdown initialization and a draft WP0–WP1 scaffold; target host access and hardware execution are still pending. Add later IDs without renumbering.
+File: docs/decision_ledger.md. Preserve existing IDs and consult the ledger for current status: D04 checkpoint and D05 workload are selected for execution; D06 lanes and D07 margins remain proposed; D08–D10 record separately bounded historical scope/evidence. D11 adds WP7 planning and separately approved draft PR publication, without GPU execution or merge approval. Append new IDs without renumbering or promoting proposals to accepted results.
 
 | Field | Entry to complete |
 | --- | --- |
@@ -22,6 +22,8 @@ Identity: run ID, task/gate/hypothesis, timestamps, git/build/environment/checkp
 Workload: prompt/tokenizer/template hashes, initial/final context, output/EOS policy, seed/sampler, KV dtype/cache mode, batch/concurrency, graph bucket, repetitions and paired baseline IDs.
 
 Measurements: raw request and token timestamps, exact timing boundaries, GPU time, TTFT, request and token ITL summaries, total response time, confidence intervals, peak memory by phase, power/clocks/temperature, errors and sanitizer links. For speculation add proposed/accepted/emitted counts, verifier calls and all draft/cache costs.
+
+For WP7 add actual prompt length, chunk schedule/partial tails, prompt-processing start/completion, whole-prompt latency and input tokens/s, native-cache and decode-ready handoff events, peak activations/scales/dispatch/scratch/KV, per-expert row histogram and fallback disposition. Record conditional 32K fit and the fixed decode implementation's continuation regression control. Keep verifier costs separate. Record the owner-frozen G7 criteria and resource admission; missing evidence stays missing, with no invented performance thresholds or dates.
 
 Conclusion: correctness/quality gate, relative gain with uncertainty, tail tradeoffs, total costs omitted (if any), decision, reviewer and reproduction notes. Any excluded critical-path work invalidates a headline full-model claim.
 
