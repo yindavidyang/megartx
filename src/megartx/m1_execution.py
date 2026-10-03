@@ -14,6 +14,7 @@ CONTROLLER_SOURCES = (
     "m1_live.py", "vllm_scale_plugin.py", "m1_execution.py",
     "controlled_capture.py", "controlled_kv_capture.py",
     "m1_normal_plan.py", "m1_normal_capture.py", "m1_external_observer.py",
+    "m1_process_lifecycle.py",
 )
 
 

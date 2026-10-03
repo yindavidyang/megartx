@@ -1,11 +1,12 @@
 """Negative controls for request-bound dispatch qualification (CPU only)."""
 import copy
+import hashlib
 from pathlib import Path
 import json
 import tempfile
 import unittest
 
-from compare_m1_live import correlate_trace, check_call, check_run, EXTENTS
+from compare_m1_live import correlate_trace, check_call, check_run, EXTENTS, load_build
 
 
 SCOPES = ["controlled_live_request", "artificial_route_control", "artificial_route_control"] + ["controlled_live_request"]*29
@@ -33,6 +34,85 @@ def trace(lane):
 
 
 class TestLiveComparison(unittest.TestCase):
+    def test_unmocked_load_build_accepts_pr14_lifecycle_source_contract(self):
+        repo = Path(__file__).resolve().parents[1]
+        controller_sources = (
+            "m1_live.py", "vllm_scale_plugin.py", "m1_execution.py",
+            "controlled_capture.py", "controlled_kv_capture.py",
+            "m1_normal_plan.py", "m1_normal_capture.py",
+            "m1_external_observer.py", "m1_process_lifecycle.py")
+        source_paths = ["probes/m1_live_bridge.cu"] + [
+            "src/megartx/" + name for name in controller_sources]
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            source_hashes = {}
+            for relative in source_paths:
+                source = repo / relative
+                target = build / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(source.read_bytes())
+                source_hashes[relative] = hashlib.sha256(target.read_bytes()).hexdigest()
+            contract = {
+                "abi_version": 2,
+                "view_count": 15,
+                "view_bytes": 32,
+                "execution_modes": ["captured", "capture-free"],
+                "capture_free_begin": "megartx_m1_begin_capture_free_v2",
+                "external_observer": {
+                    "registration": "megartx_m1_set_external_observer_v1",
+                    "callback_abi_version": 1,
+                },
+                "native_source_sha256": source_hashes["probes/m1_live_bridge.cu"],
+                "controller_source_hashes": {
+                    name: source_hashes["src/megartx/" + name]
+                    for name in controller_sources
+                },
+            }
+            bridge = build / "m1_live_bridge.so"
+            bridge.write_bytes(b"PR14-shaped source-bound bridge fixture")
+            report = {
+                "returncode": 0,
+                "reason": None,
+                "compiled_lease_controls_returncode": 0,
+                "compiled_binding_controls_returncode": 0,
+                "required_exports_present": True,
+                "installed_pins_unchanged": True,
+                "binary_sha256": hashlib.sha256(bridge.read_bytes()).hexdigest(),
+                "source_hashes": source_hashes,
+                "live_contract": contract,
+            }
+            (build / "build.json").write_text(json.dumps(report))
+            declaration = json.dumps(json.dumps(contract, sort_keys=True))
+            (build / "m1_live_symbols.h").write_text(
+                "#define M1_LIVE_CONTRACT_JSON " + declaration + "\n")
+            lease = {
+                "execution_modes_tested": contract["execution_modes"],
+                "cross_mode_nested_rejection_preserves_outer": True,
+                "captured_null_directory_rejected": True,
+                "external_observer_export": "megartx_m1_set_external_observer_v1",
+                "external_observer_registration_guarded_by_live_leases": True,
+                "external_observer_capture_free_begin_end_events": [
+                    ["lease_begin", "fused", 0, 7, 0],
+                    ["lease_end", "fused", 0, 7, -1]],
+                "live_contract": contract,
+                "invalid_framing_before_dereference": True,
+                "historical_begin_symbol_absent": True,
+                "active_after": 0,
+            }
+            binding = {
+                "torch_runtime": "2.13.0+cu130",
+                "relocations_bound_to_bridge": 4,
+                "active_after": 0,
+            }
+            (build / "lease-controls.json").write_text(json.dumps(lease))
+            (build / "binding-controls.json").write_text(json.dumps(binding))
+
+            loaded = load_build(build)
+
+            self.assertEqual(loaded["live_contract"], contract)
+            self.assertIn("m1_process_lifecycle.py",
+                          loaded["live_contract"]["controller_source_hashes"])
+
     def test_capture_free_launch_cannot_be_presented_as_correctness_evidence(self):
         for declaration in ({"m1_execution_requested": "capture-free"},
                             {"environment_overrides": {"MEGARTX_M1_EXECUTION": "capture-free"}}):

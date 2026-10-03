@@ -16,6 +16,10 @@ import threading
 
 import numpy as np
 
+from .m1_process_lifecycle import (append_process_event, process_identity,
+                                   validate_engine_core_spawn,
+                                   validate_engine_core_spawn_owner)
+
 
 SCHEMA = "megartx-m1-external-observer-v1"
 SETTER = "megartx_m1_set_external_observer_v1"
@@ -57,7 +61,24 @@ class ExternalObserver:
                                 ctypes.c_void_p, ctypes.c_uint64,
                                 ctypes.c_uint64, ctypes.c_int)
 
-    def __init__(self, native, destination, contract, stream_id_query=None):
+    def __init__(self, native, destination, contract, stream_id_query=None, *,
+                 registration_identity, bridge_identity, process_evidence_dir,
+                 api_pid_path, process_probe_sha256):
+        actual = process_identity()
+        try:
+            api_pid = int(Path(api_pid_path).read_text().strip())
+        except (OSError, ValueError) as error:
+            raise RuntimeError("owned API server PID record is missing or invalid") from error
+        if (registration_identity != actual or actual.get("process_name") != "EngineCore"
+                or actual.get("ppid") != api_pid
+                or os.environ.get("VLLM_WORKER_MULTIPROC_METHOD") != "spawn"
+                or os.environ.get("MEGARTX_M1_PROCESS_PROBE_ACTIVE") != "1"):
+            raise RuntimeError("external M1 observer registration is not owned by spawned EngineCore")
+        # Refuse a forked or unbound owner before installing the callback. This
+        # constructor runs during EngineCore startup, before request dispatch.
+        validate_engine_core_spawn_owner(
+            process_evidence_dir, registration_identity, api_pid_path,
+            process_probe_sha256)
         self.native = native
         self._registration_key = _native_registration_key(native)
         self.root = Path(destination).resolve()
@@ -75,6 +96,13 @@ class ExternalObserver:
         self._cupti_path = None
         self._cupti_identity = contract.get("cupti_stream_id_provider")
         self._stream_id_query = stream_id_query or self._query_profiler_stream_id
+        self.registration_identity = dict(registration_identity)
+        self.bridge_identity = dict(bridge_identity)
+        self.process_evidence_dir = Path(process_evidence_dir)
+        self.api_pid_path = Path(api_pid_path)
+        self.process_probe_sha256 = process_probe_sha256
+        self.callback_registered = False
+        self.callback_unregistered = False
         if stream_id_query is None:
             self._load_cupti()
         self._callback_ref = self.CALLBACK(self._callback)
@@ -89,6 +117,17 @@ class ExternalObserver:
             # The native library retains this process-local function pointer.
             # Keep its owner alive and prevent a second instance replacing it.
             _REGISTERED_OBSERVERS[self._registration_key] = self
+        self._setter = setter
+        self.callback_registered = True
+        try:
+            append_process_event(self.process_evidence_dir, "observer_registered",
+                                 probe_sha256=self.process_probe_sha256,
+                                 bridge_identity=self.bridge_identity)
+        except BaseException:
+            self._setter(self.CALLBACK())
+            self.callback_registered = False
+            self.callback_unregistered = True
+            raise
 
     def _ensure_root(self):
         """Claim this process's shared sidecar only when it records native work."""
@@ -104,9 +143,19 @@ class ExternalObserver:
                        "stream_id_mapping_api": STREAM_ID_API,
                        "profiler_trace_stream_field": "kernel.args.stream",
                        "cupti_stream_id_provider": self._cupti_identity,
+                       "registration_identity": self.registration_identity,
+                       "bridge_identity": self.bridge_identity,
+                       "process_probe_sha256": self.process_probe_sha256,
                        "timing_qualified": False,
                        "native_contract": self.contract}, stream, indent=2)
         self._root_initialized = True
+
+    def _assert_owner(self):
+        actual = process_identity()
+        if (actual.get("pid") != self.registration_identity.get("pid")
+                or actual.get("ppid") != self.registration_identity.get("ppid")
+                or actual.get("process_name") != "EngineCore"):
+            raise RuntimeError("external observer callback is running outside its EngineCore registration owner")
 
     def _load_cupti(self):
         """Load the source-bound CUPTI library used for trace stream IDs."""
@@ -142,15 +191,28 @@ class ExternalObserver:
             raise RuntimeError("CUPTI cuptiGetStreamIdEx failed with status " + str(result))
         return int(stream_id.value)
 
+    def _unregister_callback(self):
+        if not self.callback_registered or self.callback_unregistered:
+            return
+        self._assert_owner()
+        if self._setter(self.CALLBACK()) != 0:
+            raise RuntimeError("external observer callback unregister failed")
+        self.callback_registered = False
+        self.callback_unregistered = True
+        append_process_event(self.process_evidence_dir, "observer_unregistered",
+                             probe_sha256=self.process_probe_sha256,
+                             bridge_identity=self.bridge_identity)
+
     def begin_call(self, index, lane, stream, frame):
+        self._assert_owner()
         if self.call is not None or index != self.next_call or lane not in {"stock", "fused"}:
             raise RuntimeError("external observer call sequence is nested or unbounded")
-        self._ensure_root()
         if type(stream) is not int or stream == 0:
             raise RuntimeError("external observer requires the owned nondefault stream")
         profiler_stream_id = self._stream_id_query(stream)
         if type(profiler_stream_id) is not int or profiler_stream_id == 0:
             raise RuntimeError("external observer could not map its CUDA stream to a nondefault profiler stream ID")
+        self._ensure_root()
         directory = self.calls_root / f"call-{index:04d}"
         directory.mkdir(mode=0o700, exist_ok=False)
         (directory / "payloads").mkdir(mode=0o700)
@@ -158,6 +220,8 @@ class ExternalObserver:
         self.call = {"index": index, "lane": lane, "stream": stream,
                      "profiler_stream_id": profiler_stream_id,
                      "thread_id": threading.get_native_id(),
+                     "pid": os.getpid(),
+                     "registration_owner_pid": self.registration_identity["pid"],
                      "directory": directory, "frame": frame,
                      "events": [], "files": []}
         self.callback_error = None
@@ -172,6 +236,7 @@ class ExternalObserver:
 
     def _callback(self, event, name, data, size, stream, value):
         try:
+            self._assert_owner()
             self._write_event(event, name, data, size, stream, value)
             return 0
         except BaseException as error:
@@ -236,15 +301,22 @@ class ExternalObserver:
                 "profiler_stream_id": call["profiler_stream_id"],
                 "stream_id_api": STREAM_ID_API,
                 "cupti_stream_id_provider": self._cupti_identity,
-                "thread_id": thread_id, "value": value}, separators=(",", ":")) + "\n")
+                "thread_id": thread_id, "pid": os.getpid(),
+                "registration_owner_pid": self.registration_identity["pid"],
+                "value": value}, separators=(",", ":")) + "\n")
         call["events"].append(event)
 
     def finish_call(self, status, released, error=None):
+        self._assert_owner()
         call = self.call
         if call is None:
             raise RuntimeError("external observer has no active native call")
         receipt = {"schema": SCHEMA, "call_index": call["index"],
             "lane_requested": call["lane"], "thread_id": call["thread_id"],
+            "pid": os.getpid(), "ppid": os.getppid(),
+            "registration_owner_pid": self.registration_identity["pid"],
+            "registration_owner_ppid": self.registration_identity["ppid"],
+            "bridge_identity": self.bridge_identity,
             "stream": call["stream"], "profiler_stream_id": call["profiler_stream_id"],
             "stream_id_api": STREAM_ID_API, "per_thread_stream": False,
             "cupti_stream_id_provider": self._cupti_identity,
@@ -264,6 +336,7 @@ class ExternalObserver:
         return receipt
 
     def begin_case(self, case, context):
+        self._assert_owner()
         if self.case is not None or case != "cached":
             raise RuntimeError("external observer accepts only one cached controlled request")
         self.case = case
@@ -272,6 +345,7 @@ class ExternalObserver:
         self.model_context = context
 
     def write_model_npz(self, category, filename, arrays, metadata):
+        self._assert_owner()
         if self.case is None or category not in self.model_entries:
             raise RuntimeError("external model serialization has no active case")
         self._ensure_root()
@@ -298,6 +372,7 @@ class ExternalObserver:
         return record
 
     def finish_case(self, trace_path):
+        self._assert_owner()
         if self.case is None or self.call is not None:
             raise RuntimeError("external observer case is incomplete or has a live native lease")
         self._ensure_root()
@@ -307,6 +382,12 @@ class ExternalObserver:
         if not trace_path.is_file() or trace_path.stat().st_size > 256 << 20:
             raise RuntimeError("external observer trace is absent or exceeds its bound")
         self.trace_sha256 = _sha(trace_path)
+        if self.native.megartx_m1_active() != 0:
+            raise RuntimeError("external observer cleanup found an active native lease")
+        self._unregister_callback()
+        process_lifecycle = validate_engine_core_spawn(
+            self.process_evidence_dir, self.registration_identity,
+            self.api_pid_path, self.process_probe_sha256, self.bridge_identity)
         payload = {"schema": SCHEMA, "case": self.case,
             "execution_mode": "capture-free", "observer_enabled": True,
             "internal_capture_enabled": False, "observer_perturbs_execution": True,
@@ -317,6 +398,8 @@ class ExternalObserver:
             "trace": str(trace_path.relative_to(self.root)),
             "trace_sha256": self.trace_sha256,
             "model_context": self.model_context, "model_arrays": self.model_entries,
+            "process_lifecycle": process_lifecycle,
+            "bridge_identity": self.bridge_identity,
             "native_calls": [f"calls/call-{i:04d}/observer-receipt.json" for i in range(self.next_call)]}
         with (self.root / "observer-manifest.json").open("x") as stream:
             json.dump(payload, stream, indent=2)
@@ -324,7 +407,15 @@ class ExternalObserver:
         return payload
 
     def abort_case(self, error):
+        unregister_error = None
+        if self.callback_registered:
+            try:
+                self._unregister_callback()
+            except BaseException as cleanup:
+                unregister_error = type(cleanup).__name__
         if self.case is None:
+            if unregister_error is not None:
+                raise RuntimeError("external observer callback cleanup failed: " + unregister_error)
             return
         self._ensure_root()
         path = self.root / "INVALIDATED.json"
@@ -332,7 +423,9 @@ class ExternalObserver:
             json.dump({"schema": SCHEMA, "case": self.case,
                        "reason": "external observer validation was incomplete",
                        "error": str(error), "quality_gate_passed": False,
-                       "timing_qualified": False}, stream, indent=2)
+                       "timing_qualified": False,
+                       "callback_unregistered": self.callback_unregistered,
+                       "callback_unregister_error": unregister_error}, stream, indent=2)
         self.case = None
 
 
