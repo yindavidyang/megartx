@@ -13,6 +13,8 @@ Inputs: Actual routed FC1/FC2 shapes, pack layouts, live route traces and byte l
 
 3. Estimate weight/scale traffic, launch/reduction overhead, padding waste and register/shared-memory demand. Add M=2/4/8 verifier probes only as conditional later-work shapes; measure route-union growth.
 
+Full-prompt variable-M expert groups belong to [WP7 A7.4](wp7.md#a74-tune-dense-projections-and-grouped-expert-gemms), with a separate route/load-balance ledger and oracle qualification. M1 single-row preparation and these short verifier probes do not establish prefill reuse, fit or speed. Shared kernel code does not share benchmark or gate evidence.
+
 Deliver: bench/expert_shapes.json; tests/fixtures/expert_manifest.json; docs/wp2_candidate_matrix.md.
 
 Exit and review: Reviewer approves real-shape coverage and separate numerical lanes before selecting implementations.

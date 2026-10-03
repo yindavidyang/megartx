@@ -1,17 +1,21 @@
-# RTX 5090 Gemma 4 Decode Action Plans
+# RTX 5090 Gemma 4 Action Plans
 
 *Execution playbook for the master plan  |  Contract 1.0  |  30 September 2026*
 
 Start with A0.1 through A1.4. Establish the exact model, runtime fit, numerical oracle and tuned FlashInfer baseline before selecting custom kernels. Expand fusion only when measured full-model latency and correctness justify it.
 
+Decode-first remains the active milestone. [WP7 full-prompt prefill](wp7.md) appends A7.1–A7.6 and G7 without changing any existing package, gate or task ID. Its GPU branch opens only after baseline qualification and separate scope/resource approval; CPU planning can proceed independently. Full prefill and WP5 short verifier workloads share kernels only after separate qualification and benchmarks.
+
 The [conditional first SM120 kernel plan](../first-sm120-kernel-plan.md) preserves
-the CPU planning audit and a bounded metadata-fusion candidate. Its 4.03%
-exploratory kernel-sum budget, missing ABI/graph qualification and closed
-numerical gates do not authorize implementation or advance a work package.
+the historical CPU planning audit and bounded metadata-fusion candidate. Its
+4.03% exploratory kernel-sum budget and original missing ABI/graph evidence are
+not accepted performance evidence. Subsequent bounded M1 implementation and
+lifecycle checks cover only their named sources/workloads; they establish no
+speedup or broader numerical, quality or graph gate pass.
 
 The first target is the owned RTX 5090 with SM120, one active request and no dynamic request batching. The research hypothesis is model-specific scheduling across layers and operator boundaries. A whole-model megakernel is an experiment; the deliverable may be a smaller winning set of fused regions.
 
-Authority: Markdown repository initialization and a draft WP0–WP1 compatibility/FlashInfer benchmark scaffold are authorized. Target GPU experiments, host setup, custom kernels and later work packages require their own scope and access decisions. Proposed defaults are still awaiting freeze, and no hardware gate has passed. Task deliverable paths below are planned outputs, not a claim that each tool or result already exists.
+Authority: the repository scaffold and bounded target-host/M1 work have separate historical scope records in the [decision ledger](../decision_ledger.md). The owner separately approved this documentation revision's isolated commit/push and public draft PR on 3 October 2026. Merge, SSH, GPU experiments, package installation and runtime changes remain excluded. PR15 benchmark remediation remains separate, and `01a10079-c8d1-752e-991a-4e76b523704e` remains the sole GPU owner. Later execution needs its own scope/access decisions. Proposed defaults await freeze, and no hardware/performance gate has passed. Task deliverable paths below are planned outputs, not a claim that each tool or result already exists.
 
 ### Execution map
 
@@ -24,7 +28,8 @@ Authority: Markdown repository initialization and a draft WP0–WP1 compatibilit
 | WP4  A4.1 to A4.4 | G3 → bounded persistence or evidence-based earlier stop at G4 | [WP4](wp4.md) |
 | WP5  A5.1 to A5.4 | Planned later DSpark/draft evaluation and conditional training after WP1 and a stable WP3 or WP4 path; G5 | [WP5](wp5.md) |
 | WP6  A6.1 to A6.4 | Optional after actual future hardware and authorization; G6 | [WP6](wp6.md) |
+| WP7  A7.1 to A7.6 | CPU intake now; G0/G1 plus qualified decode control and separate GPU scope → full-prompt prefill gain with cache/memory/decode guards at G7 | [WP7](wp7.md) |
 
-See the [shared tests and measurement protocol](../protocols/measurement.md), [first sprint and review discipline](../protocols/review.md), and [decision/result templates](../templates/records.md). R01–R12 and G0–G6 refer to the [master plan](../master-plan.md). Interfaces I01–I06 name the handoffs that each task must preserve.
+The playbook contains the original 28 tasks plus six prefill tasks, 34 total. See the [shared tests and measurement protocol](../protocols/measurement.md), [first sprint and review discipline](../protocols/review.md), and [decision/result templates](../templates/records.md). R01–R13 and G0–G7 refer to the [master plan](../master-plan.md). Interfaces I01–I06 name the handoffs that each task must preserve.
 
 Roles are responsibilities, not assigned people. One engineer may hold several roles; an independent reviewer checks gates. The project owner approves scope, workload and acceptance margins. Estimate effort after evidence-producing tasks reveal the work; no dates or hardware access are assumed.
