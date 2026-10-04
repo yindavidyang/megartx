@@ -14,8 +14,12 @@ class StreamAdmissionLineageTests(unittest.TestCase):
         self.assertEqual(value['previous_local_head'],'960418e222de82db8ffa6d38e4e2483d2d40edc2')
         self.assertEqual(value['previous_local_tree'],'4e76d6d863d9ae4c3649734b3db594a95369d480')
         self.assertEqual(set(value['runtime_source_hashes']),set(SOURCES))
+        storage=json.loads((ROOT/'docs/prefill/native-storage-source-reconciliation.json').read_text())
         for field in ('runtime_source_hashes','changed_source_hashes','new_control_source_hashes','unchanged_historical_catalogs'):
             for path,expected in value[field].items():
+                if path in storage['changed_source_hashes']:
+                    self.assertEqual(storage['previous_source_hashes'][path],expected,path)
+                    expected=storage['changed_source_hashes'][path]
                 self.assertEqual(hashlib.sha256((ROOT/path).read_bytes()).hexdigest(),expected,path)
         changed=sorted(path for path in SOURCES if value['runtime_source_hashes'][path]!=value['previous_runtime_source_hashes'][path])
         self.assertEqual(changed,['scripts/prefill_diagnostic_client.py','src/megartx/prefill_diagnostic_plan.py'])

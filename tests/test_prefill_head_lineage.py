@@ -20,6 +20,7 @@ class HeadLineageTests(unittest.TestCase):
         delta=json.loads((ROOT/'docs/prefill/native-ledger-matching-correction.json').read_text())
         self.assertEqual(delta['previous_catalog_sha256'],sha('docs/prefill/native-head-observation-correction.json'))
         follow=json.loads((ROOT/'docs/prefill/native-stream-fit-admission-correction.json').read_text())
+        storage=json.loads((ROOT/'docs/prefill/native-storage-source-reconciliation.json').read_text())
         for key in ('runtime_source_hashes','controls_source_sha256','unchanged_historical_catalogs'):
             for path,digest in value[key].items():
                 if path in delta['changed_source_hashes']:
@@ -28,6 +29,9 @@ class HeadLineageTests(unittest.TestCase):
                 if path in follow['changed_source_hashes']:
                     self.assertEqual(follow['previous_source_hashes'][path],digest,path)
                     digest=follow['changed_source_hashes'][path]
+                if path in storage['changed_source_hashes']:
+                    self.assertEqual(storage['previous_source_hashes'][path],digest,path)
+                    digest=storage['changed_source_hashes'][path]
                 self.assertEqual(sha(path),digest,path)
         self.assertEqual(value['installed_head_source_hashes'],HEAD_SOURCES)
         previous=value['previous_runtime_source_hashes']

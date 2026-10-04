@@ -17,12 +17,16 @@ class LedgerLineageTests(unittest.TestCase):
         value=json.loads((ROOT/CATALOG).read_text())
         self.assertEqual(set(value['runtime_source_hashes']),set(SOURCES))
         follow=json.loads((ROOT/'docs/prefill/native-stream-fit-admission-correction.json').read_text())
+        storage=json.loads((ROOT/'docs/prefill/native-storage-source-reconciliation.json').read_text())
         for field in ('runtime_source_hashes','changed_source_hashes','new_control_source_hashes',
                       'unchanged_historical_catalogs','unchanged_shared_sources'):
             for path,expected in value[field].items():
                 if path in follow['changed_source_hashes']:
                     self.assertEqual(follow['previous_source_hashes'][path],expected,path)
                     expected=follow['changed_source_hashes'][path]
+                if path in storage['changed_source_hashes']:
+                    self.assertEqual(storage['previous_source_hashes'][path],expected,path)
+                    expected=storage['changed_source_hashes'][path]
                 self.assertEqual(sha(path),expected,path)
         self.assertEqual(value['installed_transport_file_hashes'],TRANSPORT_FILES)
         changed=sorted(path for path in SOURCES if value['runtime_source_hashes'][path]!=value['previous_runtime_source_hashes'][path])

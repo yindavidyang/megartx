@@ -18,8 +18,7 @@ from megartx.prefill_kv import WriterLedger
 from test_prefill_runner import inputs, synthetic_records, DIGEST
 from test_prefill_collect import observation, bootstrap, FakeEvents
 
-from prefill_historical_fixture import historical_root
-ROOT = historical_root()
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class FakeProvider:

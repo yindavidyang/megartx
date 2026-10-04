@@ -206,20 +206,16 @@ class NativeProvider(PrefillKVObserver):
     positions; per-frame K/V hashes cover actual new rows and retained boundaries.
     Those observations cannot establish native numerical equivalence.
     """
-    evidence_factory = Evidence
-    source_verifier = None
-    observe_cache_hashes = True
-
     def __init__(self, runner, plan, directory, torch, hook_checks):
         self.torch, self.plan = torch, plan
-        self.adapter_sources = (self.source_verifier or verify_adapter_sources)(plan)
+        self.adapter_sources = verify_adapter_sources(plan)
         self.access = LoadedEngineAccess.from_runner(runner, torch)
         if checkpoint_identity(os.environ['MEGARTX_CHECKPOINT_PATH']) != plan['checkpoint_identity']:
             raise RuntimeError('Loaded checkpoint config/index/shard stat identity changed')
         self.bind_owners(self.access.model)
         if set(self.access.groups) != {entry[0] for entry in self.layers.values()}:
             raise RuntimeError("All thirty actual cache-group owners required")
-        self.directory, self.evidence = Path(directory), self.evidence_factory(directory)
+        self.directory, self.evidence = Path(directory), Evidence(directory)
         self.ledger = RequestLedger(plan['tokens'])
         self.scratch = GpuScratch(torch, plan['bounds']['max_observer_gpu_scratch_bytes'])
         self.frame, self.hidden, self.logits_indices = None, None, None
@@ -322,7 +318,7 @@ class NativeProvider(PrefillKVObserver):
         value = json.loads(marker.read_text())
         if value != {'schema': 'megartx-prefill-native-request-v1', 'plan_sha256': self.plan['plan_sha256']}:
             raise RuntimeError("Native request marker differs from frozen plan")
-        if (getattr(self, 'source_verifier', None) or verify_adapter_sources)(self.plan) != self.adapter_sources:
+        if verify_adapter_sources(self.plan) != self.adapter_sources:
             raise RuntimeError("Executing native adapter identity changed before frame admission")
         self.started = True
         self.require_hooks()
@@ -357,7 +353,7 @@ class NativeProvider(PrefillKVObserver):
                 or indices.cpu().tolist() != [len(positions)-1]):
             raise RuntimeError("Actual runner logits selection is not the last input row")
         self.boundaries = {}
-        if self.observe_cache_hashes and self.ledger.end:
+        if self.ledger.end:
             for layer in range(30):
                 low = 0 if layer % 6 == 5 else max(0, self.ledger.end-1023)
                 self.boundaries[layer] = self.hash_rows(layer, self.ledger.positions[layer], [low, self.ledger.end-1])
@@ -550,7 +546,7 @@ class NativeProvider(PrefillKVObserver):
         self.ledger.abort()
 
 
-def install_native_observer(torch, model_cls, *, provider_factory=None, plan_loader=None, source_verifier=None):
+def install_native_observer(torch, model_cls):
     """Install only after historical adapter registration; no general hooks."""
     plan_path = os.environ.get('MEGARTX_PREFILL_NATIVE_PLAN')
     directory = os.environ.get('MEGARTX_PREFILL_NATIVE_DIR')
@@ -565,8 +561,8 @@ def install_native_observer(torch, model_cls, *, provider_factory=None, plan_loa
     from vllm.v1.worker.gpu.model_runner import GPUModelRunner
     from vllm.v1.worker.gpu_model_runner import GPUModelRunner as RejectedRunner
     from vllm.v1.attention.backends.flashinfer import FlashInferMetadataBuilder
-    plan = (plan_loader or load_plan)(plan_path, os.environ.get("MEGARTX_PREFILL_NATIVE_SOURCE_ROOT"))
-    (source_verifier or verify_adapter_sources)(plan)  # Before installing any new observation hooks.
+    plan = load_plan(plan_path, os.environ.get("MEGARTX_PREFILL_NATIVE_SOURCE_ROOT"))
+    verify_adapter_sources(plan)  # Before installing any new observation hooks.
     providers = {}
     old_constructor, old_execute = GPUModelRunner.__init__, GPUModelRunner.execute_model
     old_init, old_prepare, old_attn, old_sample = (GPUModelRunner.initialize_kv_cache,
@@ -630,7 +626,7 @@ def install_native_observer(torch, model_cls, *, provider_factory=None, plan_loa
             if not profiling:
                 if providers:
                     raise RuntimeError('Only one native loaded runner is admitted')
-                providers[id(runner)] = (provider_factory or NativeProvider)(runner, plan, directory, torch, hook_checks)
+                providers[id(runner)] = NativeProvider(runner, plan, directory, torch, hook_checks)
             return result
         except BaseException as error:
             poison(provider, error)

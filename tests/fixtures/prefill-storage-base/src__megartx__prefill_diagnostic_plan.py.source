@@ -191,11 +191,7 @@ def load_plan(path, root=None):
     path = Path(path)
     if path.is_symlink() or path.stat().st_size > 1 << 20:
         raise ValueError("Diagnostic plan must be a bounded regular file")
-    return validate_plan(json.loads(path.read_text()), root)
-
-
-def validate_plan(value, root=None):
-    """Validate the historical plan in memory; default file path is unchanged."""
+    value = json.loads(path.read_text())
     expected = {"schema", "base", "proposal_sha256", "source_head", "source_hashes",
                 "checkpoint_revision", "checkpoint_identity", "tokens", "prompt_sha256", "bounds", "plan_sha256",
                 "adapter_site", "runner_policy"}

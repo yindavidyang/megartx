@@ -8,8 +8,7 @@ import tempfile
 import unittest
 from megartx import prefill_plan
 
-from prefill_historical_fixture import historical_root
-ROOT = historical_root()
+ROOT=Path(__file__).resolve().parents[1]
 
 
 class NativeReconciliationTests(unittest.TestCase):

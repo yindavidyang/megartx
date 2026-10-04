@@ -454,12 +454,19 @@ class M1PreparationTests(unittest.TestCase):
                 self.assertEqual(native_changes[path]["prior_sha256"], previous, path)
                 return merged_current(path, "prefill_parent_sha256", native_changes[path]["current_sha256"])
             return previous
+        storage = json.loads((root / "docs/prefill/native-storage-source-reconciliation.json").read_text())
+        self.assertEqual(storage["parent_public_head"], "3e9f50f509c5f79da8505dd04b251cf950502283")
+        def storage_current(path, previous):
+            if path in storage["changed_source_hashes"]:
+                self.assertEqual(storage["previous_source_hashes"][path], previous, path)
+                return storage["changed_source_hashes"][path]
+            return previous
         def branch_current(path, previous):
             if path in native_changes and path in layout_changes:
                 current = native_current(path, previous)
                 self.assertEqual(current, layout_current(path, previous), path)
-                return current
-            return native_current(path, previous) if path in native_changes else layout_current(path, previous)
+                return storage_current(path, current)
+            return storage_current(path, native_current(path, previous) if path in native_changes else layout_current(path, previous))
         def diagnostic_current(path, previous):
             if path in diagnostic_changes:
                 self.assertEqual(diagnostic_changes[path]["prior_sha256"], previous, path)
@@ -540,9 +547,9 @@ class M1PreparationTests(unittest.TestCase):
         for path, expected in diagnostic["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), branch_current(path, expected), path)
         for path, record in native_changes.items():
-            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(), merged_current(path, "prefill_parent_sha256", record["current_sha256"]), path)
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(), storage_current(path, merged_current(path, "prefill_parent_sha256", record["current_sha256"])), path)
         for path, record in layout_changes.items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), merged_current(path, "main_parent_sha256", record["current_sha256"]), path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), storage_current(path, merged_current(path, "main_parent_sha256", record["current_sha256"])), path)
         for path, expected in layout["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
 

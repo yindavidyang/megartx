@@ -1,0 +1,34 @@
+{
+  "provenance": "Exact line excerpts from immutable public upstream source; whole-file SHA256 matches committed installed-source pins. This is not a fresh installed-host or runtime attestation.",
+  "runtime_imports": false,
+  "schema": "megartx-prefill-storage-source-excerpts-v1",
+  "sources": {
+    "manager_append": {
+      "class": "BlockTables",
+      "excerpt_sha256": "6f2c2d7ade31117b8a41f946c3cb7b2b836ace9b464654444e343d0f0c053fc3",
+      "file": "manager_append.source",
+      "first_line": 113,
+      "last_line": 133,
+      "license": "Apache-2.0",
+      "method": "append_block_ids",
+      "source_path": "vllm/v1/worker/gpu/block_table.py",
+      "upstream_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/worker/gpu/block_table.py#L113-L133",
+      "whole_source_bytes": 14435,
+      "whole_source_sha256": "61c004315d5af7e7eae4e2a9e6be92ea82c520327690a7f55a73bb9ce95f520a"
+    },
+    "writer": {
+      "class": "FlashInferImpl",
+      "excerpt_sha256": "bfee76131f53a9c1710c939e54d804a8147088c1e2e7da41a08b28e71da197da",
+      "file": "writer.source",
+      "first_line": 2577,
+      "last_line": 2614,
+      "license": "Apache-2.0",
+      "method": "do_kv_cache_update",
+      "source_path": "vllm/v1/attention/backends/flashinfer.py",
+      "upstream_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/attention/backends/flashinfer.py#L2577-L2614",
+      "whole_source_bytes": 117007,
+      "whole_source_sha256": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f"
+    }
+  },
+  "upstream_revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607"
+}
