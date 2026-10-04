@@ -207,6 +207,8 @@ env["PATH"] = "/usr/local/cuda/bin:" + str(base / ".venv/bin") + ":" + env["PATH
 headers = base / "toolchains/python-headers/usr/include"
 env["CPATH"] = str(headers / "python3.12") + ":" + str(headers) + ":" + str(headers / "x86_64-linux-gnu/python3.12")
 env["PYTHONPATH"] = os.environ.get("MEGARTX_ADAPTER_SITE", str(work / "adapter-site")) + ":" + str(project / "numerical_reference")
+if prefill_native and str(pathlib.Path(env["PYTHONPATH"].split(":")[0]).resolve()) != prefill_plan["adapter_site"]:
+    raise ValueError("Native adapter site differs from the frozen module origin")
 env["VLLM_PLUGINS"] = "megartx_scale_adapter"
 env["MEGARTX_SCALE_MODE"] = args.mode
 env["MEGARTX_SCALE_MANIFEST"] = str(output / "adapter-manifest.jsonl")

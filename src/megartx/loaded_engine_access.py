@@ -125,13 +125,18 @@ class LoadedEngineAccess:
             raise RuntimeError("Metadata built by an unowned builder")
         self.common[id(metadata)] = (metadata, common, entry[1], entry[2])
 
-    def bind_frame(self, owner, sequence, context, input_ids, positions, slots, identities):
+    def bind_frame(self, owner, sequence, context, input_ids, positions, slots, identities,
+                   retained_slots=None):
         runner, torch = self._runner, self.torch
         if runner.get_model() is not self.model or context.no_compile_layers is not self.registry:
             raise RuntimeError("Loaded model/ForwardContext registry changed")
         if runner.input_batch.num_reqs != 1 or len(runner.input_batch.req_ids) != 1:
             raise RuntimeError("Exactly one actual request required")
-        rows, end = len(positions), int(positions[-1].item()) + 1
+        rows, start, end = len(positions), int(positions[0].item()), int(positions[-1].item()) + 1
+        if retained_slots is None:
+            if sequence != 0 or start != 0:
+                raise RuntimeError("Retained native query mapping receipt required")
+            retained_slots = {layer: {} for layer in identities}
         blocks, regions = {}, {}
         for layer, identity in identities.items():
             name = owner.layers[layer][0]
@@ -161,6 +166,15 @@ class LoadedEngineAccess:
                         for p in positions.tolist()]
             if slots[layer] != expected:
                 raise RuntimeError("Actual block-table to writer-slot correspondence changed")
+            # The writer suffix alone cannot bind the prefix queried by this
+            # frame. Check every still-required absolute historical row against
+            # the actual current table before any model work, and again after.
+            low = 0 if layer % 6 == 5 else max(0, start-1023)
+            retained = retained_slots.get(layer, {})
+            for position in range(low, start):
+                current_slot = ids[position//table.block_size]*table.block_size + position%table.block_size
+                if retained.get(position) != current_slot:
+                    raise RuntimeError("Retained native query block mapping changed")
             placements = [t for t in runner.kv_cache_config.kv_cache_tensors if name in t.layers]
             if len(placements) != 1:
                 raise RuntimeError("Ambiguous cache allocation placement")

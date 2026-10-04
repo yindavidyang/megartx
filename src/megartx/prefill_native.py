@@ -4,17 +4,20 @@ Hooks are purpose-specific and run on the ordinary owned scheduler. No cache
 mutation, verifier lease, scheduler bypass, raw tensor publication or timings.
 """
 from dataclasses import asdict
+from contextlib import contextmanager
 from functools import wraps
 import hashlib
 import json
 import os
 from pathlib import Path
 import struct
+import sys
 import time
 
 from .controlled_kv_capture import gather_writer_rows
 from .loaded_engine_access import LoadedEngineAccess
-from .prefill_diagnostic_plan import Evidence, load_plan, digest, remaining, checkpoint_identity
+from .prefill_diagnostic_plan import (Evidence, load_plan, digest, remaining, checkpoint_identity,
+                                     verify_adapter_sources)
 from .prefill_kv import PrefillKVObserver
 
 
@@ -85,16 +88,93 @@ class RequestLedger:
         self.failed, self.pending, self.awaiting_sample = True, None, False
 
 
-def memory_sample(torch, phase):
+class GpuScratch:
+    """Serialized observer phases; incumbent allocations are baseline resources.
+
+    Managed tensor reservations count simultaneous lifetimes before allocation.
+    The CUDA allocator peak also includes framework temporaries in each phase.
+    Its counters are reset only around observer callbacks, never model work;
+    this diagnostic consequently cannot supply a performance baseline.
+    """
+    def __init__(self, torch, limit):
+        self.torch, self.limit = torch, limit
+        self.active, self.live, self.managed_peak, self.cuda_peak, self.phases = False, 0, 0, 0, 0
+
+    @contextmanager
+    def scope(self, phase):
+        if self.active:
+            raise RuntimeError("Concurrent/nested observer GPU scratch phase")
+        cuda = self.torch.cuda
+        cuda.synchronize()
+        baseline = cuda.memory_allocated()
+        cuda.reset_peak_memory_stats()
+        self.active, primary = True, None
+        try:
+            yield
+        except BaseException as error:
+            primary = error
+            raise
+        finally:
+            self.active = False
+            try:
+                cuda.synchronize()
+                peak = max(0, cuda.max_memory_allocated()-baseline)
+                self.cuda_peak, self.phases = max(self.cuda_peak, peak), self.phases+1
+                if self.live or peak > self.limit:
+                    raise RuntimeError("Aggregate observer GPU scratch cap breached: " + phase)
+            except BaseException as error:
+                if primary is None:
+                    raise
+                if hasattr(primary, 'add_note'):
+                    primary.add_note("Observer GPU scratch measurement/cleanup failed: " + repr(error))
+
+    @contextmanager
+    def allocation(self, size):
+        if not self.active or type(size) is not int or size < 0 or self.live+size > self.limit:
+            raise RuntimeError("Aggregate observer GPU scratch rejected before allocation")
+        self.live += size
+        self.managed_peak = max(self.managed_peak, self.live)
+        try:
+            yield
+        finally:
+            self.live -= size
+
+    def receipt(self):
+        return {"domain": "incremental_gpu_allocator_bytes", "cap_bytes": self.limit,
+                "managed_tensor_simultaneous_peak_bytes": self.managed_peak,
+                "measured_phase_allocator_increment_peak_bytes": self.cuda_peak,
+                "measured_phases": self.phases, "allocator_peak_counters_reset_per_observer_phase": True,
+                "incumbent_model_cache_and_hidden_allocations_are_baseline": True,
+                "host_heap_excluded": True}
+
+
+def retained_host_bytes(value, seen=None):
+    """Actual Python object sizes, separately charged to host RAM headroom."""
+    seen = set() if seen is None else seen
+    if id(value) in seen:
+        return 0
+    seen.add(id(value))
+    size = sys.getsizeof(value)
+    if isinstance(value, dict):
+        size += sum(retained_host_bytes(k, seen)+retained_host_bytes(v, seen) for k, v in value.items())
+    elif isinstance(value, (list, tuple)):
+        size += sum(retained_host_bytes(v, seen) for v in value)
+    return size
+
+
+def memory_sample(torch, phase, scratch, ledger):
     free, total = torch.cuda.mem_get_info()
     host_free = int(next(row.split()[1] for row in Path('/proc/meminfo').read_text().splitlines()
                          if row.startswith('MemAvailable:')))*1024
     if free < 2 << 30 or host_free < 8 << 30:
         raise RuntimeError("Native memory reserve breached")
-    return {"phase": phase, "allocated_bytes": torch.cuda.memory_allocated(),
+    return {"schema": "megartx-prefill-native-memory-v2", "phase": phase,
+            "allocated_bytes": torch.cuda.memory_allocated(),
             "reserved_bytes": torch.cuda.memory_reserved(), "device_used_bytes": total-free,
             "device_free_bytes": free, "host_available_bytes": host_free,
-            "observer_scratch_upper_bound_bytes": 4 << 20,
+            "observer_gpu_scratch": scratch.receipt(),
+            "retained_position_ledger_host_bytes": retained_host_bytes(ledger.positions),
+            "host_heap_budget": "host_available_reserve_separate_from_gpu_scratch",
             "startup_reference_fp64_projection_floor_bytes": 15859712,
             "startup_reference_separately_accounted": True}
 
@@ -108,6 +188,7 @@ class NativeProvider(PrefillKVObserver):
     """
     def __init__(self, runner, plan, directory, torch):
         self.torch, self.plan = torch, plan
+        self.adapter_sources = verify_adapter_sources(plan)
         self.access = LoadedEngineAccess.from_runner(runner, torch)
         if checkpoint_identity(os.environ['MEGARTX_CHECKPOINT_PATH']) != plan['checkpoint_identity']:
             raise RuntimeError('Loaded checkpoint config/index/shard stat identity changed')
@@ -116,6 +197,7 @@ class NativeProvider(PrefillKVObserver):
             raise RuntimeError("All thirty actual cache-group owners required")
         self.directory, self.evidence = Path(directory), Evidence(directory)
         self.ledger = RequestLedger(plan['tokens'])
+        self.scratch = GpuScratch(torch, plan['bounds']['max_observer_gpu_scratch_bytes'])
         self.frame, self.hidden, self.logits_indices = None, None, None
         self.logit_seen = False
         self.failed, self.started, self.completed = False, False, False
@@ -123,11 +205,14 @@ class NativeProvider(PrefillKVObserver):
         remaining(self.deadline)
         self.evidence.write('loaded.json', {"schema": "megartx-loaded-model-observation-v1",
                             "identity": asdict(self.access.identity), "plan_sha256": plan['plan_sha256'],
+                            "executing_adapter_sources": self.adapter_sources,
                             "mutable_lease_granted": False,
-                            "memory": memory_sample(torch, 'cache_initialized')})
+                            "memory": memory_sample(torch, 'cache_initialized', self.scratch, self.ledger)})
 
     def active(self):
         remaining(self.deadline)
+        if self.failed:
+            raise RuntimeError("Poisoned native provider cannot be reused")
         marker = self.directory / 'request.json'
         if not marker.exists():
             if self.started and not self.completed:
@@ -138,10 +223,14 @@ class NativeProvider(PrefillKVObserver):
         value = json.loads(marker.read_text())
         if value != {'schema': 'megartx-prefill-native-request-v1', 'plan_sha256': self.plan['plan_sha256']}:
             raise RuntimeError("Native request marker differs from frozen plan")
+        if verify_adapter_sources(self.plan) != self.adapter_sources:
+            raise RuntimeError("Executing native adapter identity changed before frame admission")
         self.started = True
         return True
 
     def prepare_inputs(self, result):
+        if self.failed:
+            raise RuntimeError("Poisoned native provider cannot prepare another frame")
         self.access.common.clear()
         self.logits_indices = result[0]
 
@@ -155,7 +244,7 @@ class NativeProvider(PrefillKVObserver):
             raise RuntimeError("Actual full-context KV omits P+256 output reserve")
         from vllm.forward_context import get_forward_context
         frame = self.access.bind_frame(self, self.ledger.frames, get_forward_context(),
-                                       tokens, positions, slots, identities)
+                                       tokens, positions, slots, identities, self.ledger.positions)
         self.ledger.begin(tokens.tolist(), positions.tolist(), slots, identities, frame.request_id)
         indices = self.logits_indices
         if (indices is None or tuple(indices.shape) != (1,)
@@ -180,12 +269,14 @@ class NativeProvider(PrefillKVObserver):
         key, value = hashlib.sha256(), hashlib.sha256()
         cache, dim = self.layers[layer][2].kv_cache, self.descriptors[layer]['head_dim']
         # Bounded two-row copies. No full-cache clone or broadcast matching.
-        if 8*dim*2*2*8 > self.plan['bounds']['max_observer_scratch_bytes']:
-            raise RuntimeError("Observer scratch bound rejected before row copy")
         positions = sorted(set(positions))
         for offset in range(0, len(positions), 2):
             selected = positions[offset:offset+2]
-            k, v = gather_writer_rows(cache, [mapping[p] for p in selected], dim, self.torch)
+            # Only stack(rows) owns a GPU tensor here. NumPy/bytes copies live
+            # on the host. Reservation covers the complete GPU tensor lifetime;
+            # all layers/batches share one aggregate phase allocation ledger.
+            with self.scratch.allocation(len(selected)*8*2*dim*2):
+                k, v = gather_writer_rows(cache, [mapping[p] for p in selected], dim, self.torch)
             for index, absolute in enumerate(selected):
                 tag = struct.pack('<Q', absolute)
                 key.update(tag); key.update(k[index].tobytes())
@@ -201,7 +292,7 @@ class NativeProvider(PrefillKVObserver):
         if get_forward_context() is not ticket.context:
             raise RuntimeError("Native query completion escaped its actual ForwardContext")
         current = self.access.bind_frame(self, ticket.sequence, ticket.context, ticket.input_ids,
-                                         ticket.positions, slots, identities)
+                                         ticket.positions, slots, identities, self.ledger.positions)
         if identities != ticket.identities or slots != ticket.slots or current.block_tables != ticket.block_tables:
             raise RuntimeError("Actual native cache/slots/owned blocks changed during queries")
         start, end, _ = self.ledger.pending
@@ -225,7 +316,8 @@ class NativeProvider(PrefillKVObserver):
             'input_ids_sha256': digest(ticket.input_ids.tolist()), 'start': start, 'end': end,
             'queries_complete': True, 'layer_rows': records,
             'coverage': 'new_written_rows_and_retained_boundaries',
-            'memory': memory_sample(self.torch, 'chunk' if start < 2048 else 'decode')}, append=True)
+            'memory': memory_sample(self.torch, 'chunk' if start < 2048 else 'decode',
+                                    self.scratch, self.ledger)}, append=True)
         self.frame = None
 
     def head(self, model, hidden, logits):
@@ -239,14 +331,16 @@ class NativeProvider(PrefillKVObserver):
             raise RuntimeError("Actual head shape differs")
         # Indices were captured from actual _prepare_inputs, not inferred from
         # token equality. Check selected raw hidden bytes without whole-view copies.
-        expected = self.hidden[self.logits_indices]
-        if not torch.equal(hidden.contiguous().view(torch.uint8), expected.contiguous().view(torch.uint8)):
+        indices = self.logits_indices.cpu().tolist()
+        if indices != [len(self.hidden)-1]:
+            raise RuntimeError("Actual runner logits index changed after queries")
+        expected = self.hidden[indices[0]:indices[0]+1]  # Basic slice borrows the incumbent row.
+        raw = lambda tensor: tensor.detach().cpu().contiguous().view(torch.uint8).numpy().tobytes()
+        if raw(hidden) != raw(expected):
             raise RuntimeError("Actual compute_logits row differs from runner selection")
-        if logits.numel()*logits.element_size()*3 > self.plan['bounds']['max_observer_scratch_bytes']:
-            raise RuntimeError("Observer scratch bound rejected before logits copy")
-        if not bool(torch.isfinite(logits).all().item()):
+        bits = raw(logits)  # One CPU row; no device isfinite/broadcast/index allocation.
+        if any(word & 0x7F800000 == 0x7F800000 for word, in struct.iter_unpack('<I', bits)):
             raise RuntimeError("Nonfinite actual native logits")
-        bits = logits.detach().contiguous().view(torch.uint8).cpu().numpy().tobytes()
         self.evidence.write('heads.jsonl', {'sequence': self.ledger.frames-1,
             'logit_position': self.ledger.end-1, 'predicts_position': self.ledger.end,
             'row_identity': 'actual_runner_logits_indices_and_hidden_bits',
@@ -277,11 +371,14 @@ class NativeProvider(PrefillKVObserver):
                 'bootstrap_remaining_outputs': 255,
                 'sample_and_input_chain_verified': True, 'all30_actual_cache_writers_bound': True,
                 'observed_fit': True, 'independent_comparison_pending': True,
+                'observer_gpu_scratch': self.scratch.receipt(),
+                'retained_position_ledger_host_bytes': retained_host_bytes(self.ledger.positions),
                 'numerical_qualified': False, 'performance_qualified': False})
             self.completed = True
 
     def abort(self):
-        self.failed, self.frame, self.hidden = True, None, None
+        self.failed, self.frame, self.hidden, self.logits_indices = True, None, None, None
+        self.access.common.clear()
         self.ledger.abort()
 
 
@@ -298,38 +395,76 @@ def install_native_observer(torch, model_cls):
     from vllm.v1.worker.gpu_model_runner import GPUModelRunner
     from vllm.v1.attention.backends.flashinfer import FlashInferMetadataBuilder
     plan = load_plan(plan_path, os.environ.get("MEGARTX_PREFILL_NATIVE_SOURCE_ROOT"))
+    verify_adapter_sources(plan)  # Before installing any new observation hooks.
     providers = {}
     old_init, old_prepare, old_sample = (GPUModelRunner.initialize_kv_cache,
                                         GPUModelRunner._prepare_inputs, GPUModelRunner._sample)
     old_build = FlashInferMetadataBuilder.build
     old_forward, old_head = model_cls.forward, model_cls.compute_logits
 
+    def poison(provider, primary):
+        if provider is None:
+            return
+        provider.failed = True
+        try:
+            provider.abort()
+        except BaseException as error:
+            if hasattr(primary, 'add_note'):
+                primary.add_note("Native provider abort failed: " + repr(error))
+
+    def require_live(provider):
+        if provider is not None and provider.failed:
+            raise RuntimeError("Poisoned native provider cannot be reused")
+
+    def observed(provider, name, *args):
+        require_live(provider)
+        with provider.scratch.scope(name):
+            return getattr(provider, name)(*args)
+
     @wraps(old_init)
     def initialized(runner, *args, **kwargs):
-        result = old_init(runner, *args, **kwargs)
-        if id(runner) in providers:
-            raise RuntimeError("Repeated native runner cache initialization")
-        providers[id(runner)] = NativeProvider(runner, plan, directory, torch)
-        return result
+        provider = providers.get(id(runner))
+        try:
+            require_live(provider)
+            if provider is not None:
+                raise RuntimeError("Repeated native runner cache initialization")
+            result = old_init(runner, *args, **kwargs)
+            providers[id(runner)] = NativeProvider(runner, plan, directory, torch)
+            return result
+        except BaseException as error:
+            poison(provider, error)
+            raise
 
     @wraps(old_prepare)
     def prepared(runner, *args, **kwargs):
-        result = old_prepare(runner, *args, **kwargs)
         provider = providers.get(id(runner))
-        if provider is not None:
-            provider.prepare_inputs(result)
-        return result
+        try:
+            require_live(provider)
+            result = old_prepare(runner, *args, **kwargs)
+            if provider is not None:
+                provider.prepare_inputs(result)
+            return result
+        except BaseException as error:
+            poison(provider, error)
+            raise
 
     @wraps(old_build)
     def built(builder, *args, **kwargs):
-        result = old_build(builder, *args, **kwargs)
-        for provider in providers.values():
-            if id(builder) in provider.access.builders:
+        owners = [p for p in providers.values() if id(builder) in p.access.builders]
+        try:
+            for provider in owners:
+                require_live(provider)
+            result = old_build(builder, *args, **kwargs)
+            for provider in owners:
                 common = kwargs.get('common_attn_metadata', args[1] if len(args) > 1 else None)
                 if common is None:
                     raise RuntimeError("Actual builder common metadata missing")
                 provider.access.record_metadata(builder, common, result)
-        return result
+            return result
+        except BaseException as error:
+            for provider in owners:
+                poison(provider, error)
+            raise
 
     def for_model(model):
         matches = [p for p in providers.values() if p.access.model is model]
@@ -342,40 +477,39 @@ def install_native_observer(torch, model_cls):
         provider, ticket = for_model(model), None
         try:
             if provider is not None:
-                ticket = provider.begin(model, input_ids, positions)
+                ticket = observed(provider, 'begin', model, input_ids, positions)
             result = old_forward(model, input_ids, positions, *args, **kwargs)
             if ticket is not None:
-                provider.finish(ticket, result)
+                observed(provider, 'finish', ticket, result)
             return result
-        except BaseException:
-            if provider is not None:
-                provider.abort()
+        except BaseException as error:
+            poison(provider, error)
             raise
 
     @wraps(old_head)
     def head(model, hidden, *args, **kwargs):
         provider = for_model(model)
         try:
+            require_live(provider)
             result = old_head(model, hidden, *args, **kwargs)
             if provider is not None:
-                provider.head(model, hidden, result)
+                observed(provider, 'head', model, hidden, result)
             return result
-        except BaseException:
-            if provider is not None:
-                provider.abort()
+        except BaseException as error:
+            poison(provider, error)
             raise
 
     @wraps(old_sample)
     def sampled(runner, *args, **kwargs):
         provider = providers.get(id(runner))
         try:
+            require_live(provider)
             result = old_sample(runner, *args, **kwargs)
             if provider is not None:
                 provider.sampled(result)
             return result
-        except BaseException:
-            if provider is not None:
-                provider.abort()
+        except BaseException as error:
+            poison(provider, error)
             raise
 
     GPUModelRunner.initialize_kv_cache = initialized

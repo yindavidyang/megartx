@@ -118,17 +118,18 @@ def main(argv=None):
     parser.add_argument('--freeze-tokens', type=Path)
     parser.add_argument('--plan', type=Path)
     parser.add_argument('--checkpoint', type=Path)
+    parser.add_argument('--adapter-site', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
     if args.freeze_tokens:
-        if args.plan or args.checkpoint is None:
+        if args.plan or args.checkpoint is None or args.adapter_site is None:
             parser.error('Choose freeze or client execution')
         tokens = json.loads(args.freeze_tokens.read_text())
         head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
         if subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True).strip():
             parser.error('Commit reviewed source before freezing private plan')
-        value = freeze_plan(tokens, head, root, checkpoint_identity(args.checkpoint))
+        value = freeze_plan(tokens, head, root, checkpoint_identity(args.checkpoint), args.adapter_site)
         with args.output.open('x') as out:
             json.dump(value, out, indent=2, allow_nan=False)
         load_plan(args.output, root)

@@ -1,5 +1,6 @@
 """Source-bound, one-request native fit diagnostic. Importing this is CPU-only."""
 import hashlib
+import importlib
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,7 @@ PROPOSAL = "1661b04383c03f436550d63e514bef3a5ab8500316cbf117fc621e85ef8b4207"
 REVISION = "a19cfe00be84568a6867111c9a68c9c44fdcffe6"
 BOUNDS = {"prompt_tokens": 2048, "chunk_tokens": 256, "output_tokens": 256,
           "capacity_tokens": 2304, "max_requests": 1, "max_wall_seconds": 1800,
-          "max_evidence_bytes": 8 << 20, "max_observer_scratch_bytes": 8 << 20,
+          "max_evidence_bytes": 8 << 20, "max_observer_gpu_scratch_bytes": 8 << 20,
           "gpu_free_floor_bytes": 2 << 30, "host_free_floor_bytes": 8 << 30,
           "max_build_rss_bytes": 2 << 30, "max_build_seconds": 300}
 SOURCES = (
@@ -19,7 +20,9 @@ SOURCES = (
     "scripts/prefill_diagnostic_client.py", "scripts/run_scale_validation.py",
     "scripts/m1_owned_processes.py", "src/megartx/nvfp4_integration.py",
     "src/megartx/nvfp4_runtime.py", "src/megartx/m1_live.py",
-    "src/megartx/prefill_kv.py", "src/megartx/controlled_kv_capture.py")
+    "src/megartx/prefill_kv.py", "src/megartx/controlled_kv_capture.py",
+    "src/megartx/m1_execution.py", "src/megartx/prefill_plan.py",
+    "src/megartx/prefill_runner.py", "src/megartx/prefill_collect.py")
 INSTALLED = {
     "vllm.v1.worker.gpu_model_runner": "87c29d08c0bbf66993d8b984811e7325e35e6436242a773feb55ec88f16b2c51",
     "vllm.v1.worker.block_table": "a09b8819e1417b7a186cf3472224e2138fc5d41a291c6692bb7df711b0c44259",
@@ -42,14 +45,18 @@ def load_plan(path, root=None):
         raise ValueError("Diagnostic plan must be a bounded regular file")
     value = json.loads(path.read_text())
     expected = {"schema", "base", "proposal_sha256", "source_head", "source_hashes",
-                "checkpoint_revision", "checkpoint_identity", "tokens", "prompt_sha256", "bounds", "plan_sha256"}
-    if set(value) != expected or value["schema"] != "megartx-prefill-native-plan-v1":
+                "checkpoint_revision", "checkpoint_identity", "tokens", "prompt_sha256", "bounds", "plan_sha256",
+                "adapter_site"}
+    if set(value) != expected or value["schema"] != "megartx-prefill-native-plan-v2":
         raise ValueError("Unknown native diagnostic plan")
     if (value["base"] != BASE or value["proposal_sha256"] != PROPOSAL
             or value["checkpoint_revision"] != REVISION or value["bounds"] != BOUNDS
             or type(value["bounds"]) is not dict
             or any(type(v) is not int for v in value["bounds"].values())):
         raise ValueError("Native diagnostic scope/bounds changed")
+    if (type(value['adapter_site']) is not str or not Path(value['adapter_site']).is_absolute()
+            or str(Path(value['adapter_site']).resolve()) != value['adapter_site']):
+        raise ValueError('Frozen canonical adapter module origin required')
     identity = value['checkpoint_identity']
     from .controlled_kv_capture import CONFIG_SHA256
     if (type(identity) is not dict or set(identity) != {'config_sha256','index_sha256','shard_stats'}
@@ -80,14 +87,38 @@ def load_plan(path, root=None):
     return value
 
 
-def freeze_plan(tokens, source_head, root, checkpoint):
-    value = {"schema": "megartx-prefill-native-plan-v1", "base": BASE,
+def freeze_plan(tokens, source_head, root, checkpoint, adapter_site=None):
+    value = {"schema": "megartx-prefill-native-plan-v2", "base": BASE,
              "proposal_sha256": PROPOSAL, "source_head": source_head,
              "source_hashes": {p: file_sha(Path(root) / p) for p in SOURCES},
              "checkpoint_revision": REVISION, "checkpoint_identity": checkpoint, "tokens": tokens,
-             "prompt_sha256": digest(tokens), "bounds": BOUNDS.copy()}
+             "prompt_sha256": digest(tokens), "bounds": BOUNDS.copy(),
+             "adapter_site": str(Path(adapter_site or Path(root)/'src').resolve())}
     value["plan_sha256"] = digest(value)
     return value
+
+
+def verify_adapter_sources(plan):
+    """Bind executed package modules to one frozen adapter site and byte vector.
+
+    CPU-only imports are limited to the explicit project helpers. A repository
+    snapshot alone cannot certify a separately installed adapter's code.
+    """
+    origins = {}
+    for relative in SOURCES:
+        if not relative.startswith('src/megartx/'):
+            continue
+        name = 'megartx.' + Path(relative).stem
+        module = importlib.import_module(name)
+        expected = Path(plan['adapter_site'])/'megartx'/Path(relative).name
+        origin = getattr(getattr(module, '__spec__', None), 'origin', None)
+        actual = getattr(module, '__file__', None)
+        if (not origin or not actual or Path(origin).resolve() != expected
+                or Path(actual).resolve() != expected or expected.is_symlink()
+                or file_sha(expected) != plan['source_hashes'][relative]):
+            raise ValueError('Executing adapter module source/origin drift: ' + name)
+        origins[name] = {'origin': str(expected), 'sha256': plan['source_hashes'][relative]}
+    return origins
 
 
 def require_clearance(path, plan):
@@ -149,6 +180,7 @@ def publish_fit(evidence, plan, ownership):
     directory = evidence.directory
     read = lambda name: json.loads((directory/name).read_text())
     observer, client, loaded, geometry = [read(n) for n in ('observer.json', 'client.json', 'loaded.json', 'geometry.json')]
+    scratch = observer.get('observer_gpu_scratch', {})
     if (ownership.get('cleanup_complete') is not True or ownership.get('failure') is not None
             or ownership.get('owned_identities_remaining') or ownership.get('owned_gpu_pids_remaining')
             or ownership.get('cleanup_errors') or observer.get('plan_sha256') != plan['plan_sha256']
@@ -161,6 +193,12 @@ def publish_fit(evidence, plan, ownership):
             or loaded.get('mutable_lease_granted') is not False
             or geometry.get('physical_policy') != 'full_context' or geometry.get('capacity_tokens') != 2304
             or geometry.get('actual_owned_page_ranges_disjoint') is not True
+            or scratch.get('domain') != 'incremental_gpu_allocator_bytes'
+            or scratch.get('cap_bytes') != plan['bounds']['max_observer_gpu_scratch_bytes']
+            or type(scratch.get('measured_phases')) is not int or scratch['measured_phases'] < 789
+            or any(type(scratch.get(k)) is not int or not 0 <= scratch[k] <= scratch['cap_bytes']
+                   for k in ('managed_tensor_simultaneous_peak_bytes', 'measured_phase_allocator_increment_peak_bytes'))
+            or scratch.get('host_heap_excluded') is not True
             or observer.get('numerical_qualified') is not False or client.get('numerical_qualified') is not False
             or observer.get('performance_qualified') is not False or client.get('performance_qualified') is not False):
         raise ValueError('Native fit requires exact request observations and complete owned cleanup')
@@ -173,6 +211,8 @@ def publish_fit(evidence, plan, ownership):
         'independent_native_correctness_pending': True,
         'startup_reference_workspace_separate_from_observer_scratch': True,
         'legacy_fp64_projection_floor_bytes': 15859712,
+        'observer_gpu_scratch': scratch,
+        'host_heap_budget': 'separate_host_available_reserve',
         'evidence_files_sha256': {p.name: file_sha(p) for p in directory.iterdir()
                                   if p.is_file() and not p.name.startswith('.') and p.name != 'request.json'}})
 
