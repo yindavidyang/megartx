@@ -45,7 +45,7 @@ class LauncherResourceTests(unittest.TestCase):
         self.events = []
         self.env = {"ownership":self.owner,"guard_failure":None,"time":time,"os":__import__("os"),
                     "sys":sys,"signal":signal,"json":json,"output":self.output,
-                    "eager_benchmark":True,"args":SimpleNamespace(client="m1-eager-benchmark",
+                    "eager_benchmark":True,"prefill_native":False,"args":SimpleNamespace(client="m1-eager-benchmark",
                     m1_external_observer=False,m1_eager_benchmark_plan=Path("private-plan"),
                     profile=False,m1_decode_profile=False,activation_only=False,routing_diagnostic=False,router_score_only=False),
                     "base":Path("private-runtime"),"project":LAUNCHER.parents[1],"env":{},

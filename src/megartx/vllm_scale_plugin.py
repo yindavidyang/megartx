@@ -363,3 +363,8 @@ def install():
 
     Gemma4ForConditionalGeneration.forward = model_forward
     Gemma4ForConditionalGeneration.compute_logits = logits_forward
+
+    # Purpose-specific default-off observation; historical callbacks stay intact.
+    if os.environ.get("MEGARTX_PREFILL_NATIVE_PLAN") or os.environ.get("MEGARTX_PREFILL_NATIVE_DIR"):
+        from .prefill_native import install_native_observer
+        install_native_observer(torch, Gemma4ForConditionalGeneration)

@@ -26,7 +26,9 @@ parser.add_argument("--profile", action="store_true")
 parser.add_argument("--m1-decode-profile", action="store_true",
                     help="Untimed four-step CPU/CUDA attribution per 2K lane in the exact one-pair eager pilot")
 parser.add_argument("--mode", choices=("native", "reference", "control", "paired_reference", "gate_only_negative_control"), required=True)
-parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal", "m1-eager-benchmark"), default="quality")
+parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal", "m1-eager-benchmark", "prefill-native"), default="quality")
+parser.add_argument("--prefill-native-plan", type=pathlib.Path)
+parser.add_argument("--prefill-native-clearance", type=pathlib.Path)
 parser.add_argument("--m1-eager-benchmark-plan", type=pathlib.Path)
 parser.add_argument("--m1-private-aot", type=pathlib.Path)
 parser.add_argument("--m1-timing-metadata-help", action="store_true",
@@ -48,6 +50,34 @@ parser.add_argument("--m1-normal-plan", type=pathlib.Path)
 parser.add_argument("--m1-external-observer", action="store_true",
                     help="Enable the perturbing capture-free launch/output sidecar")
 args = parser.parse_args()
+prefill_native = args.client == "prefill-native"
+prefill_plan = None
+prefill_evidence = None
+prefill_deadline = None
+prefill_evidence_failed = False
+if prefill_native:
+    from megartx.prefill_diagnostic_plan import load_plan as load_prefill_plan, require_clearance
+    if (args.prefill_native_plan is None or args.prefill_native_clearance is None
+            or os.environ.get("LD_PRELOAD")
+            or args.mode != "native" or args.trials != 1 or args.prefill_chunk != 256
+            or args.kv != "bfloat16" or args.backend != "flashinfer_cutlass"
+            or args.m1_preparation is not None or args.m1_bridge is not None
+            or args.m1_build_receipt is not None or args.m1_route_controls
+            or args.profile or args.m1_external_observer or args.m1_decode_profile
+            or args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None
+            or args.m1_timing_metadata_help or args.m1_normal_plan is not None
+            or args.controlled_plan is not None or args.controlled_path is not None
+            or args.layer0_boundaries or args.activation_only or args.routing_diagnostic
+            or args.router_score_only or args.router_prefix_manifest is not None):
+        parser.error("native prefill requires its exact default-off one-request diagnostic plan/clearance")
+    project_root = pathlib.Path(__file__).resolve().parents[1]
+    prefill_plan = load_prefill_plan(args.prefill_native_plan, project_root)
+    require_clearance(args.prefill_native_clearance, prefill_plan)
+    if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=project_root, text=True).strip() != prefill_plan["source_head"]:
+        parser.error("native prefill source HEAD differs from review/plan")
+    prefill_deadline = time.monotonic() + 1800
+elif args.prefill_native_plan is not None or args.prefill_native_clearance is not None:
+    parser.error("native prefill plan/clearance requires --client prefill-native")
 eager_benchmark = args.client == "m1-eager-benchmark"
 benchmark_plan = None
 metadata_timing = None
@@ -161,6 +191,17 @@ work = pathlib.Path(os.environ["MEGARTX_WORK"])
 output = work / "results" / args.label
 output.mkdir(parents=True, exist_ok=False)
 env = os.environ.copy()
+for inherited in ("MEGARTX_PREFILL_NATIVE_PLAN", "MEGARTX_PREFILL_NATIVE_DIR",
+                  "MEGARTX_PREFILL_NATIVE_DEADLINE", "MEGARTX_PREFILL_NATIVE_SOURCE_ROOT",
+                  "MEGARTX_NATIVE_DIAGNOSTIC"):
+    env.pop(inherited, None)
+if prefill_native:
+    from megartx.prefill_diagnostic_plan import Evidence
+    prefill_evidence = Evidence(output / "prefill-native")
+    env.update({"MEGARTX_PREFILL_NATIVE_PLAN": str(args.prefill_native_plan.resolve()),
+                "MEGARTX_PREFILL_NATIVE_DIR": str(prefill_evidence.directory),
+                "MEGARTX_PREFILL_NATIVE_SOURCE_ROOT": str(project),
+                "MEGARTX_PREFILL_NATIVE_DEADLINE": str(prefill_deadline)})
 env.update({"XDG_CACHE_HOME": str(base / "cache"), "TMPDIR": str(base / "tmp"), "HF_HOME": str(base / "cache/huggingface"), "HF_HUB_OFFLINE": "1", "VLLM_NO_USAGE_STATS": "1", "DO_NOT_TRACK": "1", "TOKENIZERS_PARALLELISM": "false", "CUDA_VISIBLE_DEVICES": "0", "CUDA_HOME": "/usr/local/cuda", "FLASHINFER_WORKSPACE_BASE": str(base / "cache/flashinfer-workspace"), "TRITON_CACHE_DIR": str(base / "cache/triton"), "CUDA_CACHE_PATH": str(base / "cache/cuda"), "TORCHINDUCTOR_CACHE_DIR": str(base / "cache/torchinductor"), "TORCH_EXTENSIONS_DIR": str(base / "cache/torch-extensions")})
 env["PATH"] = "/usr/local/cuda/bin:" + str(base / ".venv/bin") + ":" + env["PATH"]
 headers = base / "toolchains/python-headers/usr/include"
@@ -252,7 +293,18 @@ phases = (output / "server-phases.jsonl").open("a", buffering=1)
 
 
 def phase(name, **fields):
+    global prefill_evidence_failed
+    primary_error = sys.exc_info()[1]
     row = {"phase": name, "monotonic_ns": time.perf_counter_ns(), "unix_ns": time.time_ns(), "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), **fields}
+    if prefill_evidence is not None and not prefill_evidence_failed:
+        try:
+            prefill_evidence.write("phases.jsonl", row, append=True)
+        except BaseException as evidence_error:
+            prefill_evidence_failed = True
+            if primary_error is None:
+                raise
+            if hasattr(primary_error, "add_note"):
+                primary_error.add_note("Native phase evidence failed: " + str(evidence_error))
     phases.write(json.dumps(row) + "\n")
     (output / "status.json").write_text(json.dumps(row, indent=2))
     print(json.dumps(row), flush=True)
@@ -282,6 +334,8 @@ stop_guard = threading.Event()
 def require_resources():
     # observe()/cleanup() can latch a failure before the watchdog copies it.
     # The retained ownership state is authoritative at every admission gate.
+    if prefill_native and prefill_evidence_failed:
+        raise RuntimeError("Native evidence writer failed")
     failure = ownership.failure if ownership is not None else None
     if failure or guard_failure:
         raise RuntimeError(failure or guard_failure)
@@ -304,6 +358,8 @@ def compiler_guard():
     from m1_owned_processes import snapshot
     while not stop_guard.is_set():
         try:
+            if prefill_native and time.monotonic() >= prefill_deadline:
+                raise RuntimeError("Native diagnostic 1800 second wall budget expired")
             ownership.observe(snapshot(), time.monotonic())
             if ownership.failure:
                 fail_guard(ownership.failure)
@@ -330,8 +386,16 @@ def sampler():
             try:
                 result = subprocess.run(["nvidia-smi", "--query-gpu=" + fields, "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=5)
                 values = result.stdout.strip().split(", ")
-                logfile.write(json.dumps({"monotonic_ns": time.perf_counter_ns(), "unix_ns": time.time_ns(), "fields": fields.split(","), "values": values, "exit": result.returncode}) + "\n")
-                if eager_benchmark and (result.returncode != 0 or len(values) != len(fields.split(","))):
+                telemetry = {"monotonic_ns": time.perf_counter_ns(), "unix_ns": time.time_ns(), "fields": fields.split(","), "values": values, "exit": result.returncode}
+                if prefill_evidence is not None:
+                    prefill_evidence.write("telemetry.jsonl", telemetry, append=True)
+                    from m1_owned_processes import snapshot
+                    owned_now = snapshot()
+                    ownership.observe(owned_now, time.monotonic())
+                    if any(pid not in owned_now or owned_now[pid].identity not in ownership.remembered for pid in gpu_jobs()):
+                        raise RuntimeError("Another GPU compute job appeared during native diagnostic")
+                logfile.write(json.dumps(telemetry) + "\n")
+                if (eager_benchmark or prefill_native) and (result.returncode != 0 or len(values) != len(fields.split(","))):
                     raise RuntimeError("eager benchmark GPU headroom telemetry unavailable")
                 if result.returncode == 0 and len(values) >= 2 and float(values[1]) < 2048 and server is not None and server.poll() is None:
                     fail_guard("GPU free memory fell below the 2 GiB headroom guard")
@@ -340,7 +404,7 @@ def sampler():
                     fail_guard("Host available RAM fell below the 8 GiB headroom guard")
             except Exception as error:
                 logfile.write(json.dumps({"error": str(error)}) + "\n")
-                if eager_benchmark:
+                if eager_benchmark or prefill_native:
                     try:
                         fail_guard("Eager benchmark resource telemetry failed: " + str(error))
                     except ProcessLookupError:
@@ -354,6 +418,10 @@ command = [str(base / ".venv/bin/vllm"), "serve", str(base / "models/gemma4-nvfp
 # vLLM 0.30 enables async scheduling by default for this executor. Every
 # admitted M1 lane requires synchronous request/frame identity.
 command.extend(synchronous_scheduler_args(args))
+if prefill_native:
+    from megartx.prefill_diagnostic_plan import server_args
+    command[command.index("--max-model-len") + 1] = "2304"
+    command.extend(server_args())
 if args.profile:
     command += ["--profiler-config", json.dumps({"profiler": "torch", "torch_profiler_dir": str(output / "traces"), "torch_profiler_with_stack": False, "torch_profiler_with_flops": False, "torch_profiler_with_memory": True})]
 launch_env_keys = [
@@ -372,6 +440,8 @@ launch_env_keys = [
     "MEGARTX_M1_EAGER_BENCHMARK_PLAN", "MEGARTX_M1_EAGER_BENCHMARK_DIR",
     "MEGARTX_M1_DECODE_PROFILE_DIR",
     "MEGARTX_M1_PRIVATE_AOT",
+    "MEGARTX_PREFILL_NATIVE_PLAN", "MEGARTX_PREFILL_NATIVE_DIR",
+    "MEGARTX_PREFILL_NATIVE_SOURCE_ROOT", "MEGARTX_PREFILL_NATIVE_DEADLINE",
 ]
 if args.m1_external_observer:
     launch_env_keys.extend(("VLLM_WORKER_MULTIPROC_METHOD",
@@ -386,7 +456,7 @@ launch_manifest = {
     "backend_requested": args.backend,
     "kv_requested": args.kv,
     "trust_remote_code": False,
-    "trials_per_context": benchmark_plan["trials"] if benchmark_plan else (0 if args.client in {"controlled", "normal"} else args.trials),
+    "trials_per_context": benchmark_plan["trials"] if benchmark_plan else (0 if args.client in {"controlled", "normal", "prefill-native"} else args.trials),
     "eager_benchmark_plan_sha256": benchmark_plan["plan_sha256"] if benchmark_plan else None,
     "m1_decode_profile_requested": args.m1_decode_profile,
     "diagnostic_admission": benchmark_plan.get("diagnostic_admission") if benchmark_plan else None,
@@ -399,9 +469,12 @@ launch_manifest = {
     "controlled_plan_sha256": json.loads((args.controlled_plan / "manifest.json").read_text())["schedule_sha256"] if args.controlled_plan else None,
     "minimum_free_memory_mib": 2048,
     "minimum_host_available_ram_gib": 8,
-    "owned_startup_containment": "subreaper_pid_start_time_pidfd" if eager_benchmark else None,
-    "compiler_aggregate_rss_limit_bytes": 2 << 30 if eager_benchmark else None,
-    "shared_compiler_budget_seconds": 300 if eager_benchmark else None,
+    "owned_startup_containment": "subreaper_pid_start_time_pidfd" if eager_benchmark or prefill_native else None,
+    "compiler_aggregate_rss_limit_bytes": 2 << 30 if eager_benchmark or prefill_native else None,
+    "shared_compiler_budget_seconds": 300 if eager_benchmark or prefill_native else None,
+    "prefill_native_plan_sha256": prefill_plan["plan_sha256"] if prefill_plan else None,
+    "prefill_native_numerical_qualified": False,
+    "prefill_native_performance_qualified": False,
     "timing_metadata_preflight": metadata_timing.report() if metadata_timing is not None else None,
     "private_aot_manifest_sha256": sha(aot / "manifest.json") if eager_benchmark else None,
     "private_aot_cpu_dry_run_sha256": sha(aot / "cpu-dry-run.json") if eager_benchmark else None,
@@ -420,7 +493,7 @@ launch_manifest = {
 client = requests.Session()
 client.trust_env = False
 try:
-    if eager_benchmark:
+    if eager_benchmark or prefill_native:
         from m1_owned_processes import OwnedProcesses, enable_subreaper, read_process
         ownership = OwnedProcesses(enable_subreaper(), metadata_timing=metadata_timing)
         available_kib = int(next(l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:")))
@@ -437,7 +510,7 @@ try:
         guard_thread.start()
     sample_thread.start()
     (output / "owned-server.pid").write_text(str(server.pid) + "\n")
-    deadline = time.monotonic() + 1200
+    deadline = min(time.monotonic() + 1200, prefill_deadline) if prefill_native else time.monotonic() + 1200
     ready = False
     while time.monotonic() < deadline:
         require_resources()
@@ -502,7 +575,10 @@ try:
     if other:
         raise RuntimeError("Another GPU compute job appeared; benchmark not started")
     require_resources()
-    if eager_benchmark:
+    if prefill_native:
+        bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/prefill_diagnostic_client.py"),
+                         "--plan", str(args.prefill_native_plan), "--output", str(output)]
+    elif eager_benchmark:
         bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/m1_eager_benchmark_client.py"),
                          "--plan", str(args.m1_eager_benchmark_plan), "--output", str(output)]
     elif args.client == "normal":
@@ -521,12 +597,15 @@ try:
         bench_command.append("--routing-diagnostic")
     phase("client_launch", command=bench_command)
     with (output / "client.log").open("w") as bench_log:
-        result = subprocess.run(bench_command, env=env, stdout=bench_log, stderr=subprocess.STDOUT, timeout=3600)
+        result = subprocess.run(bench_command, env=env, stdout=bench_log, stderr=subprocess.STDOUT, timeout=max(1, prefill_deadline-time.monotonic()) if prefill_native else 3600)
     (output / "benchmark.exit").write_text(str(result.returncode) + "\n")
     require_resources()
     if result.returncode:
         raise RuntimeError("Host-local client failed; see client.log")
-    if eager_benchmark:
+    if prefill_native:
+        phase("bounded_prefill_native_observed", request_count=1, prompt_frames=8, decode_input_rows=255,
+              numerical_qualified=False, performance_qualified=False)
+    elif eager_benchmark:
         phase("bounded_eager_benchmark_complete", plan_sha256=benchmark_plan["plan_sha256"],
               qualified_quality_baseline=False, qualified_performance_baseline=False)
     elif args.client == "normal":
@@ -546,7 +625,7 @@ try:
     elif args.client == "quality":
         natural_coverage(output, args.mode)
         phase("natural_correction_coverage_verified")
-    phase("diagnostic_complete" if args.router_score_only or args.client in {"controlled","normal"} else "benchmark_complete")
+    phase("diagnostic_complete" if args.router_score_only or args.client in {"controlled","normal","prefill-native"} else "benchmark_complete")
     (output / "run.exit").write_text("0\n")
 except Exception as error:
     phase("failed", error=str(error))
@@ -606,7 +685,7 @@ finally:
                     group_alive = False
     cleanup_error = None
     cleanup_complete = ownership_report["cleanup_complete"] if ownership is not None else True
-    if (args.m1_external_observer or eager_benchmark) and server is not None:
+    if (args.m1_external_observer or eager_benchmark or prefill_native) and server is not None:
         owned_gpu_pids = []
         if ownership is not None:
             owned_gpu_pids = ownership_report["owned_gpu_pids_remaining"]
@@ -636,7 +715,7 @@ finally:
                    "cleanup_complete": cleanup_complete}
         if ownership is not None:
             cleanup.update(ownership_report)
-        cleanup_path = output / "eager-benchmark-cleanup.json" if eager_benchmark else output / "m1-process-evidence" / "cleanup.json"
+        cleanup_path = output / "prefill-native-cleanup.json" if prefill_native else (output / "eager-benchmark-cleanup.json" if eager_benchmark else output / "m1-process-evidence" / "cleanup.json")
         cleanup_path.write_text(
             json.dumps(cleanup, indent=2))
         if not cleanup_complete:
@@ -660,6 +739,17 @@ finally:
                 ownership.require_compiler_quiescence()
                 from m1_eager_benchmark_client import summarize_run
                 summarize_run(output)
+        except BaseException:
+            (output / "run.exit").write_text("1\n")
+            raise
+
+    if prefill_native and cleanup_complete and sys.exc_info()[1] is None:
+        try:
+            require_resources()
+            from megartx.prefill_diagnostic_plan import publish_fit, load_plan as reload_prefill_plan, remaining
+            remaining(prefill_deadline)
+            reload_prefill_plan(args.prefill_native_plan, project)
+            publish_fit(prefill_evidence, prefill_plan, ownership_report)
         except BaseException:
             (output / "run.exit").write_text("1\n")
             raise
