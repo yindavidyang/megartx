@@ -1,0 +1,92 @@
+{
+  "controls_source_sha256": {
+    "tests/fixtures/prefill-native-builder-selection.json": "43688c5848055624f43cda75185def2ce4d15ef4470388146de51b46dcf8a624",
+    "tests/test_prefill_native_safety.py": "0ea1af8441a8e844fe2db10f9ffb9c7052ef83e5344f51a0d80f46c95f7a49ce",
+    "tests/test_prefill_native_v2.py": "082b3c13b99dc63b0db6dd1746ac1cb2a11c6354a921800dd9570432cf56dd33",
+    "tests/test_prefill_selected_builders.py": "0bf40a79bc6765ea4d489227c0a841b8282dd7703a33d93ddae33a4d53d183ec"
+  },
+  "cpu_review_pending": true,
+  "finding": "F6",
+  "fit_qualified": false,
+  "gpu_executed": false,
+  "implemented_checks": [
+    "retain the actual outer and inner attention-group lists and ordered group identities",
+    "retain exact group class, group ID, layer-name list and immutable layer membership",
+    "require the pinned class getter and actual bound owner/function before invoking it",
+    "require one selected builder per group in the no-ubatch eager lane",
+    "reconcile current selections against the complete retained builder set before dispatch",
+    "reject replacement, removal, addition, reordering, repeated owners and partial retained-set deletion",
+    "retain actual builder build callback checks and poison/abort with primary-exception preservation"
+  ],
+  "numerical_qualified": false,
+  "performance_qualified": false,
+  "previous_bound_callback_correction_reference": "docs/prefill/native-bound-callback-correction.json",
+  "previous_bound_callback_correction_sha256": "2e45e78dd0cad8adf2242c3903fd339bb911db6cbdaaff98c24483de5c626d07",
+  "previous_public_head": "83384ab2b10fe5767988dfd93c638902224fce9b",
+  "previous_runtime_commit": "83d06cc0d04093fb29070cc81fc447ae0bf4feeb",
+  "previous_runtime_source_hashes": {
+    "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
+    "scripts/prefill_diagnostic_client.py": "4d0e3a57927ccf9d920ffc73438d45ed7591a689ba3e74104bb209cb5ca0b233",
+    "scripts/run_scale_validation.py": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
+    "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
+    "src/megartx/loaded_engine_access.py": "2e46661c037c3356f619b8a965a60a2fcaac49851bad8e37c586f4851d81a10e",
+    "src/megartx/m1_execution.py": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
+    "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
+    "src/megartx/prefill_collect.py": "be60fbb3233d025e543e4cad5af27c766ca1f4c228971ecd0ef53e66c2532afd",
+    "src/megartx/prefill_diagnostic_plan.py": "c0b632d5f813439d0ccc0fadc85e1b8a3620f3eae986e6509a8a5dc1c9e1d8a6",
+    "src/megartx/prefill_kv.py": "99bf4c047d45425cdc0c840dadb64057603bf7a25f45321889a9728a77a1bafd",
+    "src/megartx/prefill_native.py": "78c7492917373a568c264ec576b07f740ef39467b023cfe9ae73c3a6079f0331",
+    "src/megartx/prefill_plan.py": "90a90e5af9fada13da2fa696840373af8210157475505d0586d5926707a2d68c",
+    "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
+    "src/megartx/prefill_runner_binding.py": "33894126b93e64cc74c429009b622434f8c10be0a2080c43963bbf7715ca6f86",
+    "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
+  },
+  "runtime_changes": [
+    "src/megartx/loaded_engine_access.py",
+    "src/megartx/prefill_native.py"
+  ],
+  "runtime_commit": "fff74b93b5ce8b1f9f8f6c4ff32fca5e66af85ed",
+  "runtime_source_hashes": {
+    "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
+    "scripts/prefill_diagnostic_client.py": "4d0e3a57927ccf9d920ffc73438d45ed7591a689ba3e74104bb209cb5ca0b233",
+    "scripts/run_scale_validation.py": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
+    "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
+    "src/megartx/loaded_engine_access.py": "5e7cc68049e33ed1e41f8ec4006dd1a5bcf711d134dc22934552f627d31875c6",
+    "src/megartx/m1_execution.py": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
+    "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
+    "src/megartx/prefill_collect.py": "be60fbb3233d025e543e4cad5af27c766ca1f4c228971ecd0ef53e66c2532afd",
+    "src/megartx/prefill_diagnostic_plan.py": "c0b632d5f813439d0ccc0fadc85e1b8a3620f3eae986e6509a8a5dc1c9e1d8a6",
+    "src/megartx/prefill_kv.py": "99bf4c047d45425cdc0c840dadb64057603bf7a25f45321889a9728a77a1bafd",
+    "src/megartx/prefill_native.py": "468526651fe2cb68ba07fdb65093535fc20b2da81597bcf61f26d2352717e940",
+    "src/megartx/prefill_plan.py": "90a90e5af9fada13da2fa696840373af8210157475505d0586d5926707a2d68c",
+    "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
+    "src/megartx/prefill_runner_binding.py": "33894126b93e64cc74c429009b622434f8c10be0a2080c43963bbf7715ca6f86",
+    "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
+  },
+  "runtime_tree": "1bfb4a291b08badbbb65cb5ff52d5e3dcf89060a",
+  "schema": "megartx-prefill-selected-builder-correction-v1",
+  "unchanged_historical_catalogs": {
+    "docs/prefill/live-attribution-binding.json": "115b289bd5721527daf6d0abf3a73770b2e9bdc1aa0988870035d21a88e72826",
+    "docs/prefill/live-attribution-plan.json": "be5f0d78b255a324ec0bcddb6989eccd8419b1ceca7273c16baa7b4b4bedd5fa",
+    "docs/prefill/live-binding.json": "3f248451bbb47027066f38ebf672cbb4676c8993deeb25a5ea88b38b06cd4ab1",
+    "docs/prefill/live-plan.json": "bd90bc12847eb60abe681088e6803e80a87d865d1306836c35a7dd0a9c785ca2",
+    "docs/prefill/profile-plan.json": "264aceb2d2247731041a80eb96563bb816ec9394d441bceabeef386ae77afd28",
+    "docs/prefill/runner-binding.json": "a2020354a707d1419e08c4e3576ec032c19bfe191bde204cbbc9f1188d0c5547",
+    "docs/prefill/runner-plan.json": "45e43c7a420112b6b81e527bb4173eb8eb2c9bd20a9ec0ca4421c43f7f9b7a96",
+    "docs/prefill/source-binding.json": "953991a313d808069f52e8e75b64c826f1450cef8be09018bd5f689b34560fc6"
+  },
+  "unchanged_historical_source_fixtures": {
+    "tests/fixtures/prefill-native-base/run_scale_validation.source": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8",
+    "tests/fixtures/prefill-native-base/vllm_scale_plugin.source": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
+  },
+  "unchanged_parent_ledgers": {
+    "docs/evidence/m1-sf-layout-source-pins.json": "ccd75f81c2476c3434f1c500af3a1fbdf37cd6bccf0f1132e86f9739944a191d",
+    "docs/prefill/main-reconciliation-lineage.json": "644b1ab27a77427ef7a1d1ea36534fbd6b397bf2f61c0244546233071beef757",
+    "docs/prefill/native-bound-callback-correction.json": "2e45e78dd0cad8adf2242c3903fd339bb911db6cbdaaff98c24483de5c626d07",
+    "docs/prefill/native-numerical-lineage.json": "97c98a8bc7bd68919f9b1589d160305b34c117c43d82b2fbcaead02791d6b206"
+  }
+}

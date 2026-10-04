@@ -51,7 +51,8 @@
     "missing-plan admission before HTTP runtime import; python -S regression",
     "bound actual4,977,046byte checkpoint index as CPU input below8MiB; independent host domain",
     "active default V2 bindings, owned live pre-POST receipt, scheduled-forward hook guard, historical I64 helper unchanged",
-    "F5 actual bound runner/model/builder callbacks and direct guard poisoning; class checks retained"
+    "F5 actual bound runner/model/builder callbacks and direct guard poisoning; class checks retained",
+    "F6 current selected-builder and attention-group ownership admission; cached callbacks alone are insufficient"
   ],
   "runner_policy": {
     "resolved_v2": true,
@@ -60,11 +61,13 @@
     "selection_override_injected": false,
     "selector_env": null
   },
-  "runner_selection_sha256": "3293c959be3fd8573cbe2b3e8d3310f2360ef64b3698340d9e93c91e92aca6ce",
-  "runtime_commit": "83d06cc0d04093fb29070cc81fc447ae0bf4feeb",
-  "runtime_tree": "d0cf7b583b24d702598b41d9a032d4d8f245bc9d",
+  "runner_selection_sha256": "be5f7048524c316de1c073db825f16caa0d337cd3a5171cc681e600e1130e942",
+  "runtime_commit": "fff74b93b5ce8b1f9f8f6c4ff32fca5e66af85ed",
+  "runtime_tree": "1bfb4a291b08badbbb65cb5ff52d5e3dcf89060a",
   "schema": "megartx-prefill-native-source-reconciliation-v1",
   "scope": "exact_cpu_source_compatibility_only",
+  "selected_builder_correction_reference": "docs/prefill/native-selected-builder-correction.json",
+  "selected_builder_correction_sha256": "2e94d745ff8f98b0c34680dd8e38ca4a9777532121f4f5e575b7660703f598b7",
   "unchanged": [
     "nvfp4_runtime.py",
     "nvfp4_integration.py",

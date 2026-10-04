@@ -100,7 +100,7 @@
     "source_head": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
     "status": "failed_observer_runner_binding"
   },
-  "protocol_sha256": "dff86427949871f55edde69c6454fcad2062ae3b5c2433d0e6474ef3a7c392c0",
+  "protocol_sha256": "7fbd0d57dd4ddae07fd0ef742940bd69f49d2302a1d5ed875b6d6f694986a079",
   "purpose_hooks": [
     "runner_constructor",
     "initialize_kv_cache",
@@ -132,14 +132,14 @@
     "selection_override_injected": false,
     "selector_env": null
   },
-  "runner_selection_sha256": "3293c959be3fd8573cbe2b3e8d3310f2360ef64b3698340d9e93c91e92aca6ce",
-  "runtime_commit": "83d06cc0d04093fb29070cc81fc447ae0bf4feeb",
+  "runner_selection_sha256": "be5f7048524c316de1c073db825f16caa0d337cd3a5171cc681e600e1130e942",
+  "runtime_commit": "fff74b93b5ce8b1f9f8f6c4ff32fca5e66af85ed",
   "runtime_source_hashes": {
     "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
     "scripts/prefill_diagnostic_client.py": "4d0e3a57927ccf9d920ffc73438d45ed7591a689ba3e74104bb209cb5ca0b233",
     "scripts/run_scale_validation.py": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
     "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
-    "src/megartx/loaded_engine_access.py": "2e46661c037c3356f619b8a965a60a2fcaac49851bad8e37c586f4851d81a10e",
+    "src/megartx/loaded_engine_access.py": "5e7cc68049e33ed1e41f8ec4006dd1a5bcf711d134dc22934552f627d31875c6",
     "src/megartx/m1_execution.py": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
     "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
     "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
@@ -147,17 +147,19 @@
     "src/megartx/prefill_collect.py": "be60fbb3233d025e543e4cad5af27c766ca1f4c228971ecd0ef53e66c2532afd",
     "src/megartx/prefill_diagnostic_plan.py": "c0b632d5f813439d0ccc0fadc85e1b8a3620f3eae986e6509a8a5dc1c9e1d8a6",
     "src/megartx/prefill_kv.py": "99bf4c047d45425cdc0c840dadb64057603bf7a25f45321889a9728a77a1bafd",
-    "src/megartx/prefill_native.py": "78c7492917373a568c264ec576b07f740ef39467b023cfe9ae73c3a6079f0331",
+    "src/megartx/prefill_native.py": "468526651fe2cb68ba07fdb65093535fc20b2da81597bcf61f26d2352717e940",
     "src/megartx/prefill_plan.py": "90a90e5af9fada13da2fa696840373af8210157475505d0586d5926707a2d68c",
     "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
     "src/megartx/prefill_runner_binding.py": "33894126b93e64cc74c429009b622434f8c10be0a2080c43963bbf7715ca6f86",
     "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
   },
-  "runtime_tree": "d0cf7b583b24d702598b41d9a032d4d8f245bc9d",
+  "runtime_tree": "1bfb4a291b08badbbb65cb5ff52d5e3dcf89060a",
   "runtime_versions": {
     "flashinfer-python": "0.6.18.post1",
     "torch": "2.13.0",
     "vllm": "0.30.0"
   },
-  "schema": "megartx-prefill-native-diagnostic-binding-v1"
+  "schema": "megartx-prefill-native-diagnostic-binding-v1",
+  "selected_builder_correction_reference": "docs/prefill/native-selected-builder-correction.json",
+  "selected_builder_correction_sha256": "2e94d745ff8f98b0c34680dd8e38ca4a9777532121f4f5e575b7660703f598b7"
 }

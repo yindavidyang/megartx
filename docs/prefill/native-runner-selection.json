@@ -22,7 +22,8 @@
     "active model callback presence",
     "hook identity on active frames",
     "zero-token housekeeping unchanged",
-    "actual bound owner/function identity and poison on rejection"
+    "actual bound owner/function identity and poison on rejection",
+    "current attention-group ownership, exact getter dispatch and complete selected-builder reconciliation before metadata work"
   ],
   "installed_v2_sources": {
     "vllm.config.vllm": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
@@ -65,8 +66,10 @@
     "source_head": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
     "status": "failed_observer_runner_binding"
   },
-  "runtime_commit": "83d06cc0d04093fb29070cc81fc447ae0bf4feeb",
+  "runtime_commit": "fff74b93b5ce8b1f9f8f6c4ff32fca5e66af85ed",
   "schema": "megartx-prefill-native-runner-source-v1",
+  "selected_builder_correction_reference": "docs/prefill/native-selected-builder-correction.json",
+  "selected_builder_correction_sha256": "2e94d745ff8f98b0c34680dd8e38ca4a9777532121f4f5e575b7660703f598b7",
   "selection_decision": "bind_actual_default_v2_to_preserve_accepted_decode_baseline",
   "selection_sources": {
     "vllm.config.vllm": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
