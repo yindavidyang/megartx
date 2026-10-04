@@ -197,7 +197,11 @@ def publish_fit(evidence, plan, ownership):
             or scratch.get('cap_bytes') != plan['bounds']['max_observer_gpu_scratch_bytes']
             or type(scratch.get('measured_phases')) is not int or scratch['measured_phases'] < 789
             or any(type(scratch.get(k)) is not int or not 0 <= scratch[k] <= scratch['cap_bytes']
-                   for k in ('managed_tensor_simultaneous_peak_bytes', 'measured_phase_allocator_increment_peak_bytes'))
+                   for k in ('managed_tensor_simultaneous_peak_bytes', 'measured_phase_allocator_increment_peak_bytes',
+                             'measured_phase_reserved_increment_peak_bytes'))
+            or scratch.get('counter_policy') != 'process_global_resets_with_explicit_runwide_peak_preservation'
+            or any(type(scratch.get(k)) is not int or scratch[k] < 0
+                   for k in ('runwide_allocator_allocated_peak_bytes', 'runwide_allocator_reserved_peak_bytes'))
             or scratch.get('host_heap_excluded') is not True
             or observer.get('numerical_qualified') is not False or client.get('numerical_qualified') is not False
             or observer.get('performance_qualified') is not False or client.get('performance_qualified') is not False):

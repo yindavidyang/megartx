@@ -246,7 +246,7 @@ class ShapeAndSourceReview(unittest.TestCase):
             return total
         self.assertEqual(retained_host_bytes(ledger.positions),size(ledger.positions,set()))
         self.assertGreater(retained_host_bytes(ledger.positions),4<<20)
-        receipt=GpuScratch(NS(),8<<20).receipt()
+        receipt=GpuScratch(NS(cuda=CudaCounters()),8<<20).receipt()
         self.assertEqual(receipt['domain'],'incremental_gpu_allocator_bytes')
         self.assertTrue(receipt['host_heap_excluded'])
 
@@ -285,15 +285,47 @@ class ExecutedSourceReview(unittest.TestCase):
                     verify_adapter_sources(good)
 
 class CudaCounters:
-    def __init__(self):self.current,self.peak=10<<20,10<<20
+    def __init__(self):self.current,self.peak,self.reserved,self.reserved_peak=10<<20,10<<20,10<<20,10<<20
     def synchronize(self):pass
     def memory_allocated(self):return self.current
-    def reset_peak_memory_stats(self):self.peak=self.current
+    def memory_reserved(self):return self.reserved
+    def reset_peak_memory_stats(self):self.peak,self.reserved_peak=self.current,self.reserved
     def max_memory_allocated(self):return self.peak
-    def allocate(self,size):self.current+=size;self.peak=max(self.peak,self.current)
-    def release(self,size):self.current-=size
+    def max_memory_reserved(self):return self.reserved_peak
+    def allocate(self,size):
+        self.current+=size;self.reserved+=size
+        self.peak=max(self.peak,self.current);self.reserved_peak=max(self.reserved_peak,self.reserved)
+    def release(self,size):self.current-=size;self.reserved-=size
 
 class AggregateGpuScratchTests(unittest.TestCase):
+    def test_prior_model_allocated_and_reserved_peaks_survive_repeated_callbacks_and_error(self):
+        cuda=CudaCounters();cuda.peak,cuda.reserved_peak=100<<20,128<<20
+        scratch=GpuScratch(NS(cuda=cuda),8<<20)
+        for phase in ('finish','head','begin'):
+            with scratch.scope(phase):pass
+            receipt=scratch.receipt()
+            self.assertEqual(receipt['runwide_allocator_allocated_peak_bytes'],100<<20)
+            self.assertEqual(receipt['runwide_allocator_reserved_peak_bytes'],128<<20)
+            self.assertEqual(receipt['measured_phase_allocator_increment_peak_bytes'],0)
+        cuda.peak,cuda.reserved_peak=140<<20,160<<20  # Intervening incumbent work.
+        error=KeyboardInterrupt('observer primary')
+        with self.assertRaises(KeyboardInterrupt) as caught:
+            with scratch.scope('finish'):raise error
+        self.assertIs(caught.exception,error)
+        receipt=scratch.receipt()
+        self.assertEqual(receipt['runwide_allocator_allocated_peak_bytes'],140<<20)
+        self.assertEqual(receipt['runwide_allocator_reserved_peak_bytes'],160<<20)
+        self.assertEqual(receipt['measured_phases'],4)
+
+    def test_reserved_pool_growth_is_charged_and_rejected_even_without_tensor_growth(self):
+        cuda=CudaCounters();scratch=GpuScratch(NS(cuda=cuda),8<<20)
+        with self.assertRaisesRegex(RuntimeError,'scratch cap'):
+            with scratch.scope('reserved_pool'):
+                cuda.reserved_peak += (8<<20)+1
+        receipt=scratch.receipt()
+        self.assertEqual(receipt['measured_phase_allocator_increment_peak_bytes'],0)
+        self.assertGreater(receipt['measured_phase_reserved_increment_peak_bytes'],8<<20)
+
     def test_concurrent_reservations_reject_before_second_allocation(self):
         cuda=CudaCounters();scratch=GpuScratch(NS(cuda=cuda),8<<20)
         with scratch.scope('rows'):

@@ -93,12 +93,20 @@ class GpuScratch:
 
     Managed tensor reservations count simultaneous lifetimes before allocation.
     The CUDA allocator peak also includes framework temporaries in each phase.
-    Its counters are reset only around observer callbacks, never model work;
-    this diagnostic consequently cannot supply a performance baseline.
+    Reset affects process/device-global peaks. Before every reset and after each
+    phase, preserve both allocated and reserved maxima in a run-wide ledger.
+    This diagnostic consequently cannot supply a performance baseline.
     """
     def __init__(self, torch, limit):
         self.torch, self.limit = torch, limit
-        self.active, self.live, self.managed_peak, self.cuda_peak, self.phases = False, 0, 0, 0, 0
+        self.active, self.live, self.managed_peak, self.cuda_peak, self.reserved_peak, self.phases = False, 0, 0, 0, 0, 0
+        self.run_allocated_peak, self.run_reserved_peak = 0, 0
+        self.preserve_peaks()
+
+    def preserve_peaks(self):
+        cuda = self.torch.cuda
+        self.run_allocated_peak = max(self.run_allocated_peak, cuda.max_memory_allocated())
+        self.run_reserved_peak = max(self.run_reserved_peak, cuda.max_memory_reserved())
 
     @contextmanager
     def scope(self, phase):
@@ -106,7 +114,8 @@ class GpuScratch:
             raise RuntimeError("Concurrent/nested observer GPU scratch phase")
         cuda = self.torch.cuda
         cuda.synchronize()
-        baseline = cuda.memory_allocated()
+        baseline, reserved_baseline = cuda.memory_allocated(), cuda.memory_reserved()
+        self.preserve_peaks()  # Includes preceding startup/model/head/sampler work.
         cuda.reset_peak_memory_stats()
         self.active, primary = True, None
         try:
@@ -119,8 +128,11 @@ class GpuScratch:
             try:
                 cuda.synchronize()
                 peak = max(0, cuda.max_memory_allocated()-baseline)
+                reserved = max(0, cuda.max_memory_reserved()-reserved_baseline)
+                self.preserve_peaks()
                 self.cuda_peak, self.phases = max(self.cuda_peak, peak), self.phases+1
-                if self.live or peak > self.limit:
+                self.reserved_peak = max(self.reserved_peak, reserved)
+                if self.live or max(peak, reserved) > self.limit:
                     raise RuntimeError("Aggregate observer GPU scratch cap breached: " + phase)
             except BaseException as error:
                 if primary is None:
@@ -140,10 +152,15 @@ class GpuScratch:
             self.live -= size
 
     def receipt(self):
+        self.preserve_peaks()
         return {"domain": "incremental_gpu_allocator_bytes", "cap_bytes": self.limit,
                 "managed_tensor_simultaneous_peak_bytes": self.managed_peak,
                 "measured_phase_allocator_increment_peak_bytes": self.cuda_peak,
-                "measured_phases": self.phases, "allocator_peak_counters_reset_per_observer_phase": True,
+                "measured_phase_reserved_increment_peak_bytes": self.reserved_peak,
+                "measured_phases": self.phases,
+                "counter_policy": "process_global_resets_with_explicit_runwide_peak_preservation",
+                "runwide_allocator_allocated_peak_bytes": self.run_allocated_peak,
+                "runwide_allocator_reserved_peak_bytes": self.run_reserved_peak,
                 "incumbent_model_cache_and_hidden_allocations_are_baseline": True,
                 "host_heap_excluded": True}
 
@@ -362,6 +379,7 @@ class NativeProvider(PrefillKVObserver):
                 'sample_sha256': digest([token]), 'cached_length': self.ledger.end,
                 'pending_anchor_position': self.ledger.end, 'anchor_kv_written': False}, append=True)
         if self.ledger.complete_request:
+            self.scratch.preserve_peaks()  # Includes the actual final sampler.
             self.evidence.write('observer.json', {'schema': 'megartx-prefill-native-observation-v1',
                 'status': 'request_observed', 'plan_sha256': self.plan['plan_sha256'],
                 'engine_request_id': self.ledger.request_id, 'prompt_frames': 8,
