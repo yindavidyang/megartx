@@ -14,7 +14,9 @@
     "prompt_tokens": 2048
   },
   "checkpoint_revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+  "ci_admission_delta": "requests import delayed until after plan admission; no-site actual CLI regression",
   "cpu_fixture_provenance": "synthetic scalar ledgers/page intervals and substituted external telemetry; no native tensor admission",
+  "cpu_reviewed_source_head": "bc3cf50031beba64e9c8a51ac15ae4f01b38f087",
   "fit_qualified": false,
   "gpu_executed": false,
   "historical_catalogs": {
@@ -80,11 +82,11 @@
     "da89187e3fb1752a01d27b678c67b41b23dd9ff5",
     "b28c4387bf2fbcd6f49905540750e6a4c5818e7c"
   ],
-  "runtime_commit": "b28c4387bf2fbcd6f49905540750e6a4c5818e7c",
+  "runtime_commit": "5c943812655eb478b19138368c8189b1d793b532",
   "runtime_source_hashes": {
     "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
     "scripts/prefill_diagnostic_client.py": "a7ea8c850eb0e594237fe7bcf490566f895895e2b07663a540a0424f01c50315",
-    "scripts/run_scale_validation.py": "a6e6d63afe8666911ad9c8f690c25ec913b071e161600baf28479096e96a728f",
+    "scripts/run_scale_validation.py": "6a124a9a33ae036f2d03e90245aed8c77df1b202676cee5eec38f32ece12ab57",
     "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
     "src/megartx/loaded_engine_access.py": "30b9bedd74fa7e8180611797450046cf4cc64ef317078eb21b2491bae40fb6c2",
     "src/megartx/m1_execution.py": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
@@ -99,7 +101,7 @@
     "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
     "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
   },
-  "runtime_tree": "47427af376524ba692d583f346b3a2a5eac1422b",
+  "runtime_tree": "a09668763d5e96311fa272df80186b7827ffefd5",
   "runtime_versions": {
     "flashinfer-python": "0.6.18.post1",
     "torch": "2.13.0",

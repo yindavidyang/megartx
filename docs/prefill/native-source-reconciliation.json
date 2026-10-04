@@ -19,7 +19,7 @@
     "actual _sample output/discard receipt"
   ],
   "repo_files": {
-    "scripts/run_scale_validation.py": "a6e6d63afe8666911ad9c8f690c25ec913b071e161600baf28479096e96a728f",
+    "scripts/run_scale_validation.py": "6a124a9a33ae036f2d03e90245aed8c77df1b202676cee5eec38f32ece12ab57",
     "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
     "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
   },
@@ -28,10 +28,11 @@
     "prepare/build BaseException poison",
     "aggregate GPU scratch domains",
     "actual imported adapter origins and bytes",
-    "preserve run-wide allocated/reserved peaks across global counter resets"
+    "preserve run-wide allocated/reserved peaks across global counter resets",
+    "missing-plan admission before HTTP runtime import; python -S regression"
   ],
-  "runtime_commit": "b28c4387bf2fbcd6f49905540750e6a4c5818e7c",
-  "runtime_tree": "47427af376524ba692d583f346b3a2a5eac1422b",
+  "runtime_commit": "5c943812655eb478b19138368c8189b1d793b532",
+  "runtime_tree": "a09668763d5e96311fa272df80186b7827ffefd5",
   "schema": "megartx-prefill-native-source-reconciliation-v1",
   "scope": "exact_cpu_source_compatibility_only",
   "unchanged": [

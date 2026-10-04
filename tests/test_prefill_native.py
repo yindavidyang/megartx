@@ -2,6 +2,7 @@
 import ast
 import copy
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -131,6 +132,35 @@ class NativeDiagnosticTests(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertIn('exact default-off',result.stderr)
         self.assertNotIn('MEGARTX_BASE',result.stderr)
+
+    def test_admitted_cli_http_import_errors_acquire_no_resources(self):
+        # Synthetic CPU plan/clearance only. Execution stops at HTTP import,
+        # before any checkpoint, environment, process, device or owned output.
+        head = subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+        with tempfile.TemporaryDirectory() as d:
+            directory = Path(d)
+            plan = self.plan(); plan['source_head'] = head
+            plan['plan_sha256'] = digest({k:v for k,v in plan.items() if k != 'plan_sha256'})
+            (directory/'plan.json').write_text(json.dumps(plan))
+            (directory/'clearance.json').write_text(json.dumps({'schema':'megartx-prefill-native-clearance-v1',
+                'plan_sha256':plan['plan_sha256'],'source_head':head,
+                'cpu_review_passed':True,'parent_gpu_slot_clearance':True}))
+            command = [sys.executable,'-S',str(ROOT/'scripts/run_scale_validation.py'),
+                       '--label','cpu','--mode','native','--client','prefill-native','--trials','1',
+                       '--prefill-native-plan',str(directory/'plan.json'),
+                       '--prefill-native-clearance',str(directory/'clearance.json')]
+            env = {**os.environ,'PYTHONPATH':str(ROOT/'src')+os.pathsep+str(directory),
+                   'MEGARTX_BASE':str(directory/'untouched-base'),
+                   'MEGARTX_WORK':str(directory/'untouched-work')}
+            for stub, error in ((None,"ModuleNotFoundError: No module named 'requests'"),
+                                ("raise RuntimeError('http import primary')\n",'RuntimeError: http import primary')):
+                if stub is not None:(directory/'requests.py').write_text(stub)
+                result = subprocess.run(command,cwd=directory,env=env,capture_output=True,text=True)
+                self.assertNotEqual(result.returncode,0)
+                self.assertIn(error,result.stderr)
+                self.assertNotIn('exact default-off',result.stderr)
+                self.assertFalse((directory/'untouched-base').exists())
+                self.assertFalse((directory/'untouched-work').exists())
 
 
 if __name__ == '__main__': unittest.main()
