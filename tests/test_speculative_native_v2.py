@@ -1,5 +1,6 @@
 """CPU adversarial controls. Extracted methods are not native/GPU evidence."""
 from contextlib import ExitStack, nullcontext
+from dataclasses import dataclass
 import hashlib
 import json
 import os
@@ -9,6 +10,7 @@ import sys
 import tempfile
 import types
 import unittest
+import weakref
 from types import SimpleNamespace as NS
 from unittest.mock import patch
 
@@ -19,6 +21,13 @@ from megartx import speculative_native_receipt as receipt
 from megartx.speculative_native_probe import ProbeError, HOST_FREE, GPU_FREE
 
 FIXTURE = Path(__file__).parent / "fixtures/speculative_v2_installed_methods.json"
+
+
+class Device:
+    """CPU device fixture; mutability enables an ordinal-drift negative."""
+    type = "cuda"
+    def __init__(self, index=0): self.index = index
+    def __str__(self): return f"cuda:{self.index}"
 
 
 def extracted(path, cls, methods, destination):
@@ -166,7 +175,7 @@ def owner_fixture():
     runner.attn_groups = [[ag]]
     runner.model_config, runner.parallel_config, runner.cache_config = config.model_config, config.parallel_config, config.cache_config
     runner.compilation_config = config.compilation_config
-    runner.device = "CPU_fixture"
+    runner.device = Device()
     for name in ("execute_model_state", "speculator", "pcp_manager", "ubatch_runner", "batch_sharder", "fast_prefill"):
         setattr(runner, name, None)
     ticket = {"purpose": lifecycle.PURPOSE, "nonce": "00000000-0000-4000-8000-000000000001",
@@ -233,6 +242,64 @@ class OwnerControls(unittest.TestCase):
         runner, ticket = owner_fixture(); owner = binding.V2Owner(runner, ticket)
         runner.kv_cache_config.kv_cache_tensors[0].layers = ["unused"] * 31
         with self.assertRaisesRegex(ProbeError, "acquisition limit"): owner.check()
+
+    def test_original_device_reference_and_ordinal_are_pinned(self):
+        for replacement in (Device(), Device(1)):
+            runner, ticket = owner_fixture(); owner = binding.V2Owner(runner, ticket)
+            runner.device = replacement
+            with self.assertRaisesRegex(ProbeError, "device identity"): owner.check()
+        runner, ticket = owner_fixture(); owner = binding.V2Owner(runner, ticket)
+        runner.device.index = 1
+        with self.assertRaisesRegex(ProbeError, "ordinal changed"): owner.check()
+
+    def test_implicit_non_cuda_and_invalid_device_ordinals_fail_closed(self):
+        for device in ("cuda:0", NS(type="cpu", index=0), NS(type="cuda", index=None),
+                       NS(type="cuda", index=-1), NS(type="cuda", index=True)):
+            runner, ticket = owner_fixture(); runner.device = device
+            with self.assertRaisesRegex(ProbeError, "explicit CUDA device ordinal"):
+                binding.V2Owner(runner, ticket)
+
+    def test_mutable_group_spec_and_placement_children_are_strongly_retained(self):
+        class Retained(NS): pass
+        for kind in ("group", "spec", "placement"):
+            with self.subTest(kind=kind):
+                runner, ticket = owner_fixture()
+                config = runner.kv_cache_config
+                if kind == "group":
+                    config.kv_cache_groups[0] = Retained(**vars(config.kv_cache_groups[0]))
+                    original = config.kv_cache_groups[0]
+                elif kind == "spec":
+                    config.kv_cache_groups[0].kv_cache_spec = Retained(**vars(config.kv_cache_groups[0].kv_cache_spec))
+                    original = config.kv_cache_groups[0].kv_cache_spec
+                else:
+                    config.kv_cache_tensors[0] = Retained(**vars(config.kv_cache_tensors[0]))
+                    original = config.kv_cache_tensors[0]
+                owner = binding.V2Owner(runner, ticket)
+                retained, replacement = weakref.ref(original), NS(**vars(original))
+                del original
+                if kind == "group": config.kv_cache_groups[0] = replacement
+                elif kind == "spec": config.kv_cache_groups[0].kv_cache_spec = replacement
+                else: config.kv_cache_tensors[0] = replacement
+                self.assertIsNotNone(retained())
+                with self.assertRaisesRegex(ProbeError, "owner reference changed"): owner.check()
+
+    def test_exact_extracted_public_placement_prevents_identity_recycling(self):
+        from megartx.speculative_native_probe import source_manifest
+        record = json.loads((FIXTURE.parent / "speculative_v2_cache_placement.json").read_text())
+        self.assertEqual(record["source_sha256"], source_manifest()["files"][record["path"]]["sha256"])
+        self.assertEqual(record["extracted_source_sha256"], hashlib.sha256(record["source"].encode()).hexdigest())
+        namespace = {"dataclass": dataclass}
+        exec(compile(record["source"], "<CPU public placement extraction>", "exec"), namespace)
+        Placement = namespace[record["class"]]
+        runner, ticket = owner_fixture()
+        runner.kv_cache_config.kv_cache_tensors = [Placement(**vars(p)) for p in runner.kv_cache_config.kv_cache_tensors]
+        owner = binding.V2Owner(runner, ticket)
+        original = weakref.ref(runner.kv_cache_config.kv_cache_tensors[0])
+        replacement = Placement(**vars(original()))
+        runner.kv_cache_config.kv_cache_tensors[0] = replacement
+        self.assertIsNotNone(original())
+        self.assertIsNot(original(), replacement)
+        with self.assertRaisesRegex(ProbeError, "owner reference changed"): owner.check()
 
 
 class DefaultOffControls(unittest.TestCase):
@@ -342,7 +409,7 @@ class V2LeaseControls(unittest.TestCase):
 
     def test_worker_single_use_bound_runner_and_uncertain_drain(self):
         worker = lifecycle.NativeV2DiagnosticWorkerExtension()
-        worker.model_runner = NS(device="CPU_fixture", vllm_config=NS())
+        worker.model_runner = NS(device=Device(), vllm_config=NS())
         worker.device, worker.vllm_config = worker.model_runner.device, worker.model_runner.vllm_config
         owner = NS(root=Path("/site"), check=lambda: None)
         row = {"schema": "megartx-native-v2-zero-forward-receipt-v1", "purpose": lifecycle.PURPOSE,
@@ -367,15 +434,138 @@ class V2LeaseControls(unittest.TestCase):
             with self.assertRaises(ProbeError): worker.megartx_native_release(ticket)
 
 
+class V2WorkerOwnerControls(unittest.TestCase):
+    """Actual V2 worker/owner and core release logic, with CPU source fixtures."""
+    new_core = V2LeaseControls.new_core
+    take = V2LeaseControls.take
+
+    def setUp(self):
+        V2LeaseControls.setUp(self)
+        for mod, name in ((binding, "class_source"), (binding, "verify_method"), (lifecycle, "class_source")):
+            self.stack.enter_context(patch.object(mod, name))
+        self.stack.enter_context(patch.object(binding, "inspect_v2_sources", return_value={}))
+        self.stack.enter_context(patch.object(binding.inspect, "getsourcefile", return_value="/site/vllm/v1/worker/gpu/model_runner.py"))
+        self.sync = []
+        self.torch = NS(inference_mode=nullcontext, cuda=NS(synchronize=self.sync.append))
+        self.stack.enter_context(patch.dict(sys.modules, {"torch": self.torch}))
+        from megartx import speculative_native_v2_receipt as collector
+        self.collect = self.stack.enter_context(patch.object(collector, "collect_receipt", side_effect=self.row))
+
+    def worker(self):
+        self.new_core()
+        runner, _ = owner_fixture()
+        worker = lifecycle.NativeV2DiagnosticWorkerExtension()
+        worker.model_runner, worker.device, worker.vllm_config = runner, runner.device, runner.vllm_config
+        self.core.model_executor.collective_rpc = lambda method, **kwargs: [getattr(worker, method)(**kwargs["kwargs"])]
+        return worker, runner
+
+    def row(self, owner, ticket, admission):
+        self.assertIs(type(owner), binding.V2Owner)
+        owner.check()
+        return {"schema": "megartx-native-v2-zero-forward-receipt-v1", "purpose": lifecycle.PURPOSE,
+                "lease_nonce": ticket["nonce"], "drained": True, "diagnostic_target_forwards": 0,
+                "decision": {"admitted": False}, "v2_owner": owner.private_identity()}
+
+    def release(self):
+        self.core._megartx_native_state["utility"] = lifecycle.UTILITIES[2]
+        return lifecycle.owned_release(self.core)
+
+    def assert_retained(self, worker):
+        lease = self.core._megartx_native_lease
+        self.assertTrue(lease.poisoned)
+        self.assertFalse(lease.released)
+        self.assertIs(self.core._megartx_native_retained_blocks, lease.blocks)
+        self.assertTrue(all(block.ref_cnt == 1 for block in lease.blocks))
+        self.assertEqual(self.core.frees, [])
+        self.assertFalse(worker._megartx_v2_released)
+        self.assertTrue(worker._megartx_v2_poisoned)
+        with self.assertRaises(ProbeError): self.release()
+        with self.assertRaises(ProbeError): self.core.resume_scheduler()
+
+    def test_joint_worker_runner_device_replacement_retains_original_blocks(self):
+        for index in (0, 1):
+            with self.subTest(index=index):
+                worker, runner = self.worker(); self.take()
+                original = worker._megartx_v2_device
+                worker.device = runner.device = Device(index)
+                with self.assertRaisesRegex(ProbeError, "original worker config/device"): self.release()
+                self.assert_retained(worker)
+                self.assertEqual(self.sync, [])
+                self.assertIs(worker._megartx_v2_owner.device, original)
+
+    def test_joint_device_drift_during_original_device_drain_retains_blocks(self):
+        worker, runner = self.worker(); self.take()
+        original = worker.device
+        def drain(device):
+            self.sync.append(device)
+            worker.device = runner.device = Device(1)
+        self.torch.cuda.synchronize = drain
+        with self.assertRaisesRegex(ProbeError, "original worker config/device"): self.release()
+        self.assertEqual(self.sync, [original])
+        self.assert_retained(worker)
+
+    def test_receipt_device_drift_rejects_result_and_retains_blocks(self):
+        worker, runner = self.worker()
+        def collect(owner, ticket, admission):
+            result = self.row(owner, ticket, admission)
+            worker.device = runner.device = Device(1)
+            return result
+        self.collect.side_effect = collect
+        with self.assertRaisesRegex(ProbeError, "original worker config/device"): self.take()
+        self.assertEqual(self.sync, [])
+        self.assert_retained(worker)
+
+    def test_primary_cancellation_survives_device_drift_cleanup_failure(self):
+        worker, runner = self.worker()
+        primary = KeyboardInterrupt("CPU receipt cancellation")
+        def collect(*args):
+            worker.device = runner.device = Device(1)
+            raise primary
+        self.collect.side_effect = collect
+        with self.assertRaises(KeyboardInterrupt) as caught: self.take()
+        self.assertIs(caught.exception, primary)
+        if hasattr(primary, "__notes__"):
+            self.assertTrue(any("Drain unknown; refs retained" in note for note in primary.__notes__))
+        self.assertEqual(self.sync, [])
+        self.assert_retained(worker)
+
+    def test_failed_owner_construction_known_original_drain_frees_once(self):
+        worker, runner = self.worker()
+        runner.speculator = object()
+        with self.assertRaisesRegex(ProbeError, "owner changed, work pending"): self.take()
+        self.assertFalse(hasattr(worker, "_megartx_v2_owner"))
+        self.assertEqual(self.sync, [worker._megartx_v2_device])
+        self.assertEqual(len(self.core.frees), 1)
+        self.assertTrue(self.core._megartx_native_lease.released)
+        with self.assertRaises(ProbeError): self.release()
+
+    def test_successful_release_drains_only_original_device_once(self):
+        worker, runner = self.worker(); self.take()
+        self.assertEqual(self.release(), {"drained": True, "released": True, "scheduler_stays_paused": True})
+        self.assertEqual(self.sync, [runner.device])
+        self.assertEqual(len(self.core.frees), 1)
+        self.assertTrue(worker._megartx_v2_released)
+        with self.assertRaises(ProbeError): self.release()
+
+
 class V2CollectorControls(unittest.TestCase):
     setUp = OwnerControls.setUp
     def test_target_only_collection_preserves_unknown_bounds_and_private_identity(self):
+        self.collection_fixture()
+
+    def test_wrong_device_cache_rejected_before_drain_and_counter_query(self):
+        self.collection_fixture(mutation="cache_device")
+
+    def test_device_drift_during_receipt_drain_rejected_before_counter_query(self):
+        self.collection_fixture(mutation="drain_device")
+
+    def collection_fixture(self, mutation=None):
         from megartx import speculative_native_v2_receipt as collector
         from test_speculative_native_lifecycle import BoundedReceiptControls
         from megartx.speculative_native_probe import TORCH_VERSION_SOURCE_SHA256
         torch, _, calls = BoundedReceiptControls().counters({})
         class Tensor:
-            shape, device, dtype = (256, 2, 16, 1), "cuda:0", "torch.bfloat16"
+            shape, device, dtype = (256, 2, 16, 1), Device(), "torch.bfloat16"
             def __init__(self, pointer): self.pointer = pointer
             def stride(self): return (32, 16, 1, 1)
             def untyped_storage(self): return NS(data_ptr=lambda: self.pointer, nbytes=lambda: 16384)
@@ -397,6 +587,13 @@ class V2CollectorControls(unittest.TestCase):
                                         lm_head=NS(weight=NS(dtype=torch.bfloat16)))
         for i, layer in enumerate(runner.compilation_config.static_forward_context.values()): layer.kv_cache = Tensor(1000+i*16384)
         owner = binding.V2Owner(runner, ticket)
+        first_cache = next(iter(runner.compilation_config.static_forward_context.values())).kv_cache
+        synchronized = []
+        if mutation == "cache_device": first_cache.device = Device(1)
+        def drain(device):
+            synchronized.append(device)
+            if mutation == "drain_device": runner.device = Device(1)
+        torch.cuda.synchronize = drain
         packages = {"vllm": "0.30.0", "flashinfer-python": "0.6.18.post1", "torch": "2.13.0"}
         def source(path):
             if str(path).endswith("torch/cuda/memory.py"): return receipt.TORCH_MEMORY_SOURCE_SHA256
@@ -417,9 +614,17 @@ class V2CollectorControls(unittest.TestCase):
             stack.enter_context(patch.dict(sys.modules, {"torch": torch,
                 "vllm.forward_context": NS(set_forward_context=lambda *a, **k: nullcontext())}))
             stack.enter_context(patch.dict(os.environ, {"MEGARTX_SCALE_MODE": "native", "VLLM_PLUGINS": "megartx_scale_adapter"}, clear=True))
+            if mutation:
+                error = "cache is not on the original owner device" if mutation == "cache_device" else "device identity or ordinal changed"
+                with self.assertRaisesRegex(ProbeError, error):
+                    collector.collect_receipt(owner, ticket, {"adapter_source_sha256": {"CPU_fixture": "CPU_fixture"}})
+                self.assertEqual(calls, [])
+                self.assertEqual(synchronized, [] if mutation == "cache_device" else [owner.device])
+                return
             result = collector.collect_receipt(owner, ticket, {"adapter_source_sha256": {"CPU_fixture": "CPU_fixture"}})
         self.assertEqual(result["diagnostic_target_forwards"], 0)
-        self.assertEqual(calls, ["CPU_fixture"])
+        self.assertEqual(calls, [runner.device])
+        self.assertEqual(synchronized, [owner.device])
         self.assertIsNone(result["allocator"]["acquisition"]["native_query_preallocation_bound_bytes"])
         self.assertFalse(result["decision"]["admitted"])
         self.assertEqual(len(result["layers"]), 30)

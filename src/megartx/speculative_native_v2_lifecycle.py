@@ -13,7 +13,8 @@ import time
 from . import speculative_native_lifecycle as common
 from .speculative_native_probe import ProbeError, GPU_CAP, REVISION, digest, _process_start
 from .speculative_native_v2 import (V2Owner, PROTOCOL, POLICY, RUNNER_MODULE, freeze,
-                                    inspect_v2_sources, require_config, verify_method, class_source, validate_ticket)
+                                    inspect_v2_sources, require_config, verify_method, class_source, validate_ticket,
+                                    device_identity)
 
 PURPOSE = "exclusive_native_v2_zero_forward_receipt"
 WORKER_EXTENSION = "megartx.speculative_native_v2_lifecycle.NativeV2DiagnosticWorkerExtension"
@@ -115,8 +116,11 @@ def install_native_v2_diagnostic():
 class NativeV2DiagnosticWorkerExtension:
     def _megartx_v2_check_worker(self):
         runner = self._megartx_v2_runner
-        if self.model_runner is not runner or self.vllm_config is not runner.vllm_config or self.device is not runner.device:
-            raise ProbeError("V2 runner is not bound to the actual worker config/device")
+        config, device = self._megartx_v2_config, self._megartx_v2_device
+        if (self.model_runner is not runner or self.vllm_config is not config or runner.vllm_config is not config
+                or self.device is not device or runner.device is not device
+                or device_identity(device) != self._megartx_v2_device_identity):
+            raise ProbeError("V2 runner is not bound to the original worker config/device")
         root = Path(inspect.getsourcefile(type(runner))).resolve().parents[4]
         class_source(runner, RUNNER_MODULE, "GPUModelRunner", root)
         class_source(self, "vllm.v1.worker.gpu_worker", "Worker", root)
@@ -133,8 +137,11 @@ class NativeV2DiagnosticWorkerExtension:
         self._megartx_v2_receipt_used = True
         self._megartx_v2_ticket = copy.deepcopy(ticket)
         self._megartx_v2_runner = self.model_runner
+        self._megartx_v2_config = self.vllm_config
+        self._megartx_v2_device = self.device
         self._megartx_v2_released = False
         self._megartx_v2_poisoned = False
+        self._megartx_v2_device_identity = device_identity(self._megartx_v2_device)
         self._megartx_v2_check_worker()
         self._megartx_v2_owner = V2Owner(self.model_runner, ticket)
         class_source(self, "vllm.v1.worker.gpu_worker", "Worker", self._megartx_v2_owner.root)
@@ -165,7 +172,7 @@ class NativeV2DiagnosticWorkerExtension:
         if owner is not None:
             owner.check()
         import torch
-        torch.cuda.synchronize(self._megartx_v2_runner.device)
+        torch.cuda.synchronize(self._megartx_v2_device)
         self._megartx_v2_check_worker()
         if owner is not None:
             owner.check()

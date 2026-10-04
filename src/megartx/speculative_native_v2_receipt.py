@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import sys
 
-from .speculative_native_v2 import V2Owner
+from .speculative_native_v2 import V2Owner, device_identity
 from .speculative_native_probe import (CONFIG_HASH, GPU_CAP, GPU_FREE, HOST_FREE, P, REVISION,
     ProbeError, _class_source, _host_free, _process_start, allocation_lower_bound, check_torch_build, digest)
 from .speculative_native_receipt import (TORCH_MEMORY_SOURCE_SHA256, RECEIPT_LIMITS,
@@ -86,6 +86,8 @@ def collect_receipt(owner, ticket, admission):
             if (len(placements) != 1 or placements[0].host_resident
                     or not isinstance(cache, torch.Tensor) or cache.dtype != torch.bfloat16):
                 raise ProbeError("Actual cache placement unresolved")
+            if device_identity(cache.device) != owner.device_identity:
+                raise ProbeError("V2 cache is not on the original owner device")
             placement, raw = placements[0], cache.untyped_storage()
             if raw.nbytes() != placement.size:
                 raise ProbeError("Backing extent differs from actual allocation")
@@ -110,10 +112,12 @@ def collect_receipt(owner, ticket, admission):
     metadata = sum(4 * ((P + 4 + b - 1) // b + 1) + 48 for b in ticket["block_sizes"])
     allocation = allocation_lower_bound(charges, metadata,
         head_element_bytes=2 if head_dtype == torch.bfloat16 else 4, reject=False)
-    torch.cuda.synchronize(runner.device)
-    allocator = allocator_counters(torch, runner.device)
+    owner.check()
+    torch.cuda.synchronize(owner.device)
+    owner.check()
+    allocator = allocator_counters(torch, owner.device)
     allocated, reserved = allocator["allocated_bytes"], allocator["reserved_bytes"]
-    gpu_free, gpu_total = torch.cuda.mem_get_info(runner.device)
+    gpu_free, gpu_total = torch.cuda.mem_get_info(owner.device)
     receipt = {"schema": "megartx-native-v2-zero-forward-receipt-v1", "purpose": ticket["purpose"],
         "lease_nonce": ticket["nonce"], "worker_pid": os.getpid(), "worker_start": _process_start(os.getpid()),
         "runner_identity": id(runner), "model_identity": id(model), "checkpoint_revision": REVISION,

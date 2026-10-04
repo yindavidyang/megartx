@@ -18,12 +18,26 @@ resolved config property's code and requires an unset
 `VLLM_USE_V2_MODEL_RUNNER` with `use_v2_model_runner is True`. Hashing a file
 alone does not accept a shadowed getter, class, instance method or origin.
 The actual Worker must own the same runner, config and device references.
+The receipt entry retains the original config and device before constructing
+the V2 owner. Both bindings pin that original device object and its explicit
+CUDA ordinal; replacing both current Worker/runner fields cannot substitute a
+new drain target. An implicit device without an ordinal is rejected without a
+device query. Cache tensors must match the pinned device. Collection and
+release synchronize only that original device and recheck its identity before
+and after synchronization. Drift leaves drain unconfirmed and retains the
+original BlockPool objects for owned teardown.
 
 V2 uses `RequestState` and persistent `BlockTables`; its `InputBatch` is
 constructed per forward. The owner therefore requires both request maps empty
 and `execute_model_state is None`, rather than assuming V1's persistent
 `input_batch`. It retains the actual model, default model state, cache config,
 registry, groups, allocation placements, attention builders and cache tensors.
+It strongly retains the cache group, specification and allocation-placement
+children of mutable config lists, then compares their identity with `is`.
+Integer object-address snapshots alone are not ownership: Python can recycle
+an address after a mutable list releases its last reference. The CPU negative
+uses the exact pinned public `KVCacheTensor` dataclass extraction and verifies
+that replacement cannot collect the original or pass its owner check.
 It rechecks these references, topology and sealed storage geometry through
 release. The first adapter rejects manager/kernel page splitting, host/draft
 groups, a loaded speculator, rope state, PCP, ubatch, batch sharding and fast
@@ -68,6 +82,13 @@ method-byte hash for portable CPU adversarial controls. The local installed
 extraction check also compares each method against the acquired full file.
 These tests exercise actual selector/getter and BlockPool method logic using
 CPU dependencies; they do not import installed vLLM/Torch or query a device.
+The owner/release correction adds actual V2Owner, Worker and EngineCore CPU
+controls for joint device replacement, drift during receipt/drain, unchanged
+primary cancellation errors, uncertain cleanup retention and single-use
+confirmed cleanup. These fixtures remain CPU source controls, without native
+device, fit or performance qualification. The original CPU evidence record is
+preserved; the [owner/release validation delta](../evidence/speculative-native-v2-owner-release-validation.json)
+records the new checks separately.
 
 Shared composition is still blocked. The prefill/shared owner retains
 `vllm_scale_plugin.py` and `scripts/run_scale_validation.py`. Its exact

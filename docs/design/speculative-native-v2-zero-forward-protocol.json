@@ -5,7 +5,10 @@
     "persistent BlockTables, kernel_block_sizes, actual group/placement/layer/cache objects",
     "existing metadata builder(0), one builder per attention group; no prepare_inputs/prepare_attn/build",
     "loaded get_model and resolved config property code/defaults/globals/origin authenticated; source hashes alone are insufficient",
-    "owner topology, cache storage identities and worker bindings rechecked before return and before/after release drain"
+    "owner topology, cache storage identities and worker bindings rechecked before return and before/after release drain",
+    "original Worker/runner config and device objects retained before V2Owner construction; explicit CUDA ordinal pinned without device selection or query",
+    "group, specification and placement children strongly retained and compared with is; address-only snapshots cannot grant ownership",
+    "all cache tensors match original selected CUDA device; only pinned original device is used for receipt counters, free memory and receipt/release drain"
   ],
   "V2_scope_restrictions": [
     "target-only; no loaded drafter or speculative_config",
@@ -61,7 +64,7 @@
     "verification": "corrected NVFP4 target distribution; native target-space vocabulary map and rejection; confidence does not authorize acceptance"
   },
   "gpu_authorized": false,
-  "lifecycle": "never resume or serve after receipt entry; request ingress sealed; idle steps return without model runner; free only after worker device drain and lease revocation; unknown drain retains references and poisons for owned teardown",
+  "lifecycle": "never resume or serve after receipt entry; request ingress sealed; free only after original pinned worker device drain, unchanged owner checks and lease revocation; device/owner drift or unknown drain retains original references and poisons for owned teardown; primary receipt errors survive cleanup failure",
   "metadata_acquisition_limits": {
     "attention_builders": 30,
     "cache_groups": 30,

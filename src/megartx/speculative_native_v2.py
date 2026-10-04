@@ -110,6 +110,14 @@ def validate_ticket(ticket):
         _sequence(pages, 130, "V2 ticket pages")
 
 
+def device_identity(device):
+    """Read the explicit CUDA ordinal without selecting or querying a device."""
+    kind, index = getattr(device, "type", None), getattr(device, "index", None)
+    if kind != "cuda" or type(index) is not int or index < 0:
+        raise ProbeError("V2 owner requires an explicit CUDA device ordinal")
+    return type(device), kind, index
+
+
 class V2Owner:
     """Retain actual owners through receipt and release; never adopt a frame."""
     def __init__(self, runner, ticket):
@@ -123,6 +131,8 @@ class V2Owner:
         verify_method(runner, "get_model", self.root)
         verify_method(runner.vllm_config, "use_v2_model_runner", self.root)
         self.runner, self.config = runner, runner.vllm_config
+        self.device = runner.device
+        self.device_identity = device_identity(self.device)
         require_config(self.config)
         from .speculative_native_receipt import _owner_limits, _sequence, RECEIPT_LIMITS
         _owner_limits(runner, ticket)
@@ -135,6 +145,11 @@ class V2Owner:
         class_source(self.model, "vllm.model_executor.models.gemma4_mm", "Gemma4ForConditionalGeneration", self.root)
         self.refs = (runner.req_states, runner.block_tables, runner.model_state, runner.kv_cache_config,
                      runner.compilation_config.static_forward_context, runner.attn_groups)
+        # Keep the actual children alive: integer id snapshots alone permit ABA
+        # when mutable config lists release their last reference to an old owner.
+        self.groups = tuple(runner.kv_cache_config.kv_cache_groups)
+        self.specs = tuple(group.kv_cache_spec for group in self.groups)
+        self.placements = tuple(runner.kv_cache_config.kv_cache_tensors)
         self.kernel_sizes = tuple(_sequence(runner.kernel_block_sizes, RECEIPT_LIMITS["cache_groups"], "V2 kernel sizes"))
         self.builders, self.caches = [], []
         names = []
@@ -184,8 +199,16 @@ class V2Owner:
 
     def check(self):
         runner = self.runner
+        if runner.device is not self.device or device_identity(self.device) != self.device_identity:
+            raise ProbeError("V2 original device identity or ordinal changed")
         from .speculative_native_receipt import _owner_limits, _sequence
         _owner_limits(runner, self.ticket)
+        groups, placements = runner.kv_cache_config.kv_cache_groups, runner.kv_cache_config.kv_cache_tensors
+        if (len(groups) != len(self.groups) or len(placements) != len(self.placements)
+                or any(current is not original for current, original in zip(groups, self.groups))
+                or any(group.kv_cache_spec is not spec for group, spec in zip(groups, self.specs))
+                or any(current is not original for current, original in zip(placements, self.placements))):
+            raise ProbeError("V2 cache group/spec/placement owner reference changed")
         for values in (runner.kernel_block_sizes, runner.block_tables.block_sizes,
                        runner.block_tables.kernel_block_sizes, runner.block_tables.blocks_per_kv_block):
             _sequence(values, 30, "V2 block geometry")
