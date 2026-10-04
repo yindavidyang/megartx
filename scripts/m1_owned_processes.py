@@ -440,6 +440,23 @@ class OwnedProcesses:
                     self.fail(report["errors"][0])
                 return self.metadata_timing.report()
 
+    def require_diagnostic_integrity(self):
+        """Untimed diagnostics retain resource and pinned-file failures.
+
+        Unknown/work identities and their sticky histories remain accounted;
+        this method neither changes classification nor admits clean timing.
+        """
+        with self.lock:
+            if self.failure or self.metadata_timing_invalid:
+                raise RuntimeError(self.failure or "Metadata timing retained file evidence failure")
+            if self.metadata_timing is None:
+                raise RuntimeError("Decode diagnostic requires pinned metadata file verification")
+            if error := self.metadata_timing.version_error():
+                self.fail(error)
+                raise RuntimeError(error)
+            if self.metadata_timing.final is None or not self.metadata_timing.final["passed"]:
+                raise RuntimeError("Metadata timing requires successful final file verification")
+
     def cleanup(self, gpu_query, root_poll, *, term_seconds=10, kill_seconds=10):
         errors = []
         details = []

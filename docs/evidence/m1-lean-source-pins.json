@@ -1,0 +1,48 @@
+{
+  "schema": "megartx-m1-lean-source-pins-v1",
+  "scope": "CPU-tested one-fresh-check capture-free preparation proposal. Original2c65 profiling evidence is source-specific and does not validate this new implementation. Historical ledgers and controller/prefill pair are retained.",
+  "status": "candidate_pending_independent_review",
+  "parent_head": "2c65ebd3ef450b37dd88a9d89c630fd10165642d",
+  "parent_ledger_sha256": "92fa45c6498597ace5baf275a22ce2d75a5429146723bf813b8961e652fc1da6",
+  "superseded_sources": [
+    {
+      "path": "kernels/m1_installed_preparation.cuh",
+      "prior_sha256": "efd3f3ae99cb645985f57112c0e67a8f9cdc927de2b41c386f17d5951c8f4f7e",
+      "current_sha256": "6d1b656baf8972ecb3a56b1ede6a3edf832f7a30eeb86ca2b0ddc9fcb1bd3415"
+    },
+    {
+      "path": "probes/m1_live_bridge.cu",
+      "prior_sha256": "b1c4ac5761931b8dfc69014ae1e75714195e873151e7445ad82c30feabbdfdf1",
+      "current_sha256": "428cef5dd354994141ee73e155b92bafd4b8a61195c918f7908792ed34411e0a"
+    },
+    {
+      "path": "probes/m1_preparation_flow_test.cpp",
+      "prior_sha256": "49e66b67a4c57d93653ec4c9fab0c6251970154eefd869361dfa9e386fd08da3",
+      "current_sha256": "1f5629b1baa9c74e64b8d0dd1892b1383479781988f3359eb5baf3f187fecc42"
+    },
+    {
+      "path": "numerical_reference/test_m1_preparation_control_flow.py",
+      "prior_sha256": "1ded8fc26851d9c4391aeedb0882f7f6f7c99d50672ddb97ef79fe240523fc10",
+      "current_sha256": "95a9fa774d94637fe063d6fad4b8654eec7ffcc46c56dd700989a834310b5a9e"
+    },
+    {
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "prior_sha256": "0e0b951f983e56f0263bf0c453a9cc2887bb56e6e4c471ffc78cb28e7a781de8",
+      "current_sha256": "baa8a30eb300fdfc87ce3c1bc7fd4a26e84b2a1072bbe9037910a2cf5f98d704"
+    }
+  ],
+  "added_source_hashes": {
+    "docs/m1-decode-attribution-results.md": "4d0ace859dea5fba77c4a36045b988a395a5fdcff975287ac49d283206ca668d",
+    "docs/evidence/m1-decode-attribution-gpu-scalars.json": "c8854ca52ec152eef7e392a41243815461ab565cd80034d6b2549ecf8d8ba255"
+  },
+  "expected_eligible_fused_reduction_per_call": {
+    "route_d2h_copies": 1,
+    "stream_fences": 1,
+    "pointer_queries": 10,
+    "allocation_extent_queries": 10
+  },
+  "gpu_execution_verified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false
+}

@@ -32,6 +32,8 @@ def execution_mode():
     if value not in EXECUTION_MODES:
         raise RuntimeError("unknown explicit M1 execution mode")
     benchmark = os.environ.get("MEGARTX_M1_EAGER_BENCHMARK_PLAN")
+    if os.environ.get("MEGARTX_M1_DECODE_PROFILE_DIR") and not benchmark:
+        raise RuntimeError("decode attribution requires an explicit source-bound eager pilot")
     if benchmark:
         forbidden = ("MEGARTX_CONTROLLED_DIR", "MEGARTX_CONTROLLED_PLAN", "MEGARTX_LOGITS_DIR",
                      "MEGARTX_M1_NORMAL_PLAN", "MEGARTX_M1_NORMAL_DIR", "MEGARTX_M1_CAPTURE_DIR",

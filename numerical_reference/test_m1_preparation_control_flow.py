@@ -101,6 +101,23 @@ class PreparationControlFlowTests(unittest.TestCase):
                         "per_expert_unverified","per_expert_copy"):
             with self.subTest(control=control):self.run_case(control)
 
+    def test_lean_supported_and_unsupported_controls_check_current_state_once(self):
+        for control in ("supported","stock_supported","changed_after_previous","disabled","geometry",
+                        "capture","context","host_pointer","short_range","alias","duplicate",
+                        "incumbent_failure","per_expert_unverified","per_expert_copy"):
+            with self.subTest(control=control):self.run_case("lean",control)
+
+    def test_lean_runtime_and_driver_errors_never_fallback_or_retry(self):
+        for api in ("cudaStreamIsCapturing","cudaGetDevice","cudaMemcpyAsync","cudaStreamSynchronize",
+                    "cuCtxGetCurrent","cuStreamGetCtx","launch"):
+            with self.subTest(api=api):self.run_case("lean","fault",api,"1")
+        for api in ("cudaPointerGetAttributes","cuMemGetAddressRange"):
+            for occurrence in range(1,11):
+                with self.subTest(api=api,occurrence=occurrence):
+                    self.run_case("lean","fault",api,str(occurrence))
+            self.run_case("lean","fault",api,"1","invalid_value")
+        self.run_case("lean","fault","cuCtxGetCurrent","1","diagnostic_failure")
+
 
 if __name__=="__main__":
     unittest.main()

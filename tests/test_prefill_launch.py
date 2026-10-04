@@ -1,6 +1,8 @@
 """CPU pipeline and closed-launch admission; fixtures are never live evidence."""
 
 import copy
+import hashlib
+import itertools
 import json
 import shutil
 import subprocess
@@ -134,7 +136,7 @@ class AdmissionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "symlink"): l.load_packet(root)
             file.unlink()
             file.write_bytes(original)
-            plan_path = root / "docs/prefill/live-plan.json"
+            plan_path = root / "docs/prefill" / l.CURRENT_CATALOG[0]
             content = json.loads(plan_path.read_text())
             for key, value in (("gpu_enabled", True), ("unknown", True)):
                 changed = copy.deepcopy(content)
@@ -145,6 +147,83 @@ class AdmissionTests(unittest.TestCase):
             changed["caps"]["max_gpu_jobs"] = True
             plan_path.write_text(json.dumps(changed))
             with self.assertRaisesRegex(ValueError, "fixed live resource cap"): l.load_packet(root)
+
+    def test_current_catalog_is_atomic_and_historical_bytes_are_preserved(self):
+        docs = ROOT / "docs/prefill"
+        original = {"live-binding.json": "3f248451bbb47027066f38ebf672cbb4676c8993deeb25a5ea88b38b06cd4ab1",
+                    "live-plan.json": "bd90bc12847eb60abe681088e6803e80a87d865d1306836c35a7dd0a9c785ca2"}
+        for name, expected in original.items():
+            self.assertEqual(hashlib.sha256((docs / name).read_bytes()).hexdigest(), expected)
+        selected = l.load_packet(ROOT)
+        self.assertEqual(selected, l.load_packet(ROOT, *(docs / name for name in l.CURRENT_CATALOG)))
+        historical_plan = json.loads((docs / "live-plan.json").read_text())
+        current_plan = copy.deepcopy(selected[0])
+        historical_plan.pop("binding_sha256")
+        current_plan.pop("binding_sha256")
+        self.assertEqual(current_plan, historical_plan)
+        historical_binding = json.loads((docs / "live-binding.json").read_text())
+        current_binding = json.loads((docs / l.CURRENT_CATALOG[1]).read_text())
+        self.assertEqual(current_binding.keys(), historical_binding.keys())
+        self.assertEqual(current_binding["repository_base_commit"], historical_binding["repository_base_commit"])
+        self.assertEqual(current_binding["schema"], historical_binding["schema"])
+        changed_sources = {name for name in l.FILES
+            if current_binding["repo_files"][name] != historical_binding["repo_files"][name]}
+        self.assertEqual(changed_sources, {"src/megartx/prefill_launch.py", "tests/test_prefill_launch.py"})
+        for plan_name, binding_name in (("live-plan.json", l.CURRENT_CATALOG[1]),
+                                        (l.CURRENT_CATALOG[0], "live-binding.json")):
+            with self.subTest(plan=plan_name, binding=binding_name), self.assertRaisesRegex(ValueError, "live binding bytes"):
+                l.load_packet(ROOT, docs / plan_name, docs / binding_name)
+        with self.assertRaisesRegex(ValueError, "selected together"):
+            l.load_packet(ROOT, docs / l.CURRENT_CATALOG[0])
+
+    def test_no_fieldwise_old_current_input_mixing_or_unknown_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+            docs = root / "docs/prefill"
+            packet_path, binding_path = (docs / name for name in l.CURRENT_CATALOG)
+            packet = json.loads(packet_path.read_text())
+            binding = json.loads(binding_path.read_text())
+            old = json.loads((docs / "live-binding.json").read_text())
+            names = sorted(binding["immutable_inputs"])
+
+            def replace_binding(value):
+                binding_path.write_text(json.dumps(value))
+                changed = {**packet, "binding_sha256": hashlib.sha256(binding_path.read_bytes()).hexdigest()}
+                packet_path.write_text(json.dumps(changed))
+
+            for picks in itertools.product((False, True), repeat=4):
+                if all(picks):
+                    continue
+                changed = copy.deepcopy(binding)
+                changed["immutable_inputs"] = {name: (binding if current else old)["immutable_inputs"][name]
+                    for name, current in zip(names, picks)}
+                replace_binding(changed)
+                with self.subTest(current_inputs=picks), self.assertRaisesRegex(ValueError, "Live source drift"):
+                    l.load_packet(root)
+            for section in ("repo_files", "immutable_inputs"):
+                for mutation in ("missing", "unknown"):
+                    changed = copy.deepcopy(binding)
+                    if mutation == "missing": changed[section].pop(next(iter(changed[section])))
+                    else: changed[section]["unreviewed.py"] = DIGEST
+                    replace_binding(changed)
+                    with self.subTest(section=section, mutation=mutation), self.assertRaisesRegex(ValueError, "inventory"):
+                        l.load_packet(root)
+
+    def test_partial_or_absent_current_catalog_cannot_select_historical_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+            docs = root / "docs/prefill"
+            originals = {name: (docs / name).read_bytes() for name in l.CURRENT_CATALOG}
+            for missing in l.CURRENT_CATALOG:
+                (docs / missing).unlink()
+                with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "both plan and binding"):
+                    l.load_packet(root)
+                (docs / missing).write_bytes(originals[missing])
+            for name in l.CURRENT_CATALOG: (docs / name).unlink()
+            with self.assertRaisesRegex(ValueError, "Live source drift"):
+                l.load_packet(root)
 
     def test_cli_does_not_import_native_stack_and_gpu_flag_rejects(self):
         script = '''import builtins,sys

@@ -59,7 +59,7 @@ commit is `ced6857afa0ea7b2e3f0846a62e1394e90f15607`. That association does not
 attest binary/source equivalence. This Mac CPU run does not reproduce that stack.
 
 The original twelve-file source vector remains immutable. A bounded, atomic
-`reviewed_source_overlays` entry additionally accepts the exact controller/plugin
+`reviewed_source_overlays` entries additionally accept the exact controller/plugin
 pair at PR15 head `dfd77d8c80d333fc9531955795476f7e9c0cbab2`, as documented in
 [the CPU source review](pr15-source-reconciliation.json). Mixed original/new
 pairs, unknown controller bytes and changes to any other pinned source fail
@@ -76,6 +76,16 @@ twelve original AST boundaries agree, and routed arithmetic agrees after removin
 exactly the reviewed counter-only block. AST equality is source evidence, not
 native arithmetic or GPU qualification. The future runner needs its own accepted
 prefill workload/admission contract and cannot silently reuse PR15's benchmark.
+
+The second atomic pair binds the separate default-off decode attribution source
+in [its scoped reconciliation](decode-attribution-source-reconciliation.json).
+Only complete original, PR15, or attribution pairs are accepted; a third overlay,
+mixed pairs, and quantizer/source drift fail closed. The original vector and PR15
+receipt remain unchanged. Exact reviewed AST nodes normalize the profiling wrappers
+and fail-stop head cleanup when comparing arithmetic and stream bodies; altered
+work, scope names or enable conditions are rejected. Actual ledger/head failure
+tests separately verify profiling stop/reset and primary-error propagation.
+This compatibility repair keeps the prefill runner disabled and all GPU gates open.
 
 The pinned NVIDIA checkpoint is
 `nvidia/Gemma-4-26B-A4B-NVFP4@a19cfe00be84568a6867111c9a68c9c44fdcffe6`.
