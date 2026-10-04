@@ -1,0 +1,50 @@
+"""Source-only freeze/validation. No runtime imports, device query or GPU job."""
+import argparse
+import json
+from pathlib import Path
+import sys
+
+PROJECT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT / "src"))
+from megartx.speculative_native_plan import (LIMITS, freeze, installed_preflight,
+    checkpoint_preflight, read_json, validate_plan)
+from megartx.speculative_native_evidence import PrivateEvidence
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--freeze", action="store_true")
+    group.add_argument("--plan", type=Path)
+    parser.add_argument("--client-mode", choices=("sync", "async"), default="async")
+    parser.add_argument("--installed-root", type=Path)
+    parser.add_argument("--checkpoint-manifest", type=Path,
+                        help="CPU full streaming file rehash, no model parse/download")
+    parser.add_argument("--private-directory", type=Path,
+                        help="Existing owned mode-0700 directory, new immutable output only")
+    args = parser.parse_args(argv)
+    if args.freeze and (args.installed_root or args.checkpoint_manifest):
+        parser.error("Freeze and installed/checkpoint inspection are separate phases")
+    if args.freeze:
+        result = freeze(PROJECT, client_mode=args.client_mode)
+        name = "native-receipt-plan.private.json"
+    else:
+        plan = validate_plan(read_json(args.plan, LIMITS["plan_bytes"]), PROJECT)
+        result = {"schema": "megartx-native-receipt-preflight-v1", "plan_sha256": plan["plan_sha256"],
+                  "source_head": plan["source_head"], "runtime_imports": False, "device_queries": False,
+                  "gpu_authorized": False, "preflight_blockers": plan["preflight_blockers"]}
+        if args.installed_root:
+            result["installed"] = installed_preflight(args.installed_root)
+        if args.checkpoint_manifest:
+            result["checkpoint"] = checkpoint_preflight(args.checkpoint_manifest)
+        name = "native-receipt-preflight.private.json"
+    if args.private_directory:
+        with PrivateEvidence(args.private_directory) as evidence:
+            evidence.write(name, result, cap=LIMITS["plan_bytes"])
+    else:
+        print(json.dumps(result, indent=2, allow_nan=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
