@@ -1,0 +1,68 @@
+{
+  "schema": "megartx-m1-invocation-regions-cpu-proof-v1",
+  "scope": "CPU-only exact extracted host code and mocked synchronous provider; no native CUDA ABI, GPU execution or latency claim",
+  "status": "cpu_tested_exact_source_no_native_or_gpu_qualification",
+  "parent_head": "aa36de98af05fff7e1e3862fe35ec30e2418f8db",
+  "parent_tree": "2b9165ad156503850f0ee81a38288ae180dc0ab2",
+  "aa36_inverse_bridge_sha256": "b28a3373546893ea2b1b9ca78c702a1449ceb48d0909a0b756a4b24158719a43",
+  "production_source_delta": "Internal Invocation const map reference and fresh named local const qualification only",
+  "expected_delta": {
+    "map_copies_removed_per_qualified_preparation": 1,
+    "descriptor_D2H_delta": 0,
+    "route_D2H_delta": 0,
+    "fence_delta": 0,
+    "pointer_query_delta": 0,
+    "kernel_delta": 0
+  },
+  "host_harness": {
+    "unittest_methods": 10,
+    "positive_and_negative_controls": 34,
+    "case_breakdown": {
+      "identity_and_owning_control": 2,
+      "normal": 1,
+      "exceptions": 14,
+      "reentrancy": 2,
+      "freshness": 6,
+      "diagnostic_parity": 3,
+      "unsupported_delegation": 6
+    },
+    "separate_mutations": {
+      "owning_member_compile_rejected": true,
+      "missing_cleanup_runtime_rejected": true
+    },
+    "complete_production_runner_and_begin_lease_extracted": true,
+    "real_std_map": true,
+    "no_whole_call_zero_allocation_claim": true,
+    "no_compiler_stack_address_reuse_requirement": true
+  },
+  "cpu_suites": {
+    "scaffold": {
+      "passed": 349,
+      "test_wall_seconds": 39.42,
+      "log_sha256": "679c2d39eda2a5eef74445c98fd0f577be47d215fd6d4caea474c09e0dfc1d79"
+    },
+    "numerical_reference": {
+      "passed": 544,
+      "test_wall_seconds": 31.849,
+      "log_sha256": "49d43dd367695308e435cbe5f3a43767b5db941f28dfe816e5b7d47d4b090e23"
+    }
+  },
+  "configuration_files_validated": 8,
+  "format_finite_products_checked": 4064,
+  "python_compilation_passed": true,
+  "whitespace_check_passed": true,
+  "preserved_historical_source_ledgers": 14,
+  "source_hashes": {
+    "probes/m1_live_bridge.cu": "cc35bd29aced356d7e8df03c11a9cea14cf8204466333382a29cfa7118856b9d",
+    "probes/m1_invocation_regions_flow_test.cpp": "f1023597e2d614d02f39750bc3c457d7337de759725adabe07d08af344c05de1",
+    "numerical_reference/test_m1_invocation_regions.py": "3556726b0b5722d4ff3dd0fdf1ef218c65d8e50292f6c464f1046753f87036b2",
+    "numerical_reference/test_m1_preparation_reference.py": "ed1bef88e2b70689403c5bbe26b10384907817b6e284c087aa05beecfd5a086c",
+    "numerical_reference/test_m1_tma_descriptor_contract.py": "4a9881143257056bdedfd133f276aeb745af189d7cd51ea5be4419034d4ee3f0",
+    "docs/m1-invocation-regions.md": "d2c0a336c9803c7b123a97dd020a07883a21c8b31b3cf98baff6f3a1c92277b9"
+  },
+  "native_bridge_compiled": false,
+  "gpu_execution_verified": false,
+  "performance_qualified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false
+}

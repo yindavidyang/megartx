@@ -1,0 +1,98 @@
+{
+  "borrow_parent": "4a3b2144d36a0fa82a35d71f91abb0c331cce65e",
+  "borrow_parent_tree": "9b29b47d9662851c79ed4d31c7f1f768b305389a",
+  "common_base": "aa36de98af05fff7e1e3862fe35ec30e2418f8db",
+  "gpu_authorized": false,
+  "gpu_executed": false,
+  "main_parent": "2d571d3bb4e00b9c0f0045b89eb35ec6c03cf7e3",
+  "main_parent_tree": "26748804fda0d24bf24a81c59c2eb5fb392c7a88",
+  "numerical_qualified": false,
+  "parent_ledgers": {
+    "docs/evidence/m1-invocation-regions-source-pins.json": "08be9695065e22206c1ad7108251c4e4353397a9d175145635fc19a3b0484b7b",
+    "docs/prefill/current-main-source-reconciliation.json": "5c3c14405e0555f0f3be04d097777c0f648194222db7d4bc3151b3f3bdf14036"
+  },
+  "performance_qualified": false,
+  "preserved_borrow_sources": {
+    "docs/evidence/m1-invocation-regions-cpu-proof.json": "9011a1f503f03ee71f403aa7689130cc13cf53127ffec7f38f9bcd5891448d2b",
+    "docs/m1-invocation-regions.md": "d2c0a336c9803c7b123a97dd020a07883a21c8b31b3cf98baff6f3a1c92277b9",
+    "numerical_reference/test_m1_invocation_regions.py": "3556726b0b5722d4ff3dd0fdf1ef218c65d8e50292f6c464f1046753f87036b2",
+    "probes/m1_invocation_regions_flow_test.cpp": "f1023597e2d614d02f39750bc3c457d7337de759725adabe07d08af344c05de1"
+  },
+  "quality_qualified": false,
+  "schema": "megartx-m1-map-borrow-main-composition-v1",
+  "scope": "source_compatibility_only",
+  "superseded_sources": [
+    {
+      "borrow_parent_sha256": null,
+      "current_sha256": "be7e177a85b8ad182e88a372e16f639c52dd42f531c60f4c951b77eaebebdc40",
+      "main_parent_sha256": null,
+      "path": "docs/m1-map-borrow-main-composition.md"
+    },
+    {
+      "borrow_parent_sha256": null,
+      "current_sha256": "7c91563d2db91f79313fc160fbe8b7254950d6875f78cbf7c6c989b3488b2831",
+      "main_parent_sha256": null,
+      "path": "numerical_reference/test_m1_map_borrow_composition.py"
+    },
+    {
+      "borrow_parent_sha256": "ed1bef88e2b70689403c5bbe26b10384907817b6e284c087aa05beecfd5a086c",
+      "current_sha256": "8995bca8848e61b189ca169cd258c9caf0e6370bf8e0bdb4b03abea79686ea12",
+      "main_parent_sha256": "401f3e66f6bb948f965e81a4fa3e50d774912b9b94f7365ed98b5b237a57fa92",
+      "path": "numerical_reference/test_m1_preparation_reference.py"
+    },
+    {
+      "borrow_parent_sha256": "4a9881143257056bdedfd133f276aeb745af189d7cd51ea5be4419034d4ee3f0",
+      "current_sha256": "4a9881143257056bdedfd133f276aeb745af189d7cd51ea5be4419034d4ee3f0",
+      "main_parent_sha256": "a383200ed30f39659f6b53d04a0c000810cb944dcce019bedf45a5619079dc6e",
+      "path": "numerical_reference/test_m1_tma_descriptor_contract.py"
+    },
+    {
+      "borrow_parent_sha256": "cc35bd29aced356d7e8df03c11a9cea14cf8204466333382a29cfa7118856b9d",
+      "current_sha256": "cc35bd29aced356d7e8df03c11a9cea14cf8204466333382a29cfa7118856b9d",
+      "main_parent_sha256": "b28a3373546893ea2b1b9ca78c702a1449ceb48d0909a0b756a4b24158719a43",
+      "path": "probes/m1_live_bridge.cu"
+    },
+    {
+      "borrow_parent_sha256": null,
+      "current_sha256": "7e4f093d9d0dc0c9a1cd9640ce3d59e3a2092144255326af3d02677f1d8233e7",
+      "main_parent_sha256": null,
+      "path": "src/megartx/m1_map_borrow_lineage.py"
+    },
+    {
+      "borrow_parent_sha256": null,
+      "current_sha256": "e9a82a14bd3d44416cbdfffad5f2a520f165aec7d10b06215cbb8545d95f0a66",
+      "main_parent_sha256": "42eab7949b1b2b0a64892c4efe01084da50339d8d3bbc446d227694153e7d580",
+      "path": "src/megartx/prefill_storage_plan.py"
+    },
+    {
+      "borrow_parent_sha256": null,
+      "current_sha256": "e3a8286fb25da2b7e3a97c88d32d4f43717258d6e626287f9ee33039ef2da5d1",
+      "main_parent_sha256": "2425e8968ab628c55ffed2cf34cdf187c883cb921c0eaa0858b3b07be2526409",
+      "path": "tests/test_prefill_current_main_reconciliation.py"
+    },
+    {
+      "borrow_parent_sha256": null,
+      "current_sha256": "d95f8d4f391ec796c7aaa07f036de150dfc497af7806c04bffe284b7db904797",
+      "main_parent_sha256": "a8002e1e22d5fd6ae96a61c26de3813a1ed14c2c8cbb7570a5d0d2bc2e1af076",
+      "path": "tests/test_prefill_head_lineage.py"
+    },
+    {
+      "borrow_parent_sha256": null,
+      "current_sha256": "18b4b16757a99cd27f3a045cafe0f06278dee814ab8268b2324113623c91d81e",
+      "main_parent_sha256": "5cbfeec994f59f939bbbdc0937bd89e86f09d6a233eb030bf07a84fc3f9116fa",
+      "path": "tests/test_prefill_ledger_lineage.py"
+    },
+    {
+      "borrow_parent_sha256": null,
+      "current_sha256": "a807d4789eea57aea309cf7550cf74e24f73ee7303832b10d113ae1065fe73b0",
+      "main_parent_sha256": "1b5cdd7b040fb1618366bf82c707013abdf1b32600daf4b614b9f906a8ee9cef",
+      "path": "tests/test_prefill_storage_plan.py"
+    },
+    {
+      "borrow_parent_sha256": null,
+      "current_sha256": "7a797527d2c962c1a26be6b3ca8c8dc65e182ddbeadc24fb5e6270d37dec3d36",
+      "main_parent_sha256": "5d2558f6b6a18d62c888fd1c468fdbb42da700d536f6ee73dfbc0849fb131680",
+      "path": "tests/test_prefill_stream_lineage.py"
+    }
+  ]
+}

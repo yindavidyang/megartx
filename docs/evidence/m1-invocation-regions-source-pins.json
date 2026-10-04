@@ -1,0 +1,52 @@
+{
+  "schema": "megartx-m1-invocation-regions-source-pins-v1",
+  "parent_head": "aa36de98af05fff7e1e3862fe35ec30e2418f8db",
+  "parent_tree": "2b9165ad156503850f0ee81a38288ae180dc0ab2",
+  "parent_ledger_sha256": "583f4b637c2a82857b6f422d8a0ec1562ee3ccd7ef456f6d7d2f0e7a811bb811",
+  "scope": "Borrow the fresh per-call host workspace-region map only within synchronous Invocation scope; no runtime validation or device-operation changes",
+  "status": "cpu_only_additive_source_lineage",
+  "superseded_sources": [
+    {
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "prior_sha256": "936ad3b56aafb5ace9b00c4422330cb82b5c950ee1dcd64c36abe5e4cc5b30cb",
+      "current_sha256": "ed1bef88e2b70689403c5bbe26b10384907817b6e284c087aa05beecfd5a086c"
+    },
+    {
+      "path": "numerical_reference/test_m1_tma_descriptor_contract.py",
+      "prior_sha256": "a383200ed30f39659f6b53d04a0c000810cb944dcce019bedf45a5619079dc6e",
+      "current_sha256": "4a9881143257056bdedfd133f276aeb745af189d7cd51ea5be4419034d4ee3f0"
+    },
+    {
+      "path": "probes/m1_live_bridge.cu",
+      "prior_sha256": "b28a3373546893ea2b1b9ca78c702a1449ceb48d0909a0b756a4b24158719a43",
+      "current_sha256": "cc35bd29aced356d7e8df03c11a9cea14cf8204466333382a29cfa7118856b9d"
+    }
+  ],
+  "added_source_hashes": {
+    "docs/m1-invocation-regions.md": "d2c0a336c9803c7b123a97dd020a07883a21c8b31b3cf98baff6f3a1c92277b9",
+    "docs/evidence/m1-invocation-regions-cpu-proof.json": "9011a1f503f03ee71f403aa7689130cc13cf53127ffec7f38f9bcd5891448d2b",
+    "numerical_reference/test_m1_invocation_regions.py": "3556726b0b5722d4ff3dd0fdf1ef218c65d8e50292f6c464f1046753f87036b2",
+    "probes/m1_invocation_regions_flow_test.cpp": "f1023597e2d614d02f39750bc3c457d7337de759725adabe07d08af344c05de1"
+  },
+  "preserved_historical_ledgers": {
+    "docs/evidence/m1-capture-free-source-pins.json": "c9686c933a7e6ad0bccd6df46518e4feba27159f0173e9d61bdacb26e5ee9f1f",
+    "docs/evidence/m1-decode-attribution-source-pins.json": "92fa45c6498597ace5baf275a22ce2d75a5429146723bf813b8961e652fc1da6",
+    "docs/evidence/m1-eager-benchmark-source-pins.json": "45d224fbadfa80eb90c091d3d5525a775f69627506a08287b049eaff066b5b33",
+    "docs/evidence/m1-lean-source-pins.json": "469d7877c33957d29af29ee82b40f8f7f424528f673043d4b6814bf7da2e27dd",
+    "docs/evidence/m1-live-source-pins.json": "015426cd18349c3f5be6a437a3bef8256e1b9697a836ecd4f18410f5042bb7b7",
+    "docs/evidence/m1-normal-source-pins.json": "6b077a415eda036207e1127246b175f4af049813d46f87c8b4e9ff12a154640a",
+    "docs/evidence/m1-preparation-source-pins.json": "f58129400843beed7eb0b3ccf8580fe6aa97209d97c4bd734465d20e074e2d70",
+    "docs/evidence/m1-process-lifecycle-source-pins.json": "942106acc72152e84f78429c31ad4dd5bf2525dea8df20ba46f4623aa2793ba0",
+    "docs/evidence/m1-profile-admission-source-pins.json": "4e7ac0e132d0e6d5f3181d2d9e81a2b84914b0a54cadbd2818d5623d7b14c74c",
+    "docs/evidence/m1-reconciliation-source-pins.json": "c90bfeb6ff2351a03c98ab83221844b95b0e0875fa5e1a4e89887074c5b60624",
+    "docs/evidence/m1-sf-layout-source-pins.json": "ccd75f81c2476c3434f1c500af3a1fbdf37cd6bccf0f1132e86f9739944a191d",
+    "docs/evidence/m1-warmed-evidence-source-pins.json": "25ab6914c2fe4858c08e36cc6ee000137237b7c4774e6afb8afd5b0512b2b80a",
+    "docs/evidence/m1-warmed-timing-source-pins.json": "da428cd43a7466fde3ea757858923e72fe9f0ec2c428d9234ac11a6517af3410",
+    "docs/evidence/m1-tma-descriptor-source-pins.json": "583f4b637c2a82857b6f422d8a0ec1562ee3ccd7ef456f6d7d2f0e7a811bb811"
+  },
+  "native_build_verified": false,
+  "gpu_execution_verified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false
+}

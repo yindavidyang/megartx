@@ -13,6 +13,7 @@ import re
 import stat
 
 from . import prefill_diagnostic_plan as legacy
+from . import m1_map_borrow_lineage as map_borrow
 
 BASE = legacy.BASE
 BOUNDS = legacy.BOUNDS
@@ -83,7 +84,7 @@ EXTRA_SOURCES = (
     'docs/prefill/native-storage-control.md',
     'docs/prefill/current-main-composition.md',
 )
-SOURCES = (*legacy.SOURCES, *EXTRA_SOURCES)
+SOURCES = (*legacy.SOURCES, *EXTRA_SOURCES, map_borrow.CATALOG_SOURCE, map_borrow.HELPER_SOURCE)
 CHECKER_SOURCE = 'numerical_reference/prefill_native_control.py'
 FAILURE_FILE = 'storage-failure.json'
 FAILURE_RESERVE_BYTES = 4096
@@ -165,16 +166,31 @@ def validate_plan(value, root=None):
 
 def validate_source_catalog(root, hashes):
     """Admit one reviewed two-parent composition, never a per-file hash union."""
+    # BEGIN MAP-BORROW SOURCE ADMISSION
+    helper_sha = '7e4f093d9d0dc0c9a1cd9640ce3d59e3a2092144255326af3d02677f1d8233e7'
+    _source_file(root, map_borrow.HELPER_SOURCE, helper_sha)
+    helper_path = Path(map_borrow.__file__)
+    if (not helper_path.is_absolute() or map_borrow.__spec__.origin != str(helper_path)
+            or helper_path.resolve() != Path(__file__).with_name('m1_map_borrow_lineage.py').resolve()):
+        raise ValueError('Unknown map-borrow helper origin')
+    _source_file(helper_path.parent, helper_path.name, helper_sha)
+    composition = map_borrow.load_catalog(root)
+    def terminal(path, expected_hash):
+        return map_borrow.terminal_sha(composition, path, expected_hash)
+    # END MAP-BORROW SOURCE ADMISSION
     catalog = _read_json(Path(root) / CATALOG_SOURCE)
     if type(hashes) is not dict or set(hashes) != set(SOURCES):
         raise ValueError('Unknown, mixed, or incomplete storage source vector')
-    expected = {path: hashes[path] for path in SOURCES if path != CATALOG_SOURCE}
+    for relative in (CATALOG_SOURCE, map_borrow.CATALOG_SOURCE, map_borrow.HELPER_SOURCE):
+        _source_file(root, relative, hashes[relative])
+    expected = {path: hashes[path] for path in SOURCES
+                if path not in (CATALOG_SOURCE, map_borrow.CATALOG_SOURCE, map_borrow.HELPER_SOURCE)}
     if (catalog.get('schema') != 'megartx-prefill-current-main-source-reconciliation-v1'
             or catalog.get('purpose') != PURPOSE
             or any(catalog.get(k) != v for k, v in COMPOSITION_PARENTS.items())
             or catalog.get('parent_ledgers') != PARENT_LEDGERS
             or catalog.get('executing_helpers') != EXECUTING_HELPERS
-            or catalog.get('runtime_source_hashes') != expected
+            or {path: terminal(path, pin) for path, pin in catalog.get('runtime_source_hashes', {}).items()} != expected
             or any(catalog.get(key) is not False for key in
                    ('gpu_executed', 'gpu_authorized', 'numerical_qualified', 'quality_qualified', 'performance_qualified'))):
         raise ValueError('Unknown, mixed, or wrong-purpose storage source catalog')
@@ -199,7 +215,7 @@ def validate_source_catalog(root, hashes):
             or catalog.get('previous_source_hashes') != previous):
         raise ValueError('Composition terminal delta differs from exact parent lineage')
     for row in records:
-        _source_file(root, row['path'], row['current_sha256'])
+        _source_file(root, row['path'], terminal(row['path'], row['current_sha256']))
     parent_catalog = _read_json(Path(root) / PREFILL_CATALOG_SOURCE)
     historical = catalog.get('unchanged_historical_catalogs')
     if (type(historical) is not dict or not historical
@@ -254,7 +270,7 @@ def verify_adapter_sources(plan):
     the numerical checker object it loads separately against this exact path.
     """
     origins = legacy.verify_adapter_sources(plan)
-    for relative in EXTRA_SOURCES:
+    for relative in (*EXTRA_SOURCES, map_borrow.HELPER_SOURCE):
         if not relative.startswith('src/megartx/'):
             continue
         name = 'megartx.' + Path(relative).stem
