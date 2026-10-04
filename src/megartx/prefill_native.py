@@ -19,7 +19,7 @@ from types import MethodType
 from .controlled_kv_capture import gather_writer_rows
 from .loaded_engine_access import LoadedEngineAccess
 from .prefill_diagnostic_plan import (Evidence, load_plan, digest, remaining, checkpoint_identity,
-                                     verify_adapter_sources)
+                                     verify_adapter_sources, native_request_identity)
 from .controlled_kv_capture import SOURCE_HASHES, _digest, validate_context, validate_metadata
 from .prefill_kv import PrefillKVObserver
 
@@ -232,12 +232,12 @@ class NativeProvider(PrefillKVObserver):
                             "mutable_lease_granted": False,
                             "head_binding": self.access.head_binding.receipt(),
                             "memory": memory_sample(torch, 'cache_initialized', self.scratch, self.ledger)})
-        from .prefill_diagnostic_plan import INSTALLED
+        from .prefill_diagnostic_plan import INSTALLED, TRANSPORT_FILES
         self.evidence.write('runner-binding.json', {
             'schema': 'megartx-prefill-runner-binding-v1', 'plan_sha256': plan['plan_sha256'],
             'source_head': plan['source_head'], 'owner_pid': self.access.identity.owner_pid,
             'owner_start_ticks': self.access.identity.owner_start_ticks,
-            'runner_policy': self.access.runner_policy, 'installed_sources': INSTALLED,
+            'runner_policy': self.access.runner_policy, 'installed_sources': {**INSTALLED, **TRANSPORT_FILES},
             'hook_bindings': {key: True for key in hook_checks}, 'mutable_lease_granted': False})
 
     def require_hooks(self):
@@ -346,6 +346,7 @@ class NativeProvider(PrefillKVObserver):
         from vllm.forward_context import get_forward_context
         frame = self.access.bind_frame(self, self.ledger.frames, get_forward_context(),
                                        tokens, positions, slots, identities, self.ledger.positions)
+        native_request_identity(self.plan, frame.request_id)
         self.ledger.begin(tokens.tolist(), positions.tolist(), slots, identities, frame.request_id)
         indices = self.logits_indices
         if (indices is None or tuple(indices.shape) != (1,)
@@ -522,7 +523,9 @@ class NativeProvider(PrefillKVObserver):
             self.scratch.preserve_peaks()  # Includes the actual final sampler.
             self.evidence.write('observer.json', {'schema': 'megartx-prefill-native-observation-v1',
                 'status': 'request_observed', 'plan_sha256': self.plan['plan_sha256'],
-                'engine_request_id': self.ledger.request_id, 'prompt_frames': 8,
+                'engine_request_id': self.ledger.request_id,
+                'request_identity': native_request_identity(self.plan, self.ledger.request_id),
+                'prompt_frames': 8,
                 'decode_input_rows': 255, 'emitted_outputs': 256,
                 'output_ids_sha256': digest(self.ledger.outputs), 'committed_length': 2303,
                 'bootstrap_cached_length': 2048, 'bootstrap_anchor_position': 2048,

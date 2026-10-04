@@ -43,6 +43,22 @@ INSTALLED = {
     "vllm.v1.worker.utils": "0ca3ec6bf4d20076145b7fe64e564962adebedc8f75a856b517ba0b2f2d77acf",
     "vllm.v1.kv_cache_interface": "1cf202f1a44d5bc5c3832b70b41507687ecceea3784e67a4f003bc0210d6eecb",
     "vllm.v1.core.kv_cache_utils": "2666c9f113584e52e7521058efd2c0d9598544559dc942d3a3da87001a3fedf2"}
+# Bind the default API/internal-ID and sampler-to-SSE transport, not merely
+# the model runner; verify_installed_files checks all files without importing.
+TRANSPORT_FILES = {
+    "vllm.entrypoints.openai.completion.serving": "75d05ddddf303734a078a3e42fcb173fef58ea56da09bc0b5c7525cb9bbbf527",
+    "vllm.entrypoints.openai.completion.protocol": "5f7930635fd3924826015211032fb298206b27c7f04cd6cd2224bb128e4a3a50",
+    "vllm.entrypoints.serve.engine.serving": "70143311acc2230b925e7f3603b8b9314f029ff5e98d5af990b3bdca691331f1",
+    "vllm.entrypoints.generate.base.serving": "35ec53f63e86a8c1725728911db0df44eb3101d8cd65e9b2f39d048956977bad",
+    "vllm.v1.engine.input_processor": "c8abd8e4e14d99929d45a7ff3b2a74898269c5e2a7fa30b826623ee85e4ce813",
+    "vllm.v1.engine.async_llm": "52cbf404f1dbc99c6bebf4a50a7eb18ff842a1f53106a45f365523192d816be1",
+    "vllm.v1.engine.output_processor": "e47b86cd69ce1c1e3f53dac655eaa75c32a4057d10f4a1db16bb83a397f2a329",
+    "vllm.v1.engine.parallel_sampling": "bf3f0a3c6640aaf706d1b6f7ec3a8e09a970f3dd9e7e96fa6a901779ea84f61d",
+    "vllm.v1.worker.gpu.async_utils": "77e17a4570ead2be30ae9b00888cf077a3b873018c12ca0549b853bfda02c1ba",
+    "vllm.v1.core.sched.scheduler": "c1db45f3bbad3a875dd8638331b8870c4380ac1ab4734265ba5c863833a82884",
+    "vllm.utils": "c58b3f45deeb98bccca22c945526fd15d483a2f5eb8a3c62cf7df218b081885f",
+    "vllm.outputs": "346d1f9204a441867efc3af7c5a99d8a70ef0f69fe607dfa8a4a2557a82ca425",
+}
 RUNNER_POLICY = {"runner_module": "vllm.v1.worker.gpu.model_runner",
                  "runner_class": "GPUModelRunner", "resolved_v2": True,
                  "selector_env": None, "selection_override_injected": False}
@@ -56,6 +72,95 @@ def digest(value):
 def file_sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
+
+
+def api_request_id(plan):
+    return 'megartx-prefill-' + plan['plan_sha256'][:20]
+
+
+def native_request_identity(plan, engine_request_id):
+    """Exact default vLLM n=1 identity; never strip or ignore an opaque suffix.
+
+    Completion serving appends prompt index 0 to its cmpl- response ID, then
+    InputProcessor.assign_request_id appends random_uuid()[:8]. The observer
+    binds the full internal ID to every actual InputBatch and continuation.
+    """
+    response_id = 'cmpl-' + api_request_id(plan)
+    external_id = response_id + '-0'
+    prefix = external_id + '-'
+    if (type(engine_request_id) is not str or len(engine_request_id) != len(prefix)+8
+            or not engine_request_id.startswith(prefix)
+            or any(c not in '0123456789abcdef' for c in engine_request_id[len(prefix):])):
+        raise ValueError('Actual internal request ID violates source-bound single-prompt UUID8 mapping')
+    return {'schema': 'megartx-prefill-request-identity-v1',
+            'policy': 'completion_prompt0_default_random_uuid8_n1',
+            'api_request_id': api_request_id(plan), 'response_id': response_id,
+            'external_request_id': external_id, 'engine_request_id': engine_request_id}
+
+
+def native_ledger_comparison(plan, client, observer):
+    """Bounded field-level diagnostics without prompt, token IDs, or raw IDs."""
+    checks = []
+    def describe(value, private=False):
+        result = {'type': type(value).__name__}
+        if private or type(value) not in (bool, int, type(None)):
+            result['sha256'] = digest(value)
+            if type(value) in (str, list, dict): result['length'] = len(value)
+        else:
+            result['value'] = value
+        return result
+    def equal(field, actual, expected, private=False):
+        checks.append({'field': field, 'ok': type(actual) is type(expected) and actual == expected,
+                       'observed': describe(actual, private), 'expected': describe(expected, private)})
+    response_id = 'cmpl-' + api_request_id(plan)
+    for key, expected in {'schema': 'megartx-prefill-native-client-v1', 'status': 'complete',
+            'plan_sha256': plan['plan_sha256'], 'response_id': response_id,
+            'stream_done': True, 'finish_reason': 'length', 'emitted_outputs': 256,
+            'numerical_qualified': False, 'performance_qualified': False}.items():
+        equal('client.'+key, client.get(key), expected)
+    events = client.get('sse_events')
+    equal('client.sse_events.bounded', type(events) is int and 3 <= events <= 300, True)
+    checks[-1]['observed']['event_count'] = describe(events)
+    usage = client.get('usage')
+    equal('client.usage.keys', sorted(usage) if type(usage) is dict else None,
+          ['completion_tokens', 'prompt_tokens', 'total_tokens'])
+    for key, expected in {'prompt_tokens': 2048, 'completion_tokens': 256, 'total_tokens': 2304}.items():
+        equal('client.usage.'+key, usage.get(key) if type(usage) is dict else None, expected)
+    for key, expected in {'schema': 'megartx-prefill-native-observation-v1',
+            'status': 'request_observed', 'plan_sha256': plan['plan_sha256'],
+            'prompt_frames': 8, 'decode_input_rows': 255, 'emitted_outputs': 256,
+            'committed_length': 2303, 'numerical_qualified': False,
+            'performance_qualified': False}.items():
+        equal('observer.'+key, observer.get(key), expected)
+    actual_hash = observer.get('output_ids_sha256')
+    expected_hash = client.get('output_ids_sha256')
+    equal('output_ids_sha256', actual_hash, expected_hash)
+    for side, value in (('observed', actual_hash), ('expected', expected_hash)):
+        if type(value) is str and len(value) == 64 and all(c in '0123456789abcdef' for c in value):
+            checks[-1][side]['value'] = value
+    equal('client.output_ids_sha256.format', type(expected_hash) is str and len(expected_hash) == 64
+          and all(c in '0123456789abcdef' for c in expected_hash), True)
+    engine_id = observer.get('engine_request_id')
+    try:
+        identity = native_request_identity(plan, engine_id)
+    except ValueError:
+        identity = None
+    equal('observer.engine_request_id.mapping', identity is not None, True)
+    equal('observer.request_identity', observer.get('request_identity'), identity)
+    equal('client.request_identity', client.get('request_identity'), identity)
+    equal('client.engine_request_id', client.get('engine_request_id'), engine_id, private=True)
+    # Report the exact compared identity semantics without disclosing the ID.
+    prefix = response_id + '-0-'
+    checks[-4]['observed'].update({'engine_id': describe(engine_id, True),
+        'external_prefix_matches': type(engine_id) is str and engine_id.startswith(prefix),
+        'suffix_length': len(engine_id)-len(prefix) if type(engine_id) is str else None,
+        'suffix_is_lower_hex': type(engine_id) is str and len(engine_id) == len(prefix)+8
+            and all(c in '0123456789abcdef' for c in engine_id[len(prefix):])})
+    failed = [check['field'] for check in checks if not check['ok']]
+    return {'schema': 'megartx-prefill-native-ledger-comparison-v1',
+            'plan_sha256': plan['plan_sha256'], 'status': 'match' if not failed else 'mismatch',
+            'failed_fields': failed, 'checks': checks,
+            'numerical_qualified': False, 'performance_qualified': False}
 
 def load_plan(path, root=None):
     path = Path(path)
@@ -203,13 +308,15 @@ def publish_fit(evidence, plan, ownership):
     observer, client, loaded, geometry = [read(n) for n in ('observer.json', 'client.json', 'loaded.json', 'geometry.json')]
     from .prefill_runner_binding import validate_binding
     binding = validate_binding(plan, directory, require_live=False)  # Owner is already cleaned up.
+    comparison = native_ledger_comparison(plan, client, observer)
+    if comparison['failed_fields']:
+        raise ValueError('Native fit ledger mismatch: ' + json.dumps(comparison, sort_keys=True))
     scratch = observer.get('observer_gpu_scratch', {})
     if (ownership.get('cleanup_complete') is not True or ownership.get('failure') is not None
             or ownership.get('owned_identities_remaining') or ownership.get('owned_gpu_pids_remaining')
             or ownership.get('cleanup_errors') or observer.get('plan_sha256') != plan['plan_sha256']
             or client.get('plan_sha256') != plan['plan_sha256'] or loaded.get('plan_sha256') != plan['plan_sha256']
             or observer.get('output_ids_sha256') != client.get('output_ids_sha256')
-            or observer.get('engine_request_id') != client.get('response_id', '')+'-0'
             or observer.get('status') != 'request_observed' or client.get('status') != 'complete'
             or observer.get('prompt_frames') != 8 or observer.get('decode_input_rows') != 255
             or observer.get('emitted_outputs') != 256 or observer.get('committed_length') != 2303

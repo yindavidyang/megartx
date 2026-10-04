@@ -393,7 +393,10 @@ class HeadObservationTests(unittest.TestCase):
         ids = {i:('identity',i) for i in range(30)}
         output_type = type('SamplerOutput',(),{'__module__':'vllm.v1.worker.gpu.sample.output'})
         stream = StreamLedger(p.plan)
-        request_id = stream.response_id+'-0'
+        from prefill_identity_fixture import run_case
+        import asyncio
+        from megartx.prefill_diagnostic_plan import api_request_id
+        request_id = asyncio.run(run_case(base_id=api_request_id(p.plan)))['engine_ids'][0]
         for start in [*range(0,2048,256), *range(2048,2303)]:
             rows = 256 if start < 2048 else 1
             tokens = list(range(start,start+rows)) if start < 2048 else p.ledger.outputs[-1:]

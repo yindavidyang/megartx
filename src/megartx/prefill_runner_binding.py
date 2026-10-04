@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import sys
 
-from .prefill_diagnostic_plan import INSTALLED, RUNNER_POLICY, digest, file_sha
+from .prefill_diagnostic_plan import INSTALLED, TRANSPORT_FILES, RUNNER_POLICY, digest, file_sha
 
 HOOKS = ('runner_constructor', 'initialize_kv_cache', 'execute_model', 'prepare_inputs', 'prepare_attn', 'sample',
          'metadata_build', 'model_forward', 'compute_logits')
@@ -23,11 +23,12 @@ def verify_installed_files():
     """Check selection/adapter source before constructors, without runtime imports.
 
     At plugin registration some pinned modules have not been imported yet. Their
-    files are checked here; the loaded module origins are checked by the access
-    interface once the actual runner has initialized its cache.
+    files are checked here. Runner module origins are also checked by the access
+    interface after cache initialization. API/transport files are not required
+    to be imported in the separate GPU worker process.
     """
     root = Path(inspect.getsourcefile(sys.modules['vllm'])).resolve().parent
-    for name, expected in INSTALLED.items():
+    for name, expected in {**INSTALLED, **TRANSPORT_FILES}.items():
         relative = Path(*name.split('.')[1:])
         path = root / relative.with_suffix('.py')
         if not path.is_file():
@@ -56,7 +57,7 @@ def validate_binding(plan, directory, owned_identities=None, require_live=True):
             or value['plan_sha256'] != plan['plan_sha256'] or value['source_head'] != plan['source_head']
             or value['runner_policy'] != RUNNER_POLICY or plan['runner_policy'] != RUNNER_POLICY
             or digest(value['runner_policy']) != digest(RUNNER_POLICY)
-            or value['installed_sources'] != INSTALLED
+            or value['installed_sources'] != {**INSTALLED, **TRANSPORT_FILES}
             or set(value['hook_bindings']) != set(HOOKS)
             or any(v is not True for v in value['hook_bindings'].values())
             or value['mutable_lease_granted'] is not False

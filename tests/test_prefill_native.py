@@ -17,6 +17,9 @@ from megartx.loaded_engine_access import owned_page_ranges, reject_page_alias
 from megartx.prefill_native import RequestLedger
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from prefill_diagnostic_client import StreamLedger, payload, validate_observation
+from megartx.prefill_diagnostic_plan import native_request_identity
+from prefill_identity_fixture import run_case
+import asyncio
 
 ROOT = Path(__file__).resolve().parents[1]
 TOKENS = list(range(2048))
@@ -135,8 +138,10 @@ class NativeDiagnosticTests(unittest.TestCase):
             stream.consume('data: '+json.dumps({'id':stream.response_id,'choices':[{'index':0,'token_ids':[17], 'finish_reason':'length' if i==255 else None}]}))
         stream.consume('data: '+json.dumps({'id':stream.response_id,'choices':[], 'usage':{'prompt_tokens':2048,'completion_tokens':256,'total_tokens':2304}}))
         stream.consume('data: [DONE]')
+        engine_id = asyncio.run(run_case(base_id=payload(plan)['request_id']))['engine_ids'][0]
         observer = {'schema':'megartx-prefill-native-observation-v1','status':'request_observed',
-                    'plan_sha256':plan['plan_sha256'],'engine_request_id':stream.response_id+'-0',
+                    'plan_sha256':plan['plan_sha256'],'engine_request_id':engine_id,
+                    'request_identity':native_request_identity(plan, engine_id),
                     'output_ids_sha256':digest([17]*256),'prompt_frames':8,'decode_input_rows':255,
                     'emitted_outputs':256,'committed_length':2303,'numerical_qualified':False,'performance_qualified':False}
         validate_observation(plan,stream,observer)

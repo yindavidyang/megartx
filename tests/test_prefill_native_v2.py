@@ -19,7 +19,7 @@ from types import ModuleType, SimpleNamespace as NS
 import unittest
 from unittest.mock import patch
 
-from megartx.prefill_diagnostic_plan import INSTALLED, RUNNER_POLICY
+from megartx.prefill_diagnostic_plan import INSTALLED, TRANSPORT_FILES, RUNNER_POLICY
 from megartx.prefill_runner_binding import HOOKS, require_default_selection, validate_binding
 from megartx.prefill_native import NativeProvider, install_native_observer
 from test_prefill_native_safety import Tensor, TORCH, Provider, frame_fixture, hook_fixture
@@ -90,7 +90,7 @@ class DispatchGate(unittest.TestCase):
             path=root/'envs.py';path.write_text('# CPU source boundary\n')
             package=ModuleType('vllm');package.__file__=str(root/'__init__.py')
             pins={'vllm.envs':hashlib.sha256(path.read_bytes()).hexdigest()}
-            with patch.dict(sys.modules, {'vllm':package}),patch('megartx.prefill_runner_binding.INSTALLED',pins):
+            with patch.dict(sys.modules, {'vllm':package}),patch('megartx.prefill_runner_binding.INSTALLED',pins),patch('megartx.prefill_runner_binding.TRANSPORT_FILES',{}):
                 verify_installed_files()
                 path.write_text('# changed CPU boundary\n')
                 with self.assertRaisesRegex(RuntimeError,'source drift'):verify_installed_files()
@@ -98,7 +98,7 @@ class DispatchGate(unittest.TestCase):
     def receipt(self):
         return {'schema': 'megartx-prefill-runner-binding-v1', 'plan_sha256': 'a'*64,
                 'source_head': 'b'*40, 'owner_pid': 101, 'owner_start_ticks': 17,
-                'runner_policy': RUNNER_POLICY.copy(), 'installed_sources': INSTALLED.copy(),
+                'runner_policy': RUNNER_POLICY.copy(), 'installed_sources': {**INSTALLED, **TRANSPORT_FILES},
                 'hook_bindings': dict.fromkeys(HOOKS, True), 'mutable_lease_granted': False}
 
     def test_missing_binding_prevents_http_import_marker_and_post(self):

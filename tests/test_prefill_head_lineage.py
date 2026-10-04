@@ -17,9 +17,14 @@ class HeadLineageTests(unittest.TestCase):
     def test_exact_new_runtime_and_control_vector_preserves_historical_catalogs(self):
         value=json.loads((ROOT/'docs/prefill/native-head-observation-correction.json').read_text())
         self.assertEqual(set(value['runtime_source_hashes']),set(SOURCES))
+        delta=json.loads((ROOT/'docs/prefill/native-ledger-matching-correction.json').read_text())
+        self.assertEqual(delta['previous_catalog_sha256'],sha('docs/prefill/native-head-observation-correction.json'))
         for key in ('runtime_source_hashes','controls_source_sha256','unchanged_historical_catalogs'):
             for path,digest in value[key].items():
-                self.assertEqual(sha(path),digest,path)
+                if path in delta['changed_source_hashes']:
+                    self.assertEqual(delta['previous_source_hashes'][path],digest,path)
+                    self.assertEqual(sha(path),delta['changed_source_hashes'][path],path)
+                else:self.assertEqual(sha(path),digest,path)
         self.assertEqual(value['installed_head_source_hashes'],HEAD_SOURCES)
         previous=value['previous_runtime_source_hashes']
         changed=sorted(path for path in SOURCES if previous[path]!=value['runtime_source_hashes'][path])
