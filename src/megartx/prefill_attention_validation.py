@@ -208,6 +208,7 @@ def read_capture(directory, specification, *, expected_request_sha256,
                     or (dispatch['provider'],dispatch['wrapper_source_sha256']) != ENTRYPOINTS[dispatch['entrypoint']]
                     or dispatch['backend_source_sha256']!=BACKEND_SHA
                     or dispatch['native_rounding_contract'] is not None
+                    or (dispatch['entrypoint']=='xqa_decode' and layer!=0)
                     or (end-start==256 and dispatch['entrypoint']!='paged_prefill')
                     or (end-start==1 and dispatch['entrypoint']=='paged_prefill')):
                 raise ValueError('Unreviewed resolved dispatch/source/rounding claim')

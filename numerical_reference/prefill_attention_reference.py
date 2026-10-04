@@ -9,6 +9,7 @@ from decimal import (Decimal, Context, localcontext, ROUND_HALF_EVEN, Clamped,
                      Subnormal, FloatOperation, Inexact, Rounded)
 import struct
 import time
+import hashlib
 
 POSITIONS = (0,15,16,255,256,1023,1024,1792,2047,2048)
 SPECS = {0: (256,8,(0,),(0,1)), 5: (512,2,(0,1),(0,7,8,15))}
@@ -119,7 +120,7 @@ def analyze_arrays(arrays, max_seconds=300):
     expected = {f'attention-layer-{layer:02d}-{role}.bf16' for layer in SPECS for role in 'kvqo'}
     if type(arrays) is not dict or set(arrays) != expected:
         raise ValueError('Exact eight raw arrays required')
-    words = {}
+    words = {}; input_manifest = {}
     for layer,(dim,hkv,kh,qh) in SPECS.items():
         counts = {'k':2049*len(kh)*dim, 'v':2049*len(kh)*8,
                   'q':10*len(qh)*dim, 'o':10*len(qh)*8}
@@ -128,6 +129,7 @@ def analyze_arrays(arrays, max_seconds=300):
             name=f'attention-layer-{layer:02d}-{role}.bf16'; raw=arrays[name]
             if type(raw) is not bytes or len(raw)!=count*2:
                 raise ValueError('Fixed full-dimension BF16 extent changed')
+            input_manifest[name]={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
             # Decode one role at a time; at most 2,098,176 Python uint16s here.
             value=struct.unpack('<'+'H'*count,raw)
             if any(w&0x7f80==0x7f80 for w in value):
@@ -153,7 +155,7 @@ def analyze_arrays(arrays, max_seconds=300):
                 all_ideal.extend(ideal);all_observed.extend(observed)
     check_deadline(deadline)
     return {'schema':'megartx-prefill-attention-errors-v1','status':'independent_attention_errors_computed',
-            'cases':cases,'aggregate':metrics(all_observed,all_ideal),
+            'cases':cases,'aggregate':metrics(all_observed,all_ideal),'input_manifest':input_manifest,
             'reference_precision_digits':[96,128], 'reference_context':'explicit_half_even_emin_-999999_emax_999999',
             'external_native_storage_frontier_validation_required':True,
             'native_execution_attested':False, 'native_arithmetic_acceptance':None,

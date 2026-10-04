@@ -4,6 +4,7 @@ from decimal import (Decimal, localcontext, Context, ROUND_UP, ROUND_DOWN,
 from fractions import Fraction
 from pathlib import Path
 import random
+import hashlib
 import struct
 import subprocess
 import sys
@@ -113,6 +114,8 @@ class SparseReferenceTests(unittest.TestCase):
         report=ref.analyze_arrays(arrays)
         self.assertEqual(len(report['cases']),60)
         self.assertEqual(report['aggregate']['coordinates'],480)
+        self.assertEqual(report['input_manifest'],{n:{'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()}
+                                                   for n,b in arrays.items()})
         self.assertEqual(report['aggregate']['maximum_absolute_error'],'0')
         self.assertFalse(report['numerical_qualified']);self.assertFalse(report['native_execution_attested'])
         self.assertIsNone(report['native_arithmetic_acceptance'])

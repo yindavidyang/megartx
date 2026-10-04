@@ -26,14 +26,15 @@ def fixture(directory):
     for start,end in p.FRAMES:
         for layer in (0,5):
             inputs=p.digest(['synthetic_cpu_tokens',start,end])
-            provider='xqa' if start==2048 else 'fa2'
+            provider='xqa' if start==2048 and layer==0 else 'fa2'
+            entrypoint='paged_prefill' if start<2048 else ('xqa_decode' if layer==0 else 'paged_decode')
             records.append({'layer':layer,'start':start,'end':end,'frame_input_ids_sha256':inputs,
                 'frame_identity_sha256':v.frame_identity(spec['native_plan_sha256'],REQUEST,start,end,inputs),
                 'operator_binding_sha256':'e'*64,'cache_mapping_sha256':'f'*64,
                 'semantics':v.semantic_contract(layer),**v.record_roots(arrays,layer,start,end),
-                'dispatch':{'provider':provider,'entrypoint':'xqa_decode' if start==2048 else 'paged_prefill',
+                'dispatch':{'provider':provider,'entrypoint':entrypoint,
                     'backend_source_sha256':v.BACKEND_SHA,
-                    'wrapper_source_sha256':v.WRAPPER_SHA[provider],'split_plan_sha256':'1'*64,
+                    'wrapper_source_sha256':v.ENTRYPOINTS[entrypoint][1],'split_plan_sha256':'1'*64,
                     'kernel_binary_sha256':None,'kernel_profile_sha256':None,'native_rounding_contract':None}})
     capture={'schema':v.CAPTURE_SCHEMA,'plan_sha256':spec['plan_sha256'],
         'native_plan_sha256':spec['native_plan_sha256'],'prompt_sha256':spec['prompt_sha256'],
@@ -159,6 +160,12 @@ class AttentionPacketTests(unittest.TestCase):
         c['records'][-1]['dispatch']['wrapper_source_sha256']=v.WRAPPER_SHA['fa2']
         save(self.directory,c)
         with self.assertRaises(ValueError):read(self.directory,self.spec)
+
+    def test_source_forbids_rehashed_global_d512_xqa_dispatch(self):
+        c=copy.deepcopy(self.capture)
+        c['records'][-1]['dispatch'].update(provider='xqa',entrypoint='xqa_decode',wrapper_source_sha256=v.WRAPPER_SHA['xqa'])
+        save(self.directory,c)
+        with self.assertRaisesRegex(ValueError,'dispatch'):read(self.directory,self.spec)
 
     def test_empty_metadata_files_cannot_exhaust_unbounded_directory_memory(self):
         for i in range(v.MAX_DIRECTORY_ENTRIES):

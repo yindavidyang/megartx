@@ -85,6 +85,9 @@ negative-zero count. Metrics use deterministic decimal scientific strings with
 18 significant digits so tiny nonzero errors and huge relative errors cannot
 silently underflow/overflow binary64 JSON numbers. Relative L2 is null for an
 all-zero ideal.
+The numerical report independently hashes the exact eight byte objects it
+decodes; its input manifest must match the structurally validated capture
+manifest before the integration binds a report to that run.
 
 Every numerical report keeps native arithmetic acceptance null and numerical,
 quality, performance and sampled-repeatability qualifications false. Natural
@@ -120,6 +123,11 @@ The packet names actual entrypoints independently of backend labels:
 silently inherit the prefill.py source identity. Unknown or phase-incompatible
 entrypoints fail structurally; native integration must verify actual callable
 owners and sources before emitting these values.
+Pinned vLLM source permits XQA only for dimensions 16 through 256, divisible
+by 16, and explicitly routes Gemma4 global D512 groups to native FIDecode.
+Thus layer 5's M1 record requires paged_decode/FA2/decode.py; a D512 XQA record
+is rejected even if every packet hash has been regenerated. This is a source
+compatibility constraint, not evidence that a compatible kernel executed.
 
 ## One shared resource ledger
 
