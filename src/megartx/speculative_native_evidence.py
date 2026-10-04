@@ -1,7 +1,7 @@
 """Bounded immutable private evidence for the existing receipt utility only.
 
 This writer grants no worker lease and no probe permission. Its byte cap does
-not bound the pinned collector's earlier memory_snapshot materialization.
+not bound native allocator-counter acquisition; that peak remains unknown.
 """
 from functools import wraps
 import hashlib
@@ -145,16 +145,24 @@ class PrivateEvidence:
             raise
 
 
-def persist_owned_receipt(core, admission, summary):
+def persist_owned_receipt(core, admission, summary, *, runner_lane="v1-legacy"):
     """Observe the already bound real lease; no owner injection or new RPC."""
-    from .speculative_native_lifecycle import PURPOSE as LEASE_PURPOSE, _require_core, UTILITIES
+    if runner_lane == "v1-legacy":
+        from .speculative_native_lifecycle import PURPOSE as LEASE_PURPOSE, _require_core, UTILITIES
+        client_purpose, identity_schema = PURPOSE, "megartx-native-receipt-evidence-identity-v1"
+    elif runner_lane == "v2":
+        from .speculative_native_v2_lifecycle import PURPOSE as LEASE_PURPOSE, _require_core, UTILITIES, _check_result
+        from .speculative_native_v2_plan import PURPOSE as client_purpose
+        identity_schema = "megartx-native-v2-receipt-evidence-identity-v1"
+    else:
+        raise ProbeError("Unknown private evidence runner lane")
     _require_core(core, UTILITIES[0])
     lease = getattr(core, "_megartx_native_lease", None)
     if (lease is None or lease.receipt is None or lease.released or lease.poisoned
             or lease.ticket.get("purpose") != LEASE_PURPOSE
             or lease.ticket.get("engine_pid") != os.getpid()
             or lease.ticket.get("engine_start") != _process_start(os.getpid())
-            or admission.get("client_purpose") != PURPOSE
+            or admission.get("client_purpose") != client_purpose
             or not SHA.fullmatch(str(admission.get("client_plan_sha256", "")))
             or not COMMIT.fullmatch(str(admission.get("source_head", "")))):
         raise ProbeError("Private writer requires the existing live receipt owner/purpose")
@@ -166,11 +174,15 @@ def persist_owned_receipt(core, admission, summary):
         raise ProbeError("Wrong-purpose or wrong-checkpoint private receipt")
     if raw.get("diagnostic_target_forwards") != 0 or type(raw.get("diagnostic_target_forwards")) is not int:
         raise ProbeError("Additional target forwards are forbidden")
+    if runner_lane == "v2":
+        _check_result(raw)
+        from .speculative_native_compare import validate_scalar_receipt
+        validate_scalar_receipt(summary, runner_lane="v2")
     with PrivateEvidence(admission["private_receipt_directory"]) as evidence:
         result = evidence.write("native-receipt.private.json", raw)
         if result["sha256"] != summary.get("receipt_sha256"):
             raise ProbeError("Private receipt digest differs from actual EngineCore result")
-        identity = {"schema": "megartx-native-receipt-evidence-identity-v1", "purpose": PURPOSE,
+        identity = {"schema": identity_schema, "purpose": client_purpose,
                     "plan_sha256": admission["client_plan_sha256"], "source_head": admission["source_head"],
                     "checkpoint_revision": raw["checkpoint_revision"], "receipt_sha256": result["sha256"],
                     "receipt_bytes": result["bytes"], "engine_pid": lease.ticket["engine_pid"],
@@ -179,6 +191,9 @@ def persist_owned_receipt(core, admission, summary):
                     "reserved_group_block_sizes": lease.ticket["block_sizes"],
                     "reserved_groups": lease.ticket["groups"],
                     "client_evidence_source_sha256": expected}
+        if runner_lane == "v2":
+            from .speculative_native_v2 import POLICY
+            identity.update(runner_lane="v2", runner_policy=dict(POLICY))
         evidence.write("native-receipt-identity.private.json", identity, cap=64 << 10)
     # Identity remains private; public output remains the original scalar map.
     return summary
@@ -193,7 +208,9 @@ def install_native_receipt_evidence():
     flag = os.environ.get("MEGARTX_NATIVE_RECEIPT_EVIDENCE")
     if flag is None:
         return False
-    if flag != "1" or os.environ.get("MEGARTX_NATIVE_DIAGNOSTIC") != "1":
+    if (flag != "1" or os.environ.get("MEGARTX_NATIVE_DIAGNOSTIC") != "1"
+            or "MEGARTX_NATIVE_V2_DIAGNOSTIC" in os.environ
+            or "MEGARTX_NATIVE_V2_RECEIPT_EVIDENCE" in os.environ):
         raise ProbeError("Default-off private evidence mode differs")
     from . import speculative_native_lifecycle as lifecycle
     from vllm.v1.engine.core import EngineCoreProc
@@ -221,4 +238,45 @@ def install_native_receipt_evidence():
                     primary.add_note("Private writer cleanup uncertain: " + type(cleanup).__name__)
             raise
     EngineCoreProc.megartx_owned_native_receipt = receipt
+    return True
+
+
+def persist_owned_v2_receipt(core, admission, summary):
+    return persist_owned_receipt(core, admission, summary, runner_lane="v2")
+
+
+def install_native_v2_receipt_evidence():
+    """Wrap only the V2 owned receipt after its explicit plugin registration."""
+    flag = os.environ.get("MEGARTX_NATIVE_V2_RECEIPT_EVIDENCE")
+    if flag is None:
+        return False
+    from . import speculative_native_v2_lifecycle as lifecycle
+    from .speculative_native_v2_plan import FORBIDDEN_ENV, check_client_admission
+    if (flag != "1" or os.environ.get("MEGARTX_NATIVE_V2_DIAGNOSTIC") != "1"
+            or any(key in os.environ for key in FORBIDDEN_ENV)):
+        raise ProbeError("Default-off exclusive V2 private evidence mode differs")
+    from vllm.v1.engine.core import EngineCoreProc
+    original = getattr(EngineCoreProc, lifecycle.UTILITIES[0], None)
+    if original is not lifecycle.owned_receipt:
+        raise ProbeError("V2 private writer requires exact owned receipt registration; duplicate rejected")
+    @wraps(original)
+    def receipt(self, admission):
+        # Repeat the immutable source plan before any native reservation.
+        check_client_admission(admission, Path(__file__).resolve().parents[2])
+        with PrivateEvidence(admission["private_receipt_directory"]):
+            pass
+        summary = original(self, admission)
+        try:
+            return persist_owned_v2_receipt(self, admission, summary)
+        except BaseException as primary:
+            try:
+                # We remain inside receipt utility context. The shared release
+                # uses the retained V2 ticket/worker drain and keeps uncertain refs.
+                lifecycle._require_core(self, lifecycle.UTILITIES[0])
+                lifecycle.common._release(self)
+            except BaseException as cleanup:
+                if hasattr(primary, "add_note"):
+                    primary.add_note("V2 private writer cleanup uncertain: " + type(cleanup).__name__)
+            raise
+    setattr(EngineCoreProc, lifecycle.UTILITIES[0], receipt)
     return True

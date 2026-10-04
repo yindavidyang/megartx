@@ -16,6 +16,8 @@ def main(argv=None):
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--freeze", action="store_true")
     group.add_argument("--plan", type=Path)
+    parser.add_argument("--runner-lane", choices=("v1-legacy", "v2"),
+                        help="Required for freeze; v1-legacy retains its original guard and schema")
     parser.add_argument("--client-mode", choices=("sync", "async"), default="async")
     parser.add_argument("--installed-root", type=Path)
     parser.add_argument("--checkpoint-manifest", type=Path,
@@ -23,18 +25,21 @@ def main(argv=None):
     parser.add_argument("--private-directory", type=Path,
                         help="Existing owned mode-0700 directory, new immutable output only")
     args = parser.parse_args(argv)
+    if args.freeze != (args.runner_lane is not None):
+        parser.error("--freeze requires explicit --runner-lane; existing plans bind their own lane")
     if args.freeze and (args.installed_root or args.checkpoint_manifest):
         parser.error("Freeze and installed/checkpoint inspection are separate phases")
     if args.freeze:
-        result = freeze(PROJECT, client_mode=args.client_mode)
-        name = "native-receipt-plan.private.json"
+        result = freeze(PROJECT, client_mode=args.client_mode, runner_lane=args.runner_lane)
+        name = "native-v2-receipt-plan.private.json" if args.runner_lane == "v2" else "native-receipt-plan.private.json"
     else:
         plan = validate_plan(read_json(args.plan, LIMITS["plan_bytes"]), PROJECT)
-        result = {"schema": "megartx-native-receipt-preflight-v1", "plan_sha256": plan["plan_sha256"],
+        result = {"schema": ("megartx-native-v2-receipt-preflight-v1" if plan.get("runner_lane") == "v2"
+                             else "megartx-native-receipt-preflight-v1"), "plan_sha256": plan["plan_sha256"],
                   "source_head": plan["source_head"], "runtime_imports": False, "device_queries": False,
                   "gpu_authorized": False, "preflight_blockers": plan["preflight_blockers"]}
         if args.installed_root:
-            result["installed"] = installed_preflight(args.installed_root)
+            result["installed"] = installed_preflight(args.installed_root, runner_lane=plan.get("runner_lane", "v1-legacy"))
         if args.checkpoint_manifest:
             result["checkpoint"] = checkpoint_preflight(args.checkpoint_manifest)
         name = "native-receipt-preflight.private.json"

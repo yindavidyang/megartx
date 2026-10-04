@@ -3,7 +3,7 @@ import hashlib
 import uuid
 
 from .speculative_native_probe import ProbeError, REVISION
-from .speculative_native_plan import (LIMITS, PURPOSE, SHA, TORCH_BUILD_IDENTITY, integer, read_json)
+from .speculative_native_plan import (LIMITS, PURPOSE, SHA, TORCH_BUILD_IDENTITY, integer, read_json, canonical)
 from .speculative_native_evidence import CAP, bounded_json_chunks
 
 SCALAR_KEYS = {"schema", "receipt_sha256", "diagnostic_target_forwards", "existing_startup_target_forwards",
@@ -20,10 +20,25 @@ UNRESOLVED = {"external_CUDA_allocation_bound_unresolved", "M1_M2_M256_original_
               "FFI_argument_exchange_allocator_coverage_unverified"}
 
 
-def validate_scalar_receipt(receipt):
-    if type(receipt) is not dict or set(receipt) != SCALAR_KEYS:
+V2_SCALAR_KEYS = {"runner_policy", "mutable_verifier_lease_granted", "drafter_loaded",
+                  "metadata_built", "input_batch_prepared"}
+V2_BLOCKER = "V2_verifier_and_drafter_interfaces_not_admitted"
+
+
+def validate_scalar_receipt(receipt, *, runner_lane="v1-legacy"):
+    if runner_lane not in ("v1-legacy", "v2"):
+        raise ProbeError("Unknown receipt scalar lane")
+    v2 = runner_lane == "v2"
+    expected_schema = "megartx-native-v2-zero-forward-receipt-v1" if v2 else "megartx-native-zero-forward-receipt-v1"
+    keys = SCALAR_KEYS | V2_SCALAR_KEYS if v2 else SCALAR_KEYS
+    if type(receipt) is not dict or set(receipt) != keys:
         raise ProbeError("Malformed or non-allowlisted scalar receipt")
-    if (receipt["schema"] != "megartx-native-zero-forward-receipt-v1"
+    if v2:
+        from .speculative_native_v2 import POLICY
+        if (canonical(receipt["runner_policy"]) != canonical(POLICY) or any(receipt[k] is not False
+                for k in V2_SCALAR_KEYS - {"runner_policy"})):
+            raise ProbeError("V2 scalar receipt changed runner or grants later authority")
+    if (receipt["schema"] != expected_schema
             or not SHA.fullmatch(str(receipt["receipt_sha256"]))
             or type(receipt["diagnostic_target_forwards"]) is not int or receipt["diagnostic_target_forwards"] != 0):
         raise ProbeError("Receipt source digest or zero-forward schema differs")
@@ -53,7 +68,7 @@ def validate_scalar_receipt(receipt):
         raise ProbeError("First receipt cannot grant later target-probe/unknown-fit admission")
     blockers = decision["blockers"]
     if (type(blockers) is not list or any(type(b) is not str for b in blockers)
-            or len(set(blockers)) != len(blockers) or not UNRESOLVED <= set(blockers) <= BLOCKERS):
+            or len(set(blockers)) != len(blockers) or not (UNRESOLVED | ({V2_BLOCKER} if v2 else set())) <= set(blockers) <= (BLOCKERS | ({V2_BLOCKER} if v2 else set()))):
         raise ProbeError("Unknown allocation bounds were omitted or fabricated")
     for key in ("cached_slack_bytes", "known_plus_slack_bytes", "required_bytes_above_cap"):
         integer(decision[key])
@@ -61,7 +76,7 @@ def validate_scalar_receipt(receipt):
     if (decision["known_plus_slack_bytes"] != known
             or decision["required_bytes_above_cap"] != max(0, known - (8 << 20))):
         raise ProbeError("Cached-slack/lower-bound arithmetic differs")
-    required = set(UNRESOLVED)
+    required = set(UNRESOLVED) | ({V2_BLOCKER} if v2 else set())
     if known > 8 << 20:
         required.add("known_buffers_plus_cached_slack_exceed_8MiB")
     if receipt["gpu_free_bytes"] < 2 << 30:
@@ -81,14 +96,25 @@ def stream_digest(value):
 
 
 def verify_private_receipt(raw, identity, scalar, plan):
-    validate_scalar_receipt(scalar)
-    from .speculative_native_lifecycle import PURPOSE as LEASE_PURPOSE
+    lane = plan.get("runner_lane", "v1-legacy")
+    validate_scalar_receipt(scalar, runner_lane=lane)
+    v2 = lane == "v2"
+    if v2:
+        from .speculative_native_v2_lifecycle import PURPOSE as LEASE_PURPOSE, _check_result
+        from .speculative_native_v2_plan import PURPOSE as client_purpose, SCHEMA as plan_schema
+        if plan.get("schema") != plan_schema:
+            raise ProbeError("V2 comparison requires a separately bound client plan")
+        _check_result(raw)
+        identity_schema = "megartx-native-v2-receipt-evidence-identity-v1"
+    else:
+        from .speculative_native_lifecycle import PURPOSE as LEASE_PURPOSE
+        client_purpose, identity_schema = PURPOSE, "megartx-native-receipt-evidence-identity-v1"
     from .speculative_native_probe import source_manifest
     if (type(raw) is not dict or raw.get("purpose") != LEASE_PURPOSE
             or raw.get("checkpoint_revision") != REVISION
             or raw.get("drained") is not True
-            or identity.get("schema") != "megartx-native-receipt-evidence-identity-v1"
-            or identity.get("purpose") != PURPOSE
+            or identity.get("schema") != identity_schema
+            or identity.get("purpose") != client_purpose
             or identity.get("plan_sha256") != plan["plan_sha256"]
             or identity.get("source_head") != plan["source_head"]
             or identity.get("checkpoint_revision") != REVISION
@@ -108,6 +134,37 @@ def verify_private_receipt(raw, identity, scalar, plan):
     if identity.get("client_evidence_source_sha256") != plan["source_sha256"]["src/megartx/speculative_native_evidence.py"]:
         raise ProbeError("Private writer source differs")
     expected = {k: v["sha256"] for k, v in source_manifest()["files"].items()}
+    if v2:
+        from .speculative_native_v2 import POLICY, source_binding
+        binding = source_binding()
+        if plan.get("installed_v2_source_binding") != binding:
+            raise ProbeError("V2 plan/source binding differs")
+        expected.update(binding["additional_sources"])
+        if identity.get("runner_lane") != "v2" or canonical(identity.get("runner_policy")) != canonical(POLICY):
+            raise ProbeError("V2 private evidence identity differs")
+        owners = raw.get("v2_owner")
+        identity_keys = {"request_state_identity", "block_tables_identity", "model_state_identity"}
+        if type(owners) is not dict or set(owners) != V2_SCALAR_KEYS | identity_keys | {"metadata_builder_identities"}:
+            raise ProbeError("Malformed actual V2 owner identity")
+        for key in V2_SCALAR_KEYS:
+            if canonical(owners[key]) != canonical(scalar[key]):
+                raise ProbeError("V2 private/public owner capability differs")
+        for key in identity_keys:
+            integer(owners[key], 1)
+        for key in ("runner_identity", "model_identity"):
+            integer(raw.get(key), 1)
+        builders = owners["metadata_builder_identities"]
+        if type(builders) is not list or not 1 <= len(builders) <= 30:
+            raise ProbeError("Missing bounded V2 metadata builder owner identities")
+        for value in builders:
+            integer(value, 1)
+        if len(set(builders)) != len(builders):
+            raise ProbeError("Aliased V2 metadata builder owner identities")
+        from .speculative_native_receipt import TORCH_MEMORY_SOURCE_SHA256, RECEIPT_LIMITS
+        if (raw.get("allocator_counter_source_sha256") != TORCH_MEMORY_SOURCE_SHA256
+                or raw.get("metadata_acquisition_limits") != RECEIPT_LIMITS
+                or "acquisition" not in raw.get("allocator", {})):
+            raise ProbeError("V2 collector acquisition source/limits unknown")
     if raw.get("source_sha256") != expected:
         raise ProbeError("Actual loaded receipt source differs")
     if raw.get("torch_build_identity") != TORCH_BUILD_IDENTITY:
@@ -131,8 +188,17 @@ def verify_private_receipt(raw, identity, scalar, plan):
     if "acquisition" in allocator:
         acquisition = allocator["acquisition"]
         if (type(acquisition) is not dict or acquisition.get("native_query_preallocation_bound_bytes") is not None
-                or acquisition.get("queries") != 1):
+                or acquisition.get("queries") != 1 or type(acquisition.get("queries")) is not int):
             raise ProbeError("Native allocator-query acquisition coverage was fabricated")
+        if v2:
+            if (acquisition.get("query") != "memory_stats_as_nested_dict"
+                    or acquisition.get("native_query_bound_status") != "not_exposed_by_pinned_Torch_no_peak_host_bound_claim"
+                    or type(acquisition.get("device")) is not str
+                    or not acquisition["device"].startswith("cuda:")):
+                raise ProbeError("V2 allocator acquisition boundary differs")
+            for key in ("host_free_before_bytes", "host_free_after_bytes"):
+                if integer(acquisition.get(key)) < LIMITS["minimum_host_free_bytes"]:
+                    raise ProbeError("V2 allocator acquisition host reserve failed")
     if raw.get("external_gpu_workspace_bound_bytes") is not None or raw.get("ffi_allocator", {}).get("argument_exchange_coverage_verified") is not False:
         raise ProbeError("First receipt unexpectedly claims external allocation coverage")
     from .speculative_native_receipt import FFI_SOURCES
@@ -172,6 +238,8 @@ def verify_private_receipt(raw, identity, scalar, plan):
     from .speculative_native_receipt import page_bytes, disjoint_pages
     spans, owners, group_blocks, charges = [], set(), {}, []
     for layer in layers:
+        if v2 and layer.get("device") != allocator["acquisition"]["device"]:
+            raise ProbeError("V2 cache and allocator device observations differ")
         if layer.get("dtype") != "torch.bfloat16" or not str(layer.get("device", "")).startswith("cuda"):
             raise ProbeError("Actual GPU BF16 cache owner required")
         if layer["owner"] in owners:
@@ -211,12 +279,15 @@ def verify_private_receipt(raw, identity, scalar, plan):
     expected_allocation = allocation_lower_bound(charges, metadata, head_element_bytes=head_bytes, reject=False)
     if raw["allocation_lower_bound"] != expected_allocation:
         raise ProbeError("Measured page padding/head/metadata lower bound differs")
-    return {"schema": "megartx-native-receipt-comparison-v1", "source_head": plan["source_head"],
+    result = {"schema": ("megartx-native-v2-receipt-comparison-v1" if v2 else "megartx-native-receipt-comparison-v1"), "source_head": plan["source_head"],
             "plan_sha256": plan["plan_sha256"], "receipt_sha256": scalar["receipt_sha256"],
             "diagnostic_target_forwards": 0, "existing_startup_target_forwards": scalar["existing_startup_target_forwards"],
             "actual_cache_layer_count": len(layers), "private_evidence_verified": True,
             "snapshot_coverage": coverage, "fit_admitted": False, "fit_blockers": scalar["decision"]["blockers"],
             "later_probe_authorized": False}
+    if v2:
+        result.update(runner_lane="v2", runner_policy=dict(POLICY), drafter_authorized=False)
+    return result
 
 
 def compare_files(directory, plan):
