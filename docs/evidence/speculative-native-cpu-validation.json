@@ -1,0 +1,53 @@
+{
+  "schema": "megartx-speculative-native-cpu-validation-v1",
+  "base_commit": "464c728a8758a558fd0bfe326f3ed7a2f10fe0c4",
+  "native_executed": false,
+  "runtime_imports": false,
+  "GPU_jobs": 0,
+  "shared_files_changed": [],
+  "source_sha256": {
+    "src/megartx/speculative_native_probe.py": "22a21197355eefdadd30831ce2911e783598270fad3e9ae3ff3cb58c2be42a68",
+    "scripts/run_speculative_native_probe.py": "81623f6f9c4b3803dda1e96c1a34d304fa324ef06f7a220206e455f8ff2ca4aa",
+    "tests/test_speculative_native_probe.py": "bf36294ce2222a3e59b8a71bbc5cafd2cf72c79f4fea1183ae47fad88a73e7c4",
+    "docs/design/speculative-native-protocol.json": "cef85994ddeeba8663bfc0c1e0362c18a2ada6262989718f0d54012517f9acfb",
+    "docs/evidence/speculative-native-source-binding.json": "9f3bc95cab7003e29aef1723bbc86ca3f85f3588a36151b5522f8e549ee16c5f"
+  },
+  "checks": {
+    "native_CPU_tests": 31,
+    "scaffold_tests": 240,
+    "scaffold_skipped": 1,
+    "reference_tests": 508,
+    "scaffold_passed": 239
+  },
+  "environment": {
+    "python": "3.12.8",
+    "numpy": "2.4.4",
+    "location": "isolated_Mac_task17",
+    "limitation": "local_NumPy_is_not_CI_pinned_version; exact_head_CI_required"
+  },
+  "installed_source_files_matched_upstream": 22,
+  "blocking": [
+    "unregistered_owned_lifecycle_EngineCore_utility_and_Worker_extension",
+    "actual_page_padding_and_scratch_fit",
+    "source_bound_external_CUDA_workspace_coverage",
+    "measured_allocator_slack_and_peak_coverage",
+    "final_independent_review_and_parent_admission_and_sole_GPU_slot"
+  ],
+  "adapter_source_sha256": {
+    "vllm_scale_plugin.py": "5bbdd7ba1b6777eb48cafae742ba7d808b28ef166292f8a1c2e79df2d621b54a",
+    "nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
+    "nvfp4_activation.py": "61960de988385e09e4772060ea8338983139ca4b12afd1c4a735eff691e5eb97",
+    "nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757"
+  },
+  "superseded_review_head": "38247bc46ed988f38c0bf313f1dc14d1c88bb04e",
+  "repairs": [
+    "deferred_inference_mode_over_entire_worker_lifetime",
+    "preserved_actual_native_head_dtype_host_FP32_trace_after_copy",
+    "actual_loaded_corrected_callback_owner_registry_and_proof_identity",
+    "whole_transaction_fault_poison_and_drain",
+    "allocator_guard_setup_and_restoration_same_error_boundary",
+    "measured_allocator_slack_charged_without_empty_cache",
+    "startup_frames_in_global_96_forward_bound",
+    "direct_native_binding_and_prefill_guards_precede_writer_installation_and_cache_reset"
+  ]
+}
