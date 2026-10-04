@@ -1,0 +1,45 @@
+{
+  "schema": "megartx-m1-tma-descriptor-cpu-proof-v1",
+  "scope": "CPU-only extracted setup control flow plus independent source equations; mocks are not native ABI or GPU evidence",
+  "compiled_control_unittest_methods": 8,
+  "compiled_control_cases": 195,
+  "control_case_breakdown": {
+    "pre_provider": 97,
+    "returned_host": 54,
+    "device_entries": 30,
+    "errors": 5,
+    "repeated_calls": 4,
+    "unsupported": 2,
+    "positive_modes": 3
+  },
+  "active_expert_rank_cases": 1936,
+  "inactive_expert_prefix_cases": 1080,
+  "expected_production_per_call": {
+    "descriptor_copies": 0,
+    "descriptor_fences": 0,
+    "route_copies": 1,
+    "route_fences": 1,
+    "pointer_attribute_queries": 10
+  },
+  "expected_diagnostic_per_call": {
+    "descriptor_copies": 14,
+    "descriptor_fences": 2
+  },
+  "native_bridge_compiled": false,
+  "gpu_execution_verified": false,
+  "performance_qualified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "audited_upstream_commit": "69ff11fc4954396d98326656dc85debd2223f637",
+  "producer_source_sha256": "fd9e2e976496ab318bda6d133d2b68f45b3451a6482978f452acd7a86e029841",
+  "type_source_sha256": "eca60a5a7f30b70b7a4f426fb833085ee2ae320445fb217fdd8642c9480b23ab",
+  "prospective_installed_workspace_source_sha256": "647bde0277d7b93f3316d3a45748ad520f1774e056f08d4b2b34b999afd1c128",
+  "source_hashes": {
+    "probes/m1_live_bridge.cu": "b28a3373546893ea2b1b9ca78c702a1449ceb48d0909a0b756a4b24158719a43",
+    "probes/m1_tma_descriptor_flow_test.cpp": "7e0c45c9db6e1938c6dfa5fe6c868091048e2ef2ec9ddda9612511b30583d3f5",
+    "numerical_reference/test_m1_tma_descriptor_contract.py": "a383200ed30f39659f6b53d04a0c000810cb944dcce019bedf45a5619079dc6e",
+    "numerical_reference/test_m1_tma_source_proof.py": "76bcd7229d034b07e6aa7f893dda3aa7d6b00ae380c7d3bda9949c85d14de638",
+    "scripts/m1_decode_profile.py": "41e67528030edbe8df0c63de78f3c0cedc1ed4ca76515787db2a5694346568b2",
+    "tests/test_m1_profile_admission.py": "7d28175f189e6f918c8a972560cb96cbee0795029befab22020ff2c2edc5d6a4"
+  }
+}

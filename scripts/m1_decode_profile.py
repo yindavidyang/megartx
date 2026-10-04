@@ -88,7 +88,10 @@ def verify_runtime_files(plan, launch):
             and sha(aot / "cpu-dry-run.json") == launch["private_aot_cpu_dry_run_sha256"], "final AOT receipt drift")
 
 
-def validate_trace(trace, lane):
+def validate_trace(trace, lane, *, descriptor_contract=False):
+    # Legacy replay keeps the exact old operation inventory and counts. The new
+    # source-bound caller opts into only the prospective descriptor-copy delta.
+    require(type(descriptor_contract) is bool, "descriptor contract selector differs")
     devices = trace.get("deviceProperties", [])
     require(len(devices) == 1 and devices[0].get("id") == 0
             and devices[0].get("name") == "NVIDIA GeForce RTX 5090"
@@ -102,9 +105,10 @@ def validate_trace(trace, lane):
     # gpu_user_annotation is Kineto range metadata, not a device operation.
     gpu = [e for e in events if e.get("cat") == "kernel"
            or (e.get("cat", "").startswith("gpu_") and e["cat"] != "gpu_user_annotation")]
-    require(len(gpu) == (6440 if lane == "stock" else 6320), "GPU operation count differs")
+    require(len(gpu) == (6440 if lane == "stock" else 6320) - (1680 if descriptor_contract else 0), "GPU operation count differs")
     require(all(e["cat"] in ("kernel", "gpu_memcpy") for e in gpu), "unexpected GPU operation category")
-    require(operation_digest(gpu) == OPERATION_DIGESTS[lane], "GPU operation identity/geometry/bytes differ")
+    if not descriptor_contract:
+        require(operation_digest(gpu) == OPERATION_DIGESTS[lane], "GPU operation identity/geometry/bytes differ")
     require(all(type(e["args"].get("stream")) is int and e["args"]["stream"] >= 0
                 and e["args"].get("device") == 0 and e["args"].get("graph id") == 0 for e in gpu)
             and len({e["args"].get("context") for e in gpu}) == 1, "GPU stream/context/graph identity differs")
@@ -143,22 +147,43 @@ def validate_trace(trace, lane):
         require(all(contains(route, layer) and sum(contains(route, e) for e in layers) == 1
                     for route, layer in zip(routes, layers)), "preparation/routed containment differs")
     stream = None
+    removed_descriptor_inventory = []
     for scope in prep:
         calls = [e for e in api if contains(scope, e)]
         device = [e for e in gpu if contains(scope, launches[id(e)])]
         counts = Counter(e["name"] for e in calls)
-        require(counts["cudaMemcpyAsync"] == 15 and counts["cudaStreamSynchronize"] == 3
-                and counts["cudaPointerGetAttributes"] == 10, "preparation copy/fence/pointer counts differ")
-        require(Counter(e["args"]["bytes"] for e in device if e["cat"] == "gpu_memcpy")
-                == {32: 1, 3072: 2, 2560: 2, 1024: 10}, "descriptor/route transfer counts differ")
+        require(counts["cudaMemcpyAsync"] == (1 if descriptor_contract else 15)
+                and counts["cudaStreamSynchronize"] == (1 if descriptor_contract else 3)
+                and counts["cudaPointerGetAttributes"] == 10
+                and (not descriptor_contract or counts["cudaPeekAtLastError"] >= 1),
+                "preparation copy/fence/pointer counts differ")
+        transfers = [e for e in device if e["cat"] == "gpu_memcpy"]
+        require(Counter(e["args"]["bytes"] for e in transfers)
+                == ({32: 1} if descriptor_contract else {32: 1, 3072: 2, 2560: 2, 1024: 10}),
+                "descriptor/route transfer counts differ")
+        if descriptor_contract:
+            # Compare unchanged operation identity against the frozen historical
+            # digest by expanding ONLY the exact removed pageable-D2H inventory.
+            # These are signatures for digest arithmetic, never observed events
+            # or correlated execution evidence. Source ABI: Shape=24, Layout=20,
+            # pointers/strides=8 bytes; 128 groups and two stages.
+            route = transfers[0]
+            for size in (3072,2560,*([1024]*5))*2:
+                removed_descriptor_inventory.append({"cat": route["cat"], "name": route["name"],
+                    "args": {**route["args"], "bytes": size}})
         require(sum(e["cat"] == "kernel" for e in device) == (7 if lane == "stock" else 6), "preparation kernel count differs")
         streams = {e["args"]["stream"] for e in device}
         require(len(streams) == 1 and (stream is None or streams == {stream}), "preparation stream dependency differs")
         stream = next(iter(streams))
+    if descriptor_contract:
+        require(operation_digest(gpu + removed_descriptor_inventory) == OPERATION_DIGESTS[lane],
+                "GPU operation identity/geometry/bytes differ from exact descriptor delta")
     return {"gpu_operations": len(gpu), "unique_gpu_api_correlations": len(launches),
             "gpu_operation_inventory_sha256": operation_digest(gpu), "model_frames": 4, "head_frames": 4,
             "sampler_frames": 4, "preparation_calls": 120, "routed_calls": 120, "correction_selections": 24,
-            "preparation_d2h_copies": 1800, "preparation_stream_fences": 360, "preparation_pointer_queries": 1200,
+            "preparation_d2h_copies": 120 if descriptor_contract else 1800,
+            "preparation_stream_fences": 120 if descriptor_contract else 360, "preparation_pointer_queries": 1200,
+            "descriptor_validation": "pinned_native_host_contract_v1" if descriptor_contract else "fresh_device_readback_v1",
             "correction_layer_attribution": "withheld; selection is outside the routed annotation",
             "stream_wait_dependency_duration": "not measured"}
 
@@ -216,8 +241,8 @@ def validate_profile_run(directory, plan, owned):
                 and record["timing_qualified"] is False, "window/source/request evidence differs")
         phases = record["host_phases"]
         require({k: v["count"] for k, v in phases.items()} == {"native_runner": 120, "map_eligibility": 0,
-            "map_dispatch": 120, "descriptor_readback_fence": 240, "descriptor_validation_enumeration": 240}, "native phase counts differ")
-        lanes[lane] = validate_trace(read_json(path, 64 << 20), lane)
+            "map_dispatch": 120, "descriptor_readback_fence": 0, "descriptor_validation_enumeration": 0}, "native phase counts differ")
+        lanes[lane] = validate_trace(read_json(path, 64 << 20), lane, descriptor_contract=True)
         lanes[lane]["trace_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     return {"schema": "megartx-m1-decode-diagnostic-admission-v1", "source_head": plan["source_head"],
             "plan_sha256": plan["plan_sha256"], "diagnostic_admission": PROFILE_RULE, "diagnostic_admission_passed": True,

@@ -84,6 +84,8 @@ class SfLayoutContractTests(unittest.TestCase):
     def test_exact_bridge_delta_preserves_every_other_native_check_and_call(self):
         root=Path(__file__).resolve().parents[1]
         source=(root/"probes/m1_live_bridge.cu").read_text()
+        from test_m1_tma_descriptor_contract import parent_bridge_source
+        source=parent_bridge_source(source)
         edits=[('#include "../kernels/m1_sf_layout_contract.hpp"\n',''),
             ('mx::M1SfLayoutContract<Desc::NVFP4BlockScaledConfig> const& sf_layout_contract() {\n'
              '  static const mx::M1SfLayoutContract<Desc::NVFP4BlockScaledConfig> proof;\n'
