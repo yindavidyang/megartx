@@ -65,7 +65,7 @@ class Lease:
     poisoned: bool = False
 
 
-def _require_core(core, utility):
+def _require_core(core, utility, *, worker_extension=WORKER_EXTENSION, use_v2=False):
     _class_source(core, "vllm.v1.engine.core", "EngineCoreProc")
     state = getattr(core, "_megartx_native_state", None)
     if (not state or state["identity"] != (os.getpid(), _process_start(os.getpid()))
@@ -78,15 +78,15 @@ def _require_core(core, utility):
         raise ProbeError("Fresh empty completed keep-pause required; queued work rejected")
     config = core.vllm_config
     if (config.parallel_config.world_size != 1 or config.parallel_config.enable_dbo
-            or config.parallel_config.worker_extension_cls != WORKER_EXTENSION
+            or config.parallel_config.worker_extension_cls != worker_extension
             or config.cache_config.enable_prefix_caching or config.speculative_config is not None
-            or config.use_v2_model_runner or config.kv_transfer_config is not None
+            or config.use_v2_model_runner is not use_v2 or config.kv_transfer_config is not None
             or config.ec_transfer_config is not None or config.scheduler_config.async_scheduling is not False):
         raise ProbeError("Incompatible actual native lifecycle configuration")
     return state
 
 
-def _reserve(core):
+def _reserve(core, *, purpose=PURPOSE):
     manager = core.scheduler.kv_cache_manager
     _class_source(manager, "vllm.v1.core.kv_cache_manager", "KVCacheManager")
     pool = manager.block_pool
@@ -95,7 +95,7 @@ def _reserve(core):
     if not sizes or any(type(b) is not int or b not in (16, 32, 64) for b in sizes):
         raise ProbeError("Unreviewed actual manager block size")
     counts = [(P + 4 + b - 1) // b + 1 for b in sizes]
-    ticket = {"purpose": PURPOSE, "nonce": str(uuid.uuid4()), "engine_pid": os.getpid(),
+    ticket = {"purpose": purpose, "nonce": str(uuid.uuid4()), "engine_pid": os.getpid(),
               "engine_start": _process_start(os.getpid()), "block_sizes": sizes, "groups": []}
     blocks = pool.get_new_blocks(sum(counts))
     # Retain objects immediately, before any validation that could throw.
@@ -137,17 +137,23 @@ def _release(core):
 
 
 def owned_receipt(core, admission):
-    check_receipt_admission(admission)
-    state = _require_core(core, UTILITIES[0])
+    return _owned_receipt(core, admission, admission_check=check_receipt_admission,
+        core_check=_require_core, utility=UTILITIES[0], purpose=PURPOSE)
+
+
+def _owned_receipt(core, admission, *, admission_check, core_check, utility, purpose, result_check=None, result_summary=None):
+    """Shared reservation/drain ordering; each public entry fixes its profile."""
+    admission_check(admission)
+    state = core_check(core, utility)
     with state["lock"]:
-        _require_core(core, UTILITIES[0])  # close the ingress race before sealing
+        core_check(core, utility)  # close the ingress race before sealing
         if state["exclusive"]:
             raise ProbeError("Receipt capability is single-use")
         # Admission/freshness checks precede mutation. Never resume after this point.
         state["exclusive"] = True
         core._megartx_native_poisoned = True
         try:
-            lease = _reserve(core)
+            lease = _reserve(core, purpose=purpose)
             results = core.model_executor.collective_rpc("megartx_native_receipt",
                 timeout=min(900, admission["deadline_monotonic"] - time.monotonic()),
                 kwargs={"ticket": lease.ticket, "admission": admission})
@@ -155,9 +161,12 @@ def owned_receipt(core, admission):
                     or results[0].get("diagnostic_target_forwards") != 0
                     or results[0].get("lease_nonce") != lease.ticket["nonce"]):
                 raise ProbeError("Unbound or nonzero-forward receipt")
+            if result_check is not None:
+                result_check(results[0])
             from .speculative_native_receipt import receipt_digest, sanitized_receipt
             lease.receipt = results[0]
-            return {"receipt_sha256": receipt_digest(lease.receipt), **sanitized_receipt(lease.receipt)}
+            return {"receipt_sha256": receipt_digest(lease.receipt),
+                    **(sanitized_receipt if result_summary is None else result_summary)(lease.receipt)}
         except BaseException as primary:
             if getattr(core, "_megartx_native_lease", None) is not None:
                 try:
@@ -275,7 +284,9 @@ def _verify_loaded_methods(base, proc, source_path):
             raise ProbeError("Loaded inherited registration method is shadowed: " + name)
 
 
-def _register_classes(base, proc, active_core=None):
+def _register_classes(base, proc, active_core=None, *, utilities=UTILITIES,
+                      receipt_callback=owned_receipt, probe_callback=owned_probe,
+                      release_callback=owned_release):
     """Internal mutation step; caller verifies ALL identities first."""
     # In the first source constructor, process-start IO can fail. Complete it
     # before installing even the first hook so retry sees the original classes.
@@ -333,15 +344,15 @@ def _register_classes(base, proc, active_core=None):
         if state["birth_observed"] and not state["initialized"]:
             state["initialized"] = True
         name = request[2] if kind.name == "UTILITY" else None
-        if state["exclusive"] and kind.name not in ("WAKEUP",) and name not in UTILITIES[1:]:
+        if state["exclusive"] and kind.name not in ("WAKEUP",) and name not in utilities[1:]:
             raise ProbeError("Exclusive native utility owner rejects serving and unrelated utilities")
         state["utility"] = name
         try:
             return old_handle(self, kind, request)
         finally:
             state["utility"] = None
-    patches.extend([(proc, "_handle_client_request", handle), (proc, UTILITIES[0], owned_receipt),
-                    (proc, UTILITIES[1], owned_probe), (proc, UTILITIES[2], owned_release)])
+    patches.extend([(proc, "_handle_client_request", handle), (proc, utilities[0], receipt_callback),
+                    (proc, utilities[1], probe_callback), (proc, utilities[2], release_callback)])
     absent = object()
     originals = [(cls, name, callback, cls.__dict__.get(name, absent)) for cls, name, callback in patches]
     try:
@@ -390,8 +401,8 @@ def install_native_diagnostic():
     return True
 
 
-def _worker_ticket(ticket):
-    if (not isinstance(ticket, dict) or ticket.get("purpose") != PURPOSE
+def _worker_ticket(ticket, *, purpose=PURPOSE):
+    if (not isinstance(ticket, dict) or ticket.get("purpose") != purpose
             or str(uuid.UUID(ticket["nonce"])) != ticket["nonce"]
             or _process_start(ticket["engine_pid"]) != ticket["engine_start"]):
         raise ProbeError("Wrong-purpose or stale EngineCore lease")

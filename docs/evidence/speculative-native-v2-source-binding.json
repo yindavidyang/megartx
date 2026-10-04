@@ -1,0 +1,26 @@
+{
+  "acquisition": "read-only SSH tar of installed Python sources; no runtime imports or device queries",
+  "additional_files_checked": 14,
+  "additional_sources": {
+    "torch/cuda/memory.py": "7dc1d9d2a00b571977e6ecc6997d7ccfa4f13b620c11faf1f3f82317c548ec99",
+    "torch/version.py": "d7662da37d4b8b037c81e7ae20381a43893b379facf17988a6d4f17a93265140",
+    "vllm/config/vllm.py": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+    "vllm/envs.py": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f",
+    "vllm/v1/worker/gpu/attn_utils.py": "b9b81e59dda2720b1f9c434471381f879228832443e52756e469b4ad4905888f",
+    "vllm/v1/worker/gpu/block_table.py": "61c004315d5af7e7eae4e2a9e6be92ea82c520327690a7f55a73bb9ce95f520a",
+    "vllm/v1/worker/gpu/input_batch.py": "d5dd956eb319bd69dd9e762047833d81ad40b21fce619fcb2133759e73620694",
+    "vllm/v1/worker/gpu/model_runner.py": "174c93db921c23cf0396eee4764be25b2bd2d4b6a06e9fa41ce3598b884ce8ce",
+    "vllm/v1/worker/gpu/model_states/__init__.py": "07815d0b788fc88185772f581bbf892a675259f9288375571f29887622f8d93c",
+    "vllm/v1/worker/gpu/model_states/default.py": "bb614f814780f052e869f9acf31dfbfa68718ee7dc6252eefa901b5730ee8a2a",
+    "vllm/v1/worker/gpu/model_states/interface.py": "5675b6fedc7403a9ab410b1e5565974e78fac23c42ab4253ae1da52d6e09b594",
+    "vllm/v1/worker/gpu/spec_decode/__init__.py": "1f1f84bfe6f4f5af3a7e21a7a8716ecf7b9013da1d03327668a3ee36afc24c32",
+    "vllm/v1/worker/gpu/spec_decode/dspark/speculator.py": "dcf4abdedbd2bddd0d76be198ccf5b4e467c46f645038c35fcab821491a35b03",
+    "vllm/v1/worker/gpu/states.py": "99418f5df43ca612ded72609fee011620b065b2cab2f249ccb387096bf4ae71a"
+  },
+  "gpu_authorized": false,
+  "historical_files_checked": 22,
+  "historical_source_manifest_sha256": "9f3bc95cab7003e29aef1723bbc86ca3f85f3588a36151b5522f8e549ee16c5f",
+  "runtime_observed": false,
+  "schema": "megartx-native-v2-installed-source-binding-v1",
+  "source_base": "c50ba1410a5c35cd470139f2cf5e90984d7c88f2"
+}

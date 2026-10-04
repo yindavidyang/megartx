@@ -1,0 +1,138 @@
+{
+  "V2_existing_owners": [
+    "req_states empty forward and reverse maps; no persistent InputBatch is assumed",
+    "execute_model_state absent; speculator absent; DefaultModelState references same model; no rope/PCP/ubatch/batch-shard/fast-prefill owner",
+    "persistent BlockTables, kernel_block_sizes, actual group/placement/layer/cache objects",
+    "existing metadata builder(0), one builder per attention group; no prepare_inputs/prepare_attn/build",
+    "loaded get_model and resolved config property code/defaults/globals/origin authenticated; source hashes alone are insufficient",
+    "owner topology, cache storage identities and worker bindings rechecked before return and before/after release drain"
+  ],
+  "V2_scope_restrictions": [
+    "target-only; no loaded drafter or speculative_config",
+    "manager block size equals kernel block size; blocks_per_kv_block=1",
+    "no host-resident or eagle cache groups",
+    "zero diagnostic model forwards; no metadata preparation or cache writer mutation",
+    "no mutable verifier lease installed; all later probe entries reject"
+  ],
+  "allocator_counter_scope": {
+    "installed_torch_cuda_memory_source_sha256": "7dc1d9d2a00b571977e6ecc6997d7ccfa4f13b620c11faf1f3f82317c548ec99",
+    "limitation": "pinned Torch _cuda_memoryStats constructs its native private-pool dictionary before Python can check count; maximum 64 is a post-acquisition guard only; record actual count or unavailable if field absent, plus host readings; no fixed native host acquisition peak bound or zero segment/block coverage is claimed; evaluate this residual boundary during independent review and owned startup/resource review before execution",
+    "native_query_preallocation_bound_bytes": null,
+    "process_context": "actual exclusive fresh EngineCore lease, empty scheduler/worker input, eager single-worker startup; prevents serving-history accumulation but does not prove zero private pools",
+    "route": "single memory_stats_as_nested_dict(selected_device)",
+    "snapshot_segments": null,
+    "snapshot_sha256": null,
+    "snapshot_status": "not_collected_unbounded_global_snapshot"
+  },
+  "bounds": {
+    "compiler_seconds": 300,
+    "compiler_shared_host_bytes": 2147483648,
+    "incremental_verifier_gpu_bytes": 8388608,
+    "max_gpu_jobs": 1,
+    "minimum_gpu_free_bytes": 2147483648,
+    "minimum_host_free_bytes": 8589934592,
+    "receipt_host_metadata_bytes": 8388608,
+    "wall_including_cleanup_seconds": 1800
+  },
+  "collection": [
+    "actual cache groups, placements, storage identity/extent, manager/kernel/builder sizes, owned page byte union",
+    "existing attention, wrapper, XQA, FP4 cache and vLLM workspace owners without lazy getters",
+    "one selected-device nested Torch allocator query for allocated/reserved/slack/pre-existing peaks; no snapshot, flattening, history enable or peak reset",
+    "actual loaded DLPack exchange capsule allocator address and mapped binary digest when observable; do not invoke allocator",
+    "CUDA free/total, host free, native head dtype, known lower bound and explicit missing transitive bounds"
+  ],
+  "diagnostic_target_forwards": 0,
+  "excluded": [
+    "GPU job in CPU phase",
+    "training",
+    "download",
+    "package or system changes",
+    "lazy workspace creation",
+    "autotune",
+    "benchmark",
+    "quality or speed claims",
+    "merge"
+  ],
+  "existing_startup": "original startup allowed only under separately approved owned resource controls; complete model frames from all 30 dispatch counters; forced six expert fixture pairs/actual correction rows counted separately; no prepare rerun",
+  "future_interfaces": {
+    "drafter": "native generic DSparkDraftModel/Qwen3 -> DSparkSpeculator; candidate revision e6f739231e892fe4512c470136490d5441ffe62f; config SHA a6d5250b5c1978642154993547cdc2ecbf069e1cbe1f99b2d79cb982e45f8ee2",
+    "features": "ordered five taps [2,9,17,24,27], residual/norm/token semantics; owner retention and rollback bounds require separate review",
+    "persistent_budget": "2,411,575,146 advertised weight bytes plus KV, page capacity/overhead and all feature/temporary/external workspaces require separate reviewed budget; never charged to 8 MiB scratch",
+    "verification": "corrected NVFP4 target distribution; native target-space vocabulary map and rejection; confidence does not authorize acceptance"
+  },
+  "gpu_authorized": false,
+  "lifecycle": "never resume or serve after receipt entry; request ingress sealed; idle steps return without model runner; free only after worker device drain and lease revocation; unknown drain retains references and poisons for owned teardown",
+  "metadata_acquisition_limits": {
+    "attention_builders": 30,
+    "cache_groups": 30,
+    "cache_layers": 30,
+    "cache_placements": 30,
+    "container_items": 8192,
+    "depth": 16,
+    "integer_bits": 256,
+    "owned_page_records": 3900,
+    "owner_fields": 256,
+    "private_pool_records_after_query": 64,
+    "process_maps_bytes": 1048576,
+    "serialized_bytes": 8388608,
+    "string_chars": 4096,
+    "tensor_dimensions": 64,
+    "values": 131072,
+    "workspace_container_items": 256,
+    "workspace_objects": 256,
+    "workspace_records": 512
+  },
+  "metadata_bound_meaning": "receipt_host_metadata_bytes caps canonical serialized evidence, not the Python heap or native acquisition peak; minimum_host_free_bytes is a separate host reserve, checked before targeted collection and before/after the counter query; neither is a native-query allocation bound",
+  "next_probe": "unconditionally rejected: separate reviewed V2 verifier/drafter interfaces, fit/FFI/temporary bounds, budgets and parent slot required",
+  "ownership": "fresh actual EngineCoreProc synchronous utility; empty scheduler/input/batch/pending queues; no prior request; actual BlockPool ref_cnt=1 objects retained; separate V2-purpose ticket bound to actual worker config/device and runner",
+  "publication": "code/docs and allowlisted scalar decision only; pointers, prompts, raw receipts, tensors, snapshots and logs remain private",
+  "registration": "megartx.speculative_native_v2_lifecycle.install_native_v2_diagnostic",
+  "registration_environment": {
+    "MEGARTX_M1_PREPARATION": null,
+    "MEGARTX_NATIVE_DIAGNOSTIC": null,
+    "MEGARTX_NATIVE_V2_DIAGNOSTIC": "1",
+    "MEGARTX_SCALE_MODE": "native",
+    "VLLM_PLUGINS": "megartx_scale_adapter",
+    "VLLM_USE_V2_MODEL_RUNNER": null
+  },
+  "reviewed_composition": [
+    "c50ba1410a5c35cd470139f2cf5e90984d7c88f2"
+  ],
+  "runner_policy": {
+    "resolved_v2": true,
+    "runner_class": "GPUModelRunner",
+    "runner_module": "vllm.v1.worker.gpu.model_runner",
+    "selection_override_injected": false,
+    "selector_env": null
+  },
+  "schema": "megartx-native-v2-zero-forward-protocol-v1",
+  "serialization": "plain primitive structure and exact canonical byte-count preflight with bounded scalar tokens; stream sorted-key ASCII JSON into SHA256; reject excess without truncation or cap waiver before worker RPC return and hashing",
+  "shared_composition": {
+    "blocked": true,
+    "edited_files": [],
+    "observer_frames_grant_mutable_lease": false,
+    "owner_commits_read_only": [
+      "7aafc35c5d6e16c620184a506b1487b1cd7eb74d",
+      "2cc69b6c53221750d1194a2c6e6f98b57174b40c"
+    ],
+    "required": "shared owner must replace V1 lifecycle/evidence registration and compose V2-specific client/evidence schema on an exact reviewed commit; cannot enable both lanes or reuse V1 frozen plans"
+  },
+  "shared_files_edited": [],
+  "source_base": "c50ba1410a5c35cd470139f2cf5e90984d7c88f2",
+  "status": "CPU_source_implementation_independent_review_and_shared_composition_pending",
+  "torch_build_identity": {
+    "cuda_build": "13.0",
+    "distribution_version": "2.13.0",
+    "git_revision": "cf30153c4c131c8164ee7798e5022d810682e2cb",
+    "loaded_runtime_version": "2.13.0+cu130",
+    "rule": "distribution metadata and loaded runtime are distinct exact identities; hash installed torch/version.py and compare literal loaded TorchVersion string, CUDA build and Git revision; no suffix stripping, version normalization or prefix acceptance; shared guard applies to receipt and existing gated probe",
+    "version_source_sha256": "d7662da37d4b8b037c81e7ae20381a43893b379facf17988a6d4f17a93265140"
+  },
+  "unknown_bound_rule": "stop at receipt; current collector does not execute M1/M2/M256 device/JIT size queries and cannot establish residual external bounds; no dictionary or review boolean overrides an unresolved live receipt decision",
+  "utility_sequence": [
+    "pause_scheduler(keep, false); await completion",
+    "megartx_owned_native_v2_receipt(exact_source_protocol_admission)",
+    "megartx_owned_native_v2_release(); owned shutdown"
+  ],
+  "worker_extension_cls": "megartx.speculative_native_v2_lifecycle.NativeV2DiagnosticWorkerExtension"
+}
