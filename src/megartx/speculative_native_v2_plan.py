@@ -11,6 +11,7 @@ from . import speculative_native_plan as legacy
 from . import speculative_native_v2 as owner
 from .native_diagnostic_composition import PARENTS, V2_COMPOSITION, diagnostic_mode
 from .speculative_native_probe import ProbeError, ADAPTER_FILES, REVISION
+from . import speculative_native_preparation as preparation
 
 PURPOSE = "first_v2_zero_forward_layout_workspace_measurement"
 SCHEMA = "megartx-native-v2-receipt-client-plan-v1"
@@ -21,7 +22,12 @@ CLIENT_FILES = ("src/megartx/speculative_native_v2_plan.py", PROTOCOL,
                 "schemas/speculative-native-v2-receipt-client-plan.schema.json",
                 "schemas/speculative-native-v2-receipt-authorization.schema.json",
                 "src/megartx/native_diagnostic_composition.py",
-                "docs/design/native-diagnostic-composition-protocol.json")
+                "docs/design/native-diagnostic-composition-protocol.json",
+                "src/megartx/speculative_native_preparation.py",
+                "docs/evidence/speculative-preparation-source-contract.json")
+PREPARATION_SOURCES = {
+    "vllm/utils/network_utils.py": "383648e9374a6f2304fec91bd6a54aeb0301c009e69c267bcdc4dfbed38e20e9",
+    "vllm/plugins/__init__.py": "fb6e6ee432c5a4ae207aaffe4b546aca9381f56ee8498b0a3e0d9af2d289d023"}
 PREFLIGHT_BLOCKERS = []  # This exact source composes the shared hooks; review/CI/slot admission remains mandatory.
 LIMITS = legacy.LIMITS
 RUNNER_BINDING = {"expected_model_runner_class": owner.RUNNER_MODULE + ".GPUModelRunner",
@@ -45,17 +51,20 @@ def engine_argv():
     return result
 
 
-def environment(project, private):
+def environment(project, private, *, runtime=None):
+    if runtime is None or runtime.get("project_root") != str(Path(project).resolve()):
+        raise ProbeError("V2 execution requires frozen task-local runtime paths")
     result = legacy.environment(project, private)
     del result["MEGARTX_NATIVE_DIAGNOSTIC"]
     del result["MEGARTX_NATIVE_RECEIPT_EVIDENCE"]
     result.update(MEGARTX_NATIVE_V2_DIAGNOSTIC="1", MEGARTX_NATIVE_V2_RECEIPT_EVIDENCE="1")
+    result.update(preparation.runtime_environment(runtime))
     if diagnostic_mode(result) != "v2":
         raise ProbeError("V2 client environment differs from shared composition")
     return result
 
 
-def freeze(project, *, client_mode="async"):
+def freeze(project, *, client_mode="async", runtime_root=None, entrypoint_root=None):
     # Reuse the historical collector/identity verification without changing pins.
     historical = legacy.freeze(project, client_mode=client_mode)
     project = Path(project).resolve()
@@ -68,6 +77,10 @@ def freeze(project, *, client_mode="async"):
             or engine_kwargs()["worker_extension_cls"] != V2_COMPOSITION["worker_extension_cls"]
             or engine_argv()[engine_argv().index("--worker-extension-cls") + 1] != V2_COMPOSITION["worker_extension_cls"]):
         raise ProbeError("Shared V2 protocol/worker/argv binding differs")
+    if (runtime_root is None) != (entrypoint_root is None):
+        raise ProbeError("Runtime and wheel entrypoint paths must be frozen together")
+    runtime = (None if runtime_root is None else
+               preparation.runtime_binding(project, runtime_root, entrypoint_root))
     result = {**historical, "schema": SCHEMA, "purpose": PURPOSE, "runner_lane": "v2",
         "reviewed_owner_commit": REVIEWED_OWNER, "source_tree": reviewed["source_tree"],
         "v2_owner_plan_sha256": reviewed["plan_sha256"],
@@ -76,7 +89,8 @@ def freeze(project, *, client_mode="async"):
         "engine_kwargs": engine_kwargs(), "engine_argv": engine_argv(),
         "runner_binding": copy.deepcopy(RUNNER_BINDING), "runner_policy": dict(owner.POLICY),
         "installed_v2_source_binding": owner.source_binding(), "drafter_authorized": False,
-        "preflight_blockers": list(PREFLIGHT_BLOCKERS),
+        "installed_preparation_sources": dict(PREPARATION_SOURCES), "runtime_binding": runtime,
+        "preflight_blockers": list(PREFLIGHT_BLOCKERS) + ([preparation.RUNTIME_BLOCKER] if runtime is None else []),
         "shared_composition": copy.deepcopy(V2_COMPOSITION)}
     del result["plan_sha256"]
     result["plan_sha256"] = legacy.object_digest(result)
@@ -86,14 +100,32 @@ def freeze(project, *, client_mode="async"):
 def validate_plan(plan, project):
     if type(plan) is not dict or plan.get("schema") != SCHEMA or plan.get("purpose") != PURPOSE:
         raise ProbeError("Wrong V2 client plan schema or purpose")
-    if legacy.canonical(plan) != legacy.canonical(freeze(project, client_mode=plan.get("client_mode"))):
+    runtime = plan.get("runtime_binding")
+    kwargs = runtime_arguments(runtime)
+    if legacy.canonical(plan) != legacy.canonical(freeze(project, client_mode=plan.get("client_mode"), **kwargs)):
         raise ProbeError("V2 client plan differs from exact committed source/configuration")
     return plan
+
+
+def runtime_arguments(runtime):
+    if runtime is None:
+        return {}
+    if (type(runtime) is not dict or type(runtime.get("paths")) is not dict
+            or type(runtime.get("entrypoint")) is not dict
+            or type(runtime["paths"].get("root")) is not str
+            or type(runtime["entrypoint"].get("root")) is not str):
+        raise ProbeError("Malformed V2 task-local runtime binding")
+    return {"runtime_root": runtime["paths"]["root"], "entrypoint_root": runtime["entrypoint"]["root"]}
 
 
 def installed_preflight(root):
     result = legacy.installed_preflight(root)
     result["source_sha256"].update(owner.inspect_v2_sources(root))
+    for name, expected in PREPARATION_SOURCES.items():
+        path = Path(root) / name
+        if path.is_symlink() or legacy.hash_file(path, 1 << 20) != expected:
+            raise ProbeError("Installed preparation source changed: " + name)
+        result["source_sha256"][name] = expected
     result["runner_policy"] = dict(owner.POLICY)
     return result
 
@@ -114,6 +146,7 @@ def validate_authorization(auth, plan):
             or plan.get("runner_lane") != "v2" or plan.get("runner_policy") != owner.POLICY
             or plan.get("gpu_authorized") is not False or plan.get("target_probe_authorized") is not False
             or plan.get("drafter_authorized") is not False or plan["preflight_blockers"]
+            or type(plan.get("runtime_binding")) is not dict
             or plan.get("collector_materialization_guard") != legacy.COLLECTOR_GUARD
             or legacy.canonical(plan.get("shared_composition")) != legacy.canonical(V2_COMPOSITION)):
         raise ProbeError("V2 source preflight remains blocked; authorization cannot override composition or bounds")
@@ -136,6 +169,7 @@ def receipt_admission(plan, auth, checkpoint, *, deadline):
         "deadline_monotonic": deadline, "parent_slot": auth["parent_slot"],
         "client_purpose": PURPOSE, "client_plan_sha256": plan["plan_sha256"],
         "client_mode": plan["client_mode"], "runner_lane": "v2",
+        "runtime_binding": copy.deepcopy(plan["runtime_binding"]),
         "target_probe_authorized": False, "drafter_authorized": False}
 
 
@@ -143,7 +177,9 @@ def check_client_admission(admission, project):
     """Worker/Core independently bind client configuration before acquisition."""
     if type(admission) is not dict:
         raise ProbeError("Exact V2 client admission required")
-    plan = freeze(project, client_mode=admission.get("client_mode"))
+    runtime = admission.get("runtime_binding")
+    kwargs = runtime_arguments(runtime)
+    plan = freeze(project, client_mode=admission.get("client_mode"), **kwargs)
     expected = {"client_purpose": PURPOSE, "client_plan_sha256": plan["plan_sha256"],
         "runner_lane": "v2", "source_head": plan["source_head"],
         "v2_plan_sha256": plan["v2_owner_plan_sha256"],
@@ -152,4 +188,6 @@ def check_client_admission(admission, project):
     if (plan["preflight_blockers"] or any(type(admission.get(k)) is not type(v)
             or admission.get(k) != v for k, v in expected.items())):
         raise ProbeError("V2 client admission is uncomposed or source/purpose differs")
+    if legacy.canonical(runtime) != legacy.canonical(plan.get("runtime_binding")):
+        raise ProbeError("V2 client runtime binding differs")
     return plan

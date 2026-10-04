@@ -36,5 +36,8 @@
     "M1_M2_M256_original_lane_temporary_bound_unresolved",
     "external_CUDA_allocation_bound_unresolved",
     "V2_verifier_and_drafter_interfaces_not_admitted"
-  ]
+  ],
+  "preparation": "Runtime-bound V2 freeze records a short fresh exclusive owned mode-0700 runtime root, task-local writable cache/tmp/home/config paths, exact real pip --target wheel entrypoint metadata and matching package source. Unconfigured source-only plans retain an admission blocker. Inherited cache overrides are removed and rejected by the child. No shared baseline writes.",
+  "checkpoint_coverage": "All 11 selected checkpoint files pinned by public immutable names/sizes/SHA256; .gitattributes is a documented repository-only omission. The pinned index supplies exactly two weight shards. Every selected file is freshly streamed and hashed before admission; retained manifest or stat evidence does not substitute.",
+  "ipc_budget": "Linux socket path payload <=107 UTF-8 bytes, accounting for pinned vLLM slash+UUID suffix (37 bytes) and 16 bytes reserved margin. Both TMPDIR and VLLM_RPC_BASE_PATH use the same task-local short tmp path."
 }

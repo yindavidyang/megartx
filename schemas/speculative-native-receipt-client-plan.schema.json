@@ -65,7 +65,8 @@
         "src/megartx/vllm_scale_plugin.py",
         "src/megartx/nvfp4_integration.py",
         "src/megartx/nvfp4_runtime.py",
-        "src/megartx/nvfp4_activation.py"
+        "src/megartx/nvfp4_activation.py",
+        "docs/evidence/speculative-checkpoint-file-contract.json"
       ],
       "properties": {
         "src/megartx/speculative_native_plan.py": {
@@ -153,6 +154,10 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "src/megartx/nvfp4_activation.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "docs/evidence/speculative-checkpoint-file-contract.json": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         }

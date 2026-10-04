@@ -180,7 +180,9 @@ class LauncherControls(unittest.TestCase):
         self.assertEqual(protocol['v2'],composition.V2_COMPOSITION)
         self.assertEqual(v2.engine_kwargs()['worker_extension_cls'],composition.V2_COMPOSITION['worker_extension_cls'])
         argv=v2.engine_argv();self.assertEqual(argv[argv.index('--worker-extension-cls')+1],composition.V2_COMPOSITION['worker_extension_cls'])
-        self.assertEqual(composition.diagnostic_mode(v2.environment(ROOT,'/tmp/fixture')),'v2')
+        runtime={"project_root":str(ROOT),"entrypoint":{"root":"/tmp/fixture-site"},
+                 "paths":{k:"/tmp/fixture-runtime/"+k for k in ("root","cache","tmp","home","config")}}
+        self.assertEqual(composition.diagnostic_mode(v2.environment(ROOT,'/tmp/fixture',runtime=runtime)),'v2')
         self.assertFalse(protocol['fit_admitted']);self.assertFalse(protocol['target_probe_authorized'])
         frozen={'schema':v2.SCHEMA,'purpose':v2.PURPOSE}
         self.assertIs(legacy.plan_api(frozen),v2)

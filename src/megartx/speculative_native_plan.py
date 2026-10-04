@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import stat
+from collections import Counter
 
 from .speculative_native_probe import ADAPTER_FILES, REVISION, ProbeError
 from .speculative_native_lifecycle import WORKER_EXTENSION
@@ -78,6 +80,7 @@ OWNED_FILES = (
     "docs/design/speculative-native-protocol.json", "docs/evidence/speculative-native-source-binding.json",
     "schemas/speculative-native-receipt-client-plan.schema.json",
     "schemas/speculative-native-receipt-authorization.schema.json",
+    "docs/evidence/speculative-checkpoint-file-contract.json",
 ) + tuple("src/megartx/" + name for name in ADAPTER_FILES)
 SHA = re.compile(r"[0-9a-f]{64}\Z")
 COMMIT = re.compile(r"[0-9a-f]{40}\Z")
@@ -169,9 +172,11 @@ def engine_argv():
     return result
 
 
-def environment(project, private, *, runner_lane="v1-legacy"):
+def environment(project, private, *, runner_lane="v1-legacy", runtime=None):
     if runner_lane != "v1-legacy":
-        return plan_api(runner_lane=runner_lane).environment(project, private)
+        return plan_api(runner_lane=runner_lane).environment(project, private, runtime=runtime)
+    if runtime is not None:
+        raise ProbeError("Task-local V2 runtime binding cannot authorize legacy V1")
     project, private = Path(project).resolve(), Path(private).resolve()
     cache = BASE / "cache"
     return {"MEGARTX_NATIVE_DIAGNOSTIC": "1", "MEGARTX_NATIVE_RECEIPT_EVIDENCE": "1",
@@ -198,9 +203,12 @@ def _git(project, *args):
     return subprocess.check_output(["git", "-C", str(project), *args], text=True).strip()
 
 
-def freeze(project, *, client_mode="async", runner_lane="v1-legacy"):
+def freeze(project, *, client_mode="async", runner_lane="v1-legacy", runtime_root=None, entrypoint_root=None):
     if runner_lane != "v1-legacy":
-        return plan_api(runner_lane=runner_lane).freeze(project, client_mode=client_mode)
+        return plan_api(runner_lane=runner_lane).freeze(project, client_mode=client_mode,
+            runtime_root=runtime_root, entrypoint_root=entrypoint_root)
+    if runtime_root is not None or entrypoint_root is not None:
+        raise ProbeError("Task-local V2 runtime binding cannot authorize legacy V1")
     project = Path(project).resolve()
     if client_mode not in ("sync", "async"):
         raise ProbeError("Client mode must be sync or async")
@@ -297,37 +305,98 @@ def torch_version_source(root):
     return result
 
 
+CHECKPOINT_CONTRACT = "docs/evidence/speculative-checkpoint-file-contract.json"
+
+
+def checkpoint_contract():
+    return read_json(Path(__file__).resolve().parents[2] / CHECKPOINT_CONTRACT, 64 << 10)
+
+
+def _file_identity(path):
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode):
+        raise ProbeError("Checkpoint file must be regular and nonsymlink")
+    return [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns]
+
+
 def checkpoint_preflight(manifest_path, model=MODEL):
+    """Fresh full streaming hashes, bound to public immutable source metadata.
+
+    The manifest covers all selected checkpoint files, not only weight shards.
+    Repository-only .gitattributes is the one documented transport omission.
+    Retained manifest flags or matching stats alone never constitute this result.
+    """
+    contract = checkpoint_contract()
+    manifest_path, model = Path(manifest_path), Path(model)
+    if model.resolve() != model or not model.is_dir():
+        raise ProbeError("Checkpoint root must be a canonical nonsymlink directory")
+    manifest_stat = _file_identity(manifest_path)
+    manifest_sha = hash_file(manifest_path, 64 << 10)
     manifest = read_json(manifest_path, 64 << 10)
-    if manifest.get("repo_id") != "nvidia/Gemma-4-26B-A4B-NVFP4" or manifest.get("revision") != REVISION:
+    if (type(manifest) is not dict or manifest.get("repo_id") != contract["repo_id"]
+            or manifest.get("revision") != REVISION or contract["revision"] != REVISION):
         raise ProbeError("Wrong immutable checkpoint manifest")
+    expected = {row["name"]: row for row in contract["files"]}
     files = manifest.get("files")
-    if not isinstance(files, list) or len(files) != 12:
+    if type(files) is not list:
         raise ProbeError("Checkpoint manifest topology differs")
-    names = set()
-    identities = {}
+    rows = {}
     for row in files:
-        name = row.get("name")
-        if not isinstance(name, str) or Path(name).name != name or name in names or not SHA.fullmatch(str(row.get("sha256", ""))):
+        if type(row) is not dict:
             raise ProbeError("Malformed checkpoint source")
-        names.add(name)
-        path = Path(model) / name
-        if not path.is_file() or path.stat().st_size != integer(row.get("bytes"), 1):
-            raise ProbeError("Checkpoint file size differs")
+        name = row.get("name")
+        if (type(name) is not str or Path(name).name != name or name in (".", "..")
+                or name in rows or name not in expected
+                or not SHA.fullmatch(str(row.get("sha256", "")))):
+            raise ProbeError("Malformed, duplicate or extra checkpoint source")
+        pin = expected[name]
+        if integer(row.get("bytes"), 1) != pin["bytes"] or row["sha256"] != pin["sha256"]:
+            raise ProbeError("Checkpoint metadata differs from pinned upstream source")
         if name.endswith(".safetensors") and row.get("verified_upstream_lfs_sha256") is not True:
             raise ProbeError("Unverified checkpoint shard")
-        # Explicit full streaming rehash: no model parse or package import.
+        rows[name] = row
+    if set(rows) != set(expected):
+        raise ProbeError("Checkpoint manifest exact file coverage differs")
+    if (type(manifest.get("total_bytes")) is not int
+            or manifest["total_bytes"] != sum(row["bytes"] for row in expected.values())):
+        raise ProbeError("Checkpoint total byte metadata differs")
+    # Only the frozen loader inputs are in scope. Unrelated directories such as
+    # a downloader's .cache are not checkpoint entries and need not be absent.
+    identities = {}
+    for name, row in rows.items():
+        path = model / name
+        before = _file_identity(path)
+        if before[2] != row["bytes"]:
+            raise ProbeError("Checkpoint file size differs")
         if hash_file(path) != row["sha256"]:
             raise ProbeError("Checkpoint file hash differs")
-        stat = path.stat()
-        identities[name] = {"sha256": row["sha256"], "bytes": stat.st_size,
-                            "stat": [stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns]}
-    required = {"config.json", "tokenizer.json", "tokenizer_config.json", "chat_template.jinja",
-                "model.safetensors.index.json", "model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors"}
-    if not required <= names:
-        raise ProbeError("Checkpoint/tokenizer/template evidence missing")
-    return {"checkpoint_revision": REVISION, "manifest_sha256": hash_file(manifest_path, 64 << 10),
-            "files": identities, "full_shards_rehashed": True, "tokenizer_template_verified": True}
+        after = _file_identity(path)
+        if before != after:
+            raise ProbeError("Checkpoint metadata changed during full rehash")
+        identities[name] = {"sha256": row["sha256"], "bytes": after[2], "stat": after}
+    index_pin = contract["index"]
+    index = read_json(model / index_pin["name"], 8 << 20)
+    if (type(index) is not dict or type(index.get("weight_map")) is not dict
+            or len(index["weight_map"]) != index_pin["weight_count"]
+            or canonical(index.get("metadata")) != canonical(index_pin["metadata"])):
+        raise ProbeError("Pinned checkpoint index metadata differs")
+    values = list(index["weight_map"].values())
+    if any(type(name) is not str or name not in expected or not name.endswith(".safetensors") for name in values):
+        raise ProbeError("Checkpoint index refers to an unbound shard")
+    shards = Counter(values)
+    if (dict(shards) != index_pin["shard_weight_counts"]
+            or set(shards) != {name for name in rows if name.endswith(".safetensors")}):
+        raise ProbeError("Checkpoint index/manifest shard coverage differs")
+    # Retain one coherent read: no mutation between early and later file reads.
+    if (manifest_stat != _file_identity(manifest_path)
+            or hash_file(manifest_path, 64 << 10) != manifest_sha
+            or any(_file_identity(model / name) != row["stat"] for name, row in identities.items())):
+        raise ProbeError("Checkpoint source/manifest became stale during preflight")
+    return {"checkpoint_revision": REVISION, "manifest_sha256": manifest_sha,
+            "files": identities, "full_shards_rehashed": True, "full_files_rehashed": True,
+            "verification": "fresh_full_streaming_hash", "shard_names": sorted(shards),
+            "checkpoint_contract_sha256": hash_file(Path(__file__).resolve().parents[2] / CHECKPOINT_CONTRACT, 64 << 10),
+            "tokenizer_template_verified": True}
 
 
 def validate_authorization(auth, plan):

@@ -78,7 +78,8 @@ def proposal():
         "drafter_authorized": False, "preflight_blockers": list(plan.PREFLIGHT_BLOCKERS),
         "collector_materialization_guard": copy.deepcopy(legacy.COLLECTOR_GUARD), "client_mode": "async",
         "source_sha256": {"src/megartx/speculative_native_evidence.py": "c" * 64},
-        "shared_composition": copy.deepcopy(plan.V2_COMPOSITION)}
+        "shared_composition": copy.deepcopy(plan.V2_COMPOSITION),
+        "runtime_binding": {"paths": {"root": "/tmp/fixture-runtime"}, "entrypoint": {"root": "/tmp/fixture-site"}}}
 
 
 def authorization(frozen):
@@ -250,7 +251,12 @@ class V2PlanControls(unittest.TestCase):
         self.assertIs(legacy.plan_api(runner_lane="v2"), plan)
         self.assertIs(legacy.plan_api({"schema": plan.SCHEMA}), plan)
         with self.assertRaises(ProbeError): legacy.plan_api({"schema": "native_auto"})
-        env = legacy.environment(ROOT, Path('/tmp/fixture'), runner_lane="v2")
+        with self.assertRaisesRegex(ProbeError, "frozen task-local"):
+            legacy.environment(ROOT, Path('/tmp/fixture'), runner_lane="v2")
+        runtime = {"project_root": str(ROOT), "paths": {"root": "/tmp/fixture-runtime", "cache": "/tmp/fixture-runtime/cache",
+            "tmp": "/tmp/fixture-runtime/tmp", "home": "/tmp/fixture-runtime/home", "config": "/tmp/fixture-runtime/config"},
+            "entrypoint": {"root": "/tmp/fixture-site"}}
+        env = legacy.environment(ROOT, Path('/tmp/fixture'), runner_lane="v2", runtime=runtime)
         for key in plan.FORBIDDEN_ENV: self.assertNotIn(key, env)
         self.assertEqual(env["MEGARTX_NATIVE_V2_DIAGNOSTIC"], "1")
         self.assertEqual(env["MEGARTX_NATIVE_V2_RECEIPT_EVIDENCE"], "1")
@@ -291,7 +297,8 @@ class V2PlanControls(unittest.TestCase):
         admission = {"client_purpose": plan.PURPOSE, "client_plan_sha256": frozen["plan_sha256"],
             "runner_lane": "v2", "source_head": frozen["source_head"], "v2_plan_sha256": frozen["v2_owner_plan_sha256"],
             "client_evidence_source_sha256": "c"*64, "target_probe_authorized": False,
-            "drafter_authorized": False, "client_mode": "async"}
+            "drafter_authorized": False, "client_mode": "async", "runtime_binding": None}
+        frozen["runtime_binding"] = None  # mock-only source fixture; no execution admission
         with patch.object(plan, "freeze", return_value=frozen):
             plan.check_client_admission(admission, ROOT)
             for key in ("client_plan_sha256", "source_head", "v2_plan_sha256", "client_evidence_source_sha256"):
@@ -304,7 +311,7 @@ class V2PlanControls(unittest.TestCase):
         schema = json.loads((ROOT/'schemas/speculative-native-v2-receipt-client-plan.schema.json').read_text())
         self.assertEqual(schema['properties']['schema']['const'], plan.SCHEMA)
         self.assertEqual(schema['properties']['runner_binding']['const'], plan.RUNNER_BINDING)
-        self.assertEqual(schema['properties']['preflight_blockers']['const'], plan.PREFLIGHT_BLOCKERS)
+        self.assertIn(plan.PREFLIGHT_BLOCKERS, schema['properties']['preflight_blockers']['enum'])
         for path in plan.CLIENT_FILES: self.assertIn(path, schema['properties']['source_sha256']['required'])
         self.assertEqual(schema['properties']['engine_kwargs']['const'], plan.engine_kwargs())
         auth = json.loads((ROOT/'schemas/speculative-native-v2-receipt-authorization.schema.json').read_text())

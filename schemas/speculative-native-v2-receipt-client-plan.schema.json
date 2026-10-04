@@ -32,7 +32,9 @@
     "runner_policy",
     "installed_v2_source_binding",
     "drafter_authorized",
-    "shared_composition"
+    "shared_composition",
+    "runtime_binding",
+    "installed_preparation_sources"
   ],
   "properties": {
     "schema": {
@@ -84,7 +86,10 @@
         "schemas/speculative-native-v2-receipt-client-plan.schema.json",
         "schemas/speculative-native-v2-receipt-authorization.schema.json",
         "src/megartx/native_diagnostic_composition.py",
-        "docs/design/native-diagnostic-composition-protocol.json"
+        "docs/design/native-diagnostic-composition-protocol.json",
+        "docs/evidence/speculative-checkpoint-file-contract.json",
+        "src/megartx/speculative_native_preparation.py",
+        "docs/evidence/speculative-preparation-source-contract.json"
       ],
       "properties": {
         "src/megartx/speculative_native_plan.py": {
@@ -216,6 +221,18 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "docs/design/native-diagnostic-composition-protocol.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "docs/evidence/speculative-checkpoint-file-contract.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/speculative_native_preparation.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "docs/evidence/speculative-preparation-source-contract.json": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         }
@@ -368,7 +385,12 @@
       }
     },
     "preflight_blockers": {
-      "const": []
+      "enum": [
+        [],
+        [
+          "task_local_runtime_and_entrypoint_binding_required"
+        ]
+      ]
     },
     "plan_sha256": {
       "type": "string",
@@ -462,6 +484,19 @@
         "prefill_observation_grants_mutation_lease": false,
         "target_probe_authorized": false,
         "drafter_authorized": false
+      }
+    },
+    "runtime_binding": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Exact private task-local paths, real wheel metadata/source hashes and UTF-8 IPC budget; null is source-only and blocks GPU admission. Python validates the complete canonical binding."
+    },
+    "installed_preparation_sources": {
+      "const": {
+        "vllm/utils/network_utils.py": "383648e9374a6f2304fec91bd6a54aeb0301c009e69c267bcdc4dfbed38e20e9",
+        "vllm/plugins/__init__.py": "fb6e6ee432c5a4ae207aaffe4b546aca9381f56ee8498b0a3e0d9af2d289d023"
       }
     }
   },

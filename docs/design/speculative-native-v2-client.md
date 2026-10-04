@@ -47,7 +47,7 @@ server acquisition. The V2 frozen plan, schema and
 [composition protocol](native-diagnostic-composition-protocol.json) bind both
 public source parents, the exact flag pair, worker extension, launcher purpose
 and source vector. V2 `preflight_blockers` is empty only in this source
-composition. Authorization cannot override a nonempty blocker list or replace
+composition with frozen task-local preparation. Authorization cannot override a nonempty blocker list or replace
 the dedicated client’s source, review, CI, slot and lifecycle checks.
 
 Prefill read-only observation, legacy V1 receipts, V2 receipts and native M1
@@ -128,3 +128,81 @@ The latest prefill experiment on the inherited `418e1ec` source failed after
 live V2 binding and geometry checks, with one observed frame and no fit evidence.
 This CPU/source composition does not reinterpret that failed experiment or claim
 its diagnosis resolved. A prefill runtime fix requires a separate exact delta.
+
+
+## Task-local preparation and exact checkpoint coverage
+
+The preparation correction is based on exact public composition
+`b7189b1099e1591d69374dbdafed4c5986590e97`. It changes only checkpoint/preparation
+admission, the dedicated client and their CPU controls. The shared launcher,
+plugin, owner lifecycle, model math and all resource/fit/probe limits are unchanged.
+
+The [public checkpoint contract](../evidence/speculative-checkpoint-file-contract.json)
+contains all 11 selected local files with exact public SHA256/size provenance.
+The pinned upstream repository has 12 files including `.gitattributes`, a
+repository transport file deliberately omitted from the local runtime manifest.
+The 4,977,046-byte pinned index maps 47,033 weights to exactly two safetensors
+shards (21,603 and 25,430 weights). The other nine files include tokenizer,
+config, generation, quantization, processor, template and README metadata.
+File count and weight-shard count are separate contracts.
+
+Preflight requires exact manifest name coverage, uniqueness, pinned hashes and
+sizes, total bytes, nonsymlink regular inputs, index shard coverage and stable
+identity across the read. It streams and hashes every selected file, including
+both entire shards. A retained manifest's LFS-verification flag and matching
+stat/size records are insufficient: `full_shards_rehashed` is emitted only after
+the fresh full read succeeds. The public metadata review did not download shard
+or tokenizer payloads and establishes no target-side rehash result. Unrelated
+non-file model-directory children do not become new host-layout requirements.
+
+For a later source-only preparation, retain the existing task-local wheel flow:
+install the exact source wheel with `--no-index --no-deps --no-build-isolation
+--no-cache-dir --target /private/task/adapter-site`. This patch does not install
+anything or synthesize distribution metadata. Freeze reads the real dist-info,
+requires the committed plugin entrypoint and a byte-identical package-source
+copy, and binds its exact path and metadata hashes. Source-only discovery checks
+reject shadowing source-tree egg-info or another distribution advertising the
+same plugin. Build wheels in an isolated build copy so generated egg-info does
+not shadow the frozen --target installation. Rebuild the wheel after any
+source change; a stale wheel is rejected. The committed source and numerical
+reference paths precede that installation on the frozen `PYTHONPATH`.
+
+A separate short `--runtime-root` is reserved for execution-time caches and tmp.
+It must be outside the baseline, source checkout, adapter-site and evidence
+paths. The source-only freeze reads paths/metadata but creates nothing. At
+execution, the supervisor exclusively creates the previously absent root and
+its owned mode-0700 cache/tmp/home/config children; an existing root is never
+adopted or reused. Both `TMPDIR` and `VLLM_RPC_BASE_PATH` point to its tmp child.
+All other writable cache paths derive from this root; the child uses a small
+inherited-environment allowlist and rejects supplementary cache/config overrides.
+The baseline Python environment, headers and checkpoint remain read-only inputs.
+Runtime files are separate from immutable receipt evidence and retained for
+inspection; no broad filesystem deletion is introduced.
+
+The [pinned IPC and entrypoint source](../evidence/speculative-preparation-source-contract.json)
+is checked alongside installed sources. vLLM appends slash plus a 36-byte UUID.
+The UTF-8 byte preflight reserves those 37 bytes plus 16 bytes of margin within
+Linux's 107-byte UNIX socket pathname payload limit. Consequently the tmp root
+may be at most 54 UTF-8 bytes. A 78-byte tmp root is rejected before runtime
+imports, instead of discovering its 115-byte socket failure during startup.
+
+```sh
+# Source-only unconfigured proposal: remains blocked from execution
+python -S scripts/speculative_native_receipt_preflight.py --freeze --runner-lane v2
+# After exact wheel preparation, with a fresh short runtime path and separate
+# existing owned evidence directory; still no GPU permission is granted:
+python -S scripts/speculative_native_receipt_preflight.py --freeze --runner-lane v2 \
+  --runtime-root /tmp/owned-receipt-001 \
+  --entrypoint-root /private/task/adapter-site \
+  --private-directory /private/task/plan-packet
+```
+
+A plan without both task-local paths records
+`task_local_runtime_and_entrypoint_binding_required`; it cannot be authorized
+by clearing or relabelling that blocker. Runtime-bound plans are re-frozen and
+compared by the supervisor, child, EngineCore and worker. The target must still
+pass the two additional installed IPC/plugin source hashes, full checkpoint
+rehash, exact-head independent review and CI, and parent GPU-slot admission.
+No preparation result grants fit, target forwards, draft loading or a second
+GPU owner. CPU fixtures use synthetic tiny checkpoint bytes and synthetic wheel
+metadata only; their success is never reported as target checkpoint validation.

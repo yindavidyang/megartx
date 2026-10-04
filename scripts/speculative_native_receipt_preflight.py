@@ -9,6 +9,7 @@ sys.path.insert(0, str(PROJECT / "src"))
 from megartx.speculative_native_plan import (LIMITS, freeze, installed_preflight,
     checkpoint_preflight, read_json, validate_plan)
 from megartx.speculative_native_evidence import PrivateEvidence
+from megartx.speculative_native_preparation import runtime_preflight
 
 
 def main(argv=None):
@@ -19,6 +20,10 @@ def main(argv=None):
     parser.add_argument("--runner-lane", choices=("v1-legacy", "v2"),
                         help="Required for freeze; v1-legacy retains its original guard and schema")
     parser.add_argument("--client-mode", choices=("sync", "async"), default="async")
+    parser.add_argument("--runtime-root", type=Path,
+                        help="V2 freeze: short fresh task-owned runtime path; no directories are created")
+    parser.add_argument("--entrypoint-root", type=Path,
+                        help="V2 freeze: existing exact source wheel --target installation")
     parser.add_argument("--installed-root", type=Path)
     parser.add_argument("--checkpoint-manifest", type=Path,
                         help="CPU full streaming file rehash, no model parse/download")
@@ -29,8 +34,11 @@ def main(argv=None):
         parser.error("--freeze requires explicit --runner-lane; existing plans bind their own lane")
     if args.freeze and (args.installed_root or args.checkpoint_manifest):
         parser.error("Freeze and installed/checkpoint inspection are separate phases")
+    if not args.freeze and (args.runtime_root or args.entrypoint_root):
+        parser.error("Runtime and entrypoint paths must be bound at freeze time")
     if args.freeze:
-        result = freeze(PROJECT, client_mode=args.client_mode, runner_lane=args.runner_lane)
+        result = freeze(PROJECT, client_mode=args.client_mode, runner_lane=args.runner_lane,
+                        runtime_root=args.runtime_root, entrypoint_root=args.entrypoint_root)
         name = "native-v2-receipt-plan.private.json" if args.runner_lane == "v2" else "native-receipt-plan.private.json"
     else:
         plan = validate_plan(read_json(args.plan, LIMITS["plan_bytes"]), PROJECT)
@@ -42,6 +50,12 @@ def main(argv=None):
             result["installed"] = installed_preflight(args.installed_root, runner_lane=plan.get("runner_lane", "v1-legacy"))
         if args.checkpoint_manifest:
             result["checkpoint"] = checkpoint_preflight(args.checkpoint_manifest)
+        if plan.get("runtime_binding") is not None:
+            # Existing output directory is a separate immutable evidence store.
+            if args.private_directory is None:
+                parser.error("Bound V2 preparation requires --private-directory for path isolation checks")
+            result["runtime"] = runtime_preflight(plan["runtime_binding"], args.private_directory,
+                                                  installed_root=args.installed_root)
         name = "native-receipt-preflight.private.json"
     if args.private_directory:
         with PrivateEvidence(args.private_directory) as evidence:

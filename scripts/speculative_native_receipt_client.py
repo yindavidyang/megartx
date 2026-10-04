@@ -23,6 +23,7 @@ from megartx.speculative_native_plan import (BASE, SITE, LIMITS, PURPOSE, enviro
     checkpoint_preflight, receipt_admission)
 from megartx.speculative_native_evidence import PrivateEvidence
 from megartx.speculative_native_probe import ProbeError, _process_start
+from megartx.speculative_native_preparation import runtime_preflight, create_runtime, validate_entrypoint_discovery
 
 
 def gpu_processes():
@@ -82,6 +83,24 @@ def retain_primary(primary, cleanup, phase):
     return primary
 
 
+def child_environment(plan, private, inherited=None):
+    inherited = os.environ if inherited is None else inherited
+    env = {k: inherited[k] for k in ("HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE") if k in inherited}
+    env.update(environment(PROJECT, private, runner_lane=plan.get("runner_lane", "v1-legacy"),
+                           runtime=plan.get("runtime_binding")))
+    env["PATH"] = "/usr/local/cuda/bin:" + str(BASE / ".venv/bin") + ":/usr/bin:/bin"
+    return env
+
+
+def validate_child_environment(plan, private, observed):
+    expected = child_environment(plan, private, observed)
+    if any(observed.get(k) != v for k, v in expected.items()):
+        raise ProbeError("Owned child environment differs")
+    # Independent cache/config overrides must not supplement the fixed map.
+    if plan.get("runner_lane") == "v2" and set(observed) != set(expected):
+        raise ProbeError("Unbound inherited override in V2 owned child")
+
+
 def child_entry(args):
     if args.control_fd is None:
         raise ProbeError("Owned supervisor control descriptor required")
@@ -94,9 +113,11 @@ def child_entry(args):
     if diagnostic_mode(os.environ) != plan.get("runner_lane", "v1-legacy"):
         raise ProbeError("Owned child shared diagnostic purpose differs")
     installed_preflight(SITE, runner_lane=plan.get("runner_lane", "v1-legacy"))  # repeated stable source read before runtime imports
-    expected_env = environment(PROJECT, args.private_directory, runner_lane=plan.get("runner_lane", "v1-legacy"))
-    if any(os.environ.get(k) != v for k, v in expected_env.items()):
-        raise ProbeError("Owned child environment differs")
+    runtime = plan.get("runtime_binding")
+    if plan.get("runner_lane") == "v2":
+        runtime_preflight(runtime, args.private_directory, created=True)
+        validate_entrypoint_discovery(runtime["entrypoint"])
+    validate_child_environment(plan, args.private_directory, os.environ)
     if plan.get("runner_lane") == "v2":
         from megartx.speculative_native_v2_plan import FORBIDDEN_ENV
         if any(key in os.environ for key in FORBIDDEN_ENV):
@@ -154,12 +175,17 @@ def supervise(args):
         raise ProbeError("Pinned Python/environment required")
     installed = installed_preflight(SITE, runner_lane=plan.get("runner_lane", "v1-legacy"))
     checkpoint = checkpoint_preflight(args.checkpoint_manifest)
+    runtime = plan.get("runtime_binding")
+    if plan.get("runner_lane") == "v2":
+        runtime_preflight(runtime, args.private_directory, installed_root=SITE)
     if gpu_processes():
         raise ProbeError("Existing GPU work blocks sole-owner startup")
     reserves = headroom()
     if args.private_directory.exists():
         raise ProbeError("Owned execution requires a fresh private directory")
     args.private_directory.mkdir(mode=0o700)
+    if runtime is not None:
+        create_runtime(runtime, args.private_directory)
     from m1_owned_processes import OwnedProcesses, enable_subreaper, read_process, snapshot
     ownership = OwnedProcesses(enable_subreaper(), rss_limit=2 << 30, compiler_seconds=300)
     started = time.monotonic()
@@ -244,9 +270,7 @@ def supervise(args):
     try:
         argv = [plan["python"], str(Path(__file__).resolve()), "--owned-child", "--plan", str(args.plan.resolve()),
                 "--private-directory", str(args.private_directory.resolve()), "--control-fd", str(child_socket.fileno())]
-        env = {k: os.environ[k] for k in ("HOME", "USER", "LOGNAME", "LANG", "LC_ALL") if k in os.environ}
-        env.update(environment(PROJECT, args.private_directory, runner_lane=plan.get("runner_lane", "v1-legacy")))
-        env["PATH"] = "/usr/local/cuda/bin:" + str(BASE / ".venv/bin") + ":/usr/bin:/bin"
+        env = child_environment(plan, args.private_directory)
         child = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, pass_fds=(child_socket.fileno(),), start_new_session=True)
         ownership.register(read_process(child.pid))

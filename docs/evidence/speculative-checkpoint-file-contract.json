@@ -1,0 +1,139 @@
+{
+  "schema": "megartx-pinned-checkpoint-file-contract-v1",
+  "repo_id": "nvidia/Gemma-4-26B-A4B-NVFP4",
+  "revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+  "scope": "Public metadata evidence only. No model weights/tokenizer payload download, model runtime import, GPU execution, SSH or target-host inspection. Applicable checkpoint manifest covers every listed file; all listed local file bytes must be fully rehashed on the target. Repository-only .gitattributes is explicitly omitted.",
+  "tree_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/tree/a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+  "api_tree_url": "https://huggingface.co/api/models/nvidia/Gemma-4-26B-A4B-NVFP4/tree/a19cfe00be84568a6867111c9a68c9c44fdcffe6?recursive=true&expand=true",
+  "api_tree_sha256": "4fcbf0cf03d89f5fb0d0103f9e17384047a4ed228040d84e1f176b1061e87d74",
+  "repository_file_count": 12,
+  "required_manifest_file_count": 11,
+  "files": [
+    {
+      "name": "README.md",
+      "bytes": 9527,
+      "git_blob_sha1": "318366cf8c4eec21b0fd46c878cc4989a8cdc114",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/README.md",
+      "sha256": "5d20eecdd5d4a08acc541e9884bf967055e706baa4d100d4623d7575d65080b0",
+      "sha256_provenance": "raw_file_bytes_verified_against_pinned_tree_Git_blob_SHA1",
+      "payload_downloaded_for_this_review": true
+    },
+    {
+      "name": "chat_template.jinja",
+      "bytes": 16934,
+      "git_blob_sha1": "f62ca843a405a3066bdbddba8e42c92dd1ca4058",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/chat_template.jinja",
+      "sha256": "94899c0f917d93f6fe81c95744d1e8ddab2d21d39228d2e4aec1fb2a25bff413",
+      "sha256_provenance": "raw_file_bytes_verified_against_pinned_tree_Git_blob_SHA1",
+      "payload_downloaded_for_this_review": true
+    },
+    {
+      "name": "config.json",
+      "bytes": 10289,
+      "git_blob_sha1": "1247fb379f4ac91070ebdc083389c6d005b72ccb",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/config.json",
+      "sha256": "4e379cc809c617a49179a49140f553a2d6a5ec538ed480832b0c54f6ace43d98",
+      "sha256_provenance": "raw_file_bytes_verified_against_pinned_tree_Git_blob_SHA1",
+      "payload_downloaded_for_this_review": true
+    },
+    {
+      "name": "generation_config.json",
+      "bytes": 208,
+      "git_blob_sha1": "e605bb4523b1462ea9d9a3810b9e3ecf7ab7b1f6",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/generation_config.json",
+      "sha256": "d4226bbe3117d2d253ba4609720ba82c6c4ce4627a9a6ae05387c78983ac03de",
+      "sha256_provenance": "raw_file_bytes_verified_against_pinned_tree_Git_blob_SHA1",
+      "payload_downloaded_for_this_review": true
+    },
+    {
+      "name": "hf_quant_config.json",
+      "bytes": 5188,
+      "git_blob_sha1": "e22d980f5b0c9da99621831a4ad05f960d987f83",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/hf_quant_config.json",
+      "sha256": "fca2ea21cded31e6cff2c56ee83a162dcd5d3ff292cbf2f6083702e9fc324454",
+      "sha256_provenance": "raw_file_bytes_verified_against_pinned_tree_Git_blob_SHA1",
+      "payload_downloaded_for_this_review": true
+    },
+    {
+      "name": "model-00001-of-00002.safetensors",
+      "bytes": 10001865236,
+      "git_blob_sha1": "8746019fe3c8cfbb26100db3194b8292914a1d35",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/model-00001-of-00002.safetensors",
+      "sha256": "b5df31122600666617b05f9be2015552cd2edff401e86b1d99b9127efdc6d819",
+      "sha256_provenance": "upstream_LFS_SHA256_in_pinned_API_tree",
+      "payload_downloaded_for_this_review": false
+    },
+    {
+      "name": "model-00002-of-00002.safetensors",
+      "bytes": 8786620352,
+      "git_blob_sha1": "6951ae76cd3fe7537b75859435ea8b365f4da1e9",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/model-00002-of-00002.safetensors",
+      "sha256": "ff11061ebf57327af4f1993ff758b0859d7746b0c03ca1b17ded7dec30410962",
+      "sha256_provenance": "upstream_LFS_SHA256_in_pinned_API_tree",
+      "payload_downloaded_for_this_review": false
+    },
+    {
+      "name": "model.safetensors.index.json",
+      "bytes": 4977046,
+      "git_blob_sha1": "00f1ef75fa9f4867a0cbd14a8c14f836b4c55b23",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/model.safetensors.index.json",
+      "sha256": "ac5e677ed9f8d9b689170bbae0c88ce163e284d02b09100e14afddaa9ec4a15c",
+      "sha256_provenance": "raw_file_bytes_verified_against_pinned_tree_Git_blob_SHA1",
+      "payload_downloaded_for_this_review": true
+    },
+    {
+      "name": "processor_config.json",
+      "bytes": 1689,
+      "git_blob_sha1": "5465974d23e1eca2c46c2809b26c997946ce0d90",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/processor_config.json",
+      "sha256": "32bdf45d2ad4cc29a0822ddd157a182de76644f0419a6228d151495256e9813c",
+      "sha256_provenance": "raw_file_bytes_verified_against_pinned_tree_Git_blob_SHA1",
+      "payload_downloaded_for_this_review": true
+    },
+    {
+      "name": "tokenizer.json",
+      "bytes": 32169626,
+      "git_blob_sha1": "1ff9f3e3439a939b971f9919e821bf87e835a503",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/tokenizer.json",
+      "sha256": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
+      "sha256_provenance": "upstream_LFS_SHA256_in_pinned_API_tree",
+      "payload_downloaded_for_this_review": false
+    },
+    {
+      "name": "tokenizer_config.json",
+      "bytes": 2095,
+      "git_blob_sha1": "375b25dc8be85705251e41be1c25310d24932051",
+      "source_url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/tokenizer_config.json",
+      "sha256": "90c3a3ba5bf53818383a58e1a776cbcacd2a038d4812eaa373e1522f2d06f3df",
+      "sha256_provenance": "raw_file_bytes_verified_against_pinned_tree_Git_blob_SHA1",
+      "payload_downloaded_for_this_review": true
+    }
+  ],
+  "omitted_repository_files": [
+    {
+      "name": ".gitattributes",
+      "reason": "Repository transport attributes; deliberately outside local runtime checkpoint manifest; not a missing shard or runtime metadata file",
+      "bytes": 1570,
+      "sha256": "34448b82c17d60fec9b65b1f093c115ddbaadc04beb1b0140b6bfed2e012a930"
+    }
+  ],
+  "index": {
+    "name": "model.safetensors.index.json",
+    "bytes": 4977046,
+    "sha256": "ac5e677ed9f8d9b689170bbae0c88ce163e284d02b09100e14afddaa9ec4a15c",
+    "weight_count": 47033,
+    "shard_weight_counts": {
+      "model-00001-of-00002.safetensors": 21603,
+      "model-00002-of-00002.safetensors": 25430
+    },
+    "metadata": {
+      "total_parameters": 14386941232,
+      "total_size": 18782360732
+    },
+    "required_shard_names": [
+      "model-00001-of-00002.safetensors",
+      "model-00002-of-00002.safetensors"
+    ],
+    "cross_check": "Exactly the shard names referenced by all 47033 index weight_map values; both shards are present in required files. Tokenizer is LFS-backed but not a model shard."
+  }
+}
