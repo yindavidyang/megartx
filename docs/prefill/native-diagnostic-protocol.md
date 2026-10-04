@@ -30,6 +30,11 @@ The canonical adapter-site origin is frozen too: the worker verifies actual
 imported plugin/provider/access/collector/math helper file bytes and module
 origins before installing observer hooks and before every active frame. A stale
 installed adapter cannot be admitted by a newer repository's source hashes.
+The existing checkpoint index is4,977,046bytes. Its identity reader allows at
+most8MiB of CPU index input before JSON parsing; decoded objects use the separate
+host reserve. This file-input bound grants no GPU scratch or evidence allowance.
+The tokenizer files are read/hash-bound for private token provenance, with no
+tokenizer/model import required when reusing verified private IDs.
 
 After review, the owner can freeze the private plan on the target using:
 

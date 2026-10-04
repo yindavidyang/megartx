@@ -29,10 +29,11 @@
     "aggregate GPU scratch domains",
     "actual imported adapter origins and bytes",
     "preserve run-wide allocated/reserved peaks across global counter resets",
-    "missing-plan admission before HTTP runtime import; python -S regression"
+    "missing-plan admission before HTTP runtime import; python -S regression",
+    "bound actual4,977,046byte checkpoint index as CPU input below8MiB; independent host domain"
   ],
-  "runtime_commit": "5c943812655eb478b19138368c8189b1d793b532",
-  "runtime_tree": "a09668763d5e96311fa272df80186b7827ffefd5",
+  "runtime_commit": "f13a4ec2b4d980505a80a5846556a37b9c2c9b2d",
+  "runtime_tree": "a042012c1d9069107f6bc5356a8899f65e9f947e",
   "schema": "megartx-prefill-native-source-reconciliation-v1",
   "scope": "exact_cpu_source_compatibility_only",
   "unchanged": [

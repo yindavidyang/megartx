@@ -1,7 +1,7 @@
 {
   "binding": {
     "repository_base_commit": "09341f2ad3f6e4b03e8f264b9e3c59fe5ddb52ed",
-    "source_manifest_sha256": "2fa41217134305a4df014849fac7b903a1721b35faf004af9ab634d872b48018"
+    "source_manifest_sha256": "c7310142e29fefd8cdac427ad9b38316ef56f8d39232253a71a9695b450b8ee9"
   },
   "controls": {
     "allow_bf16_reduced_precision_reduction": true,
