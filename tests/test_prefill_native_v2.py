@@ -282,7 +282,8 @@ class BoundHookIdentityTests(unittest.TestCase):
                 provider.require_hooks()
             self.assertIs(caught.exception, primary)
             self.assertTrue(provider.failed)
-            self.assertTrue(any('abort failure' in note for note in getattr(primary, '__notes__', [])))
+            if hasattr(primary, 'add_note'):
+                self.assertTrue(any('abort failure' in note for note in getattr(primary, '__notes__', [])))
             self.assertEqual(effects, [])
 
 
