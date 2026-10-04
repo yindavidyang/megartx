@@ -20,7 +20,8 @@ from unittest.mock import patch
 
 from megartx import speculative_native_lifecycle as lifecycle
 from megartx import speculative_native_receipt as receipt
-from megartx.speculative_native_probe import GPU_CAP, GPU_FREE, HOST_FREE, ProbeError, allocation_lower_bound
+from megartx.speculative_native_probe import (GPU_CAP, GPU_FREE, HOST_FREE, ProbeError,
+    TORCH_VERSION_SOURCE_SHA256, allocation_lower_bound, check_torch_build)
 
 
 def classes():
@@ -416,6 +417,70 @@ class EngineCoreProc(EngineCore):
         self.assertEqual(set(receipt.sanitized_receipt(private)), set(keys))
 
 
+class TorchBuildIdentityControls(unittest.TestCase):
+    # Exact bytes inspected read-only on the target, not executed or imported.
+    VERSION_SOURCE = b"""from typing import Optional
+
+__all__ = ['__version__', 'debug', 'cuda', 'git_version', 'hip', 'rocm', 'xpu']
+__version__ = '2.13.0+cu130'
+debug = False
+cuda: Optional[str] = '13.0'
+git_version = 'cf30153c4c131c8164ee7798e5022d810682e2cb'
+hip: Optional[str] = None
+rocm: Optional[str] = None
+xpu: Optional[str] = None
+"""
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        (self.root / "torch").mkdir()
+        self.path = self.root / "torch/version.py"
+        self.path.write_bytes(self.VERSION_SOURCE)
+        self.assertEqual(hashlib.sha256(self.VERSION_SOURCE).hexdigest(), TORCH_VERSION_SOURCE_SHA256)
+        self.torch = NS(__version__="2.13.0+cu130", version=NS(cuda="13.0", git_version="cf30153c4c131c8164ee7798e5022d810682e2cb"))
+
+    def test_target_distribution_and_str_subclass_runtime_have_distinct_exact_pins(self):
+        class TorchVersion(str):
+            pass
+        self.torch.__version__ = TorchVersion("2.13.0+cu130")
+        with patch("importlib.metadata.version", return_value="2.13.0") as metadata:
+            identity = check_torch_build(self.root, self.torch)
+        metadata.assert_called_once_with("torch")
+        self.assertEqual(identity["distribution_version"], "2.13.0")
+        self.assertEqual(identity["runtime_version"], "2.13.0+cu130")
+        self.assertIs(type(identity["runtime_version"]), str)
+        self.assertEqual(identity["version_source_sha256"], TORCH_VERSION_SOURCE_SHA256)
+
+    def test_wrong_distribution_runtime_suffix_cuda_or_revision_are_rejected(self):
+        correct = ("2.13.0", "2.13.0+cu130", "13.0", "cf30153c4c131c8164ee7798e5022d810682e2cb")
+        cases = ((0, "2.13.0+cu130"), (0, "2.13.1"), (1, "2.13.0"), (1, "2.13.0+cpu"),
+            (1, "2.13.0+cu128"), (1, None), (2, "12.8"), (2, None), (3, "0" * 40))
+        for index, value in cases:
+            values = list(correct)
+            values[index] = value
+            distribution, runtime, cuda, revision = values
+            torch = NS(__version__=runtime, version=NS(cuda=cuda, git_version=revision))
+            with self.subTest(index=index, value=value), patch("importlib.metadata.version", return_value=distribution):
+                with self.assertRaisesRegex(ProbeError, "distribution or loaded CUDA build"):
+                    check_torch_build(self.root, torch)
+
+    def test_version_source_mismatch_rejected_before_metadata_or_runtime_observation(self):
+        self.path.write_bytes(self.VERSION_SOURCE + b"# different source\n")
+        with patch("importlib.metadata.version", side_effect=AssertionError("metadata queried after bad source")):
+            with self.assertRaisesRegex(ProbeError, "version source differs"):
+                check_torch_build(self.root, object())
+
+    def test_literal_build_check_cannot_use_version_aware_equality_to_drop_suffix(self):
+        class PermissiveTorchVersion(str):
+            def __eq__(self, other):
+                return True
+        self.torch.__version__ = PermissiveTorchVersion("2.13.0")
+        with patch("importlib.metadata.version", return_value="2.13.0"):
+            with self.assertRaisesRegex(ProbeError, "loaded CUDA build"):
+                check_torch_build(self.root, self.torch)
+
+
 class BoundedReceiptControls(unittest.TestCase):
     """CPU primitives and fault fixtures; never native owners or GPU evidence."""
     def test_canonical_digest_matches_prior_encoding_with_unicode_and_tuples(self):
@@ -432,6 +497,9 @@ class BoundedReceiptControls(unittest.TestCase):
         self.assertEqual(protocol["bounds"]["receipt_host_metadata_bytes"], receipt.RECEIPT_LIMITS["serialized_bytes"])
         self.assertIsNone(protocol["allocator_counter_scope"]["native_query_preallocation_bound_bytes"])
         self.assertEqual(protocol["allocator_counter_scope"]["installed_torch_cuda_memory_source_sha256"], receipt.TORCH_MEMORY_SOURCE_SHA256)
+        self.assertEqual(protocol["torch_build_identity"]["distribution_version"], "2.13.0")
+        self.assertEqual(protocol["torch_build_identity"]["loaded_runtime_version"], "2.13.0+cu130")
+        self.assertEqual(protocol["torch_build_identity"]["version_source_sha256"], TORCH_VERSION_SOURCE_SHA256)
         self.assertFalse(protocol["gpu_authorized"])
 
     def test_malformed_deep_and_oversized_scalars_fail_before_hash_encoding(self):
@@ -573,6 +641,8 @@ class BoundedReceiptControls(unittest.TestCase):
             def element_size(self):
                 return 2
         torch.Tensor, torch.bfloat16, torch.float32 = Tensor, "torch.bfloat16", "torch.float32"
+        torch.__version__ = "2.13.0+cu130"
+        torch.version = NS(cuda="13.0", git_version="cf30153c4c131c8164ee7798e5022d810682e2cb")
         torch.is_inference_mode_enabled = lambda: True
         torch.cuda.synchronize = lambda _: None
         torch.cuda.mem_get_info = lambda _: (GPU_FREE, GPU_FREE * 2)
@@ -596,9 +666,13 @@ class BoundedReceiptControls(unittest.TestCase):
             compilation_config=NS(static_forward_context=context), get_model=lambda: model,
             device="CPU_counter_fixture", vllm_config=NS())
         ticket = {"groups": [list(range(1, 131))], "block_sizes": [16], "purpose": lifecycle.PURPOSE, "nonce": "CPU_fixture"}
-        packages = {"vllm": "0.30.0", "flashinfer-python": "0.6.18.post1", "torch": "2.13.0+cu130"}
+        packages = {"vllm": "0.30.0", "flashinfer-python": "0.6.18.post1", "torch": "2.13.0"}
         def source(path):
-            return receipt.TORCH_MEMORY_SOURCE_SHA256 if str(path).endswith("torch/cuda/memory.py") else receipt.CONFIG_HASH
+            if str(path).endswith("torch/cuda/memory.py"):
+                return receipt.TORCH_MEMORY_SOURCE_SHA256
+            if str(path).endswith("torch/version.py"):
+                return TORCH_VERSION_SOURCE_SHA256
+            return receipt.CONFIG_HASH
         def startup(proof):
             proof.startup_forwards = 1
         fake_context = NS(set_forward_context=lambda *a, **k: nullcontext())
@@ -606,6 +680,7 @@ class BoundedReceiptControls(unittest.TestCase):
                 patch.object(receipt.inspect, "getsourcefile", return_value="/site/vllm/v1/worker/gpu_model_runner.py"), \
                 patch.object(receipt, "inspect_sources", return_value={"CPU_fixture_only": "CPU_fixture"}), \
                 patch.object(receipt, "digest", side_effect=source), \
+                patch("megartx.speculative_native_probe.digest", side_effect=source), \
                 patch("importlib.metadata.version", side_effect=packages.__getitem__), \
                 patch.object(receipt, "_host_free", return_value=HOST_FREE), \
                 patch.object(receipt, "_process_start", return_value="CPU_fixture"), \
@@ -618,6 +693,8 @@ class BoundedReceiptControls(unittest.TestCase):
         self.assertEqual(len(result["layers"]), 30)
         self.assertEqual(sum(len(layer["owned_pages"]) for layer in result["layers"]), 3900)
         self.assertEqual(result["diagnostic_target_forwards"], 0)
+        self.assertEqual(result["torch_build_identity"]["distribution_version"], "2.13.0")
+        self.assertEqual(result["torch_build_identity"]["runtime_version"], "2.13.0+cu130")
         self.assertFalse(result["decision"]["admitted"])
         self.assertIsNone(result["external_gpu_workspace_bound_bytes"])
         self.assertIsNone(result["allocator"]["snapshot_segments"])

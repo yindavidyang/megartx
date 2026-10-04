@@ -30,6 +30,7 @@ P = 2048
 VOCAB = 262144
 HEAD_PEAK = 2 * VOCAB * 4  # conservative FP32 maximum; native dtype is bound below
 ADAPTER_FILES = ("vllm_scale_plugin.py", "nvfp4_integration.py", "nvfp4_runtime.py", "nvfp4_activation.py")
+TORCH_VERSION_SOURCE_SHA256 = "d7662da37d4b8b037c81e7ae20381a43893b379facf17988a6d4f17a93265140"
 
 
 class ProbeError(RuntimeError):
@@ -41,6 +42,27 @@ def digest(path):
     if not path.is_file() or path.stat().st_size > 1_000_000:
         raise ProbeError("Missing or oversized source")
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def check_torch_build(root, torch):
+    """Distribution identity differs from the exact loaded CUDA build identity."""
+    source_sha256 = digest(Path(root) / "torch/version.py")
+    if source_sha256 != TORCH_VERSION_SOURCE_SHA256:
+        raise ProbeError("Installed Torch version source differs")
+    import importlib.metadata
+    distribution = importlib.metadata.version("torch")
+    runtime = getattr(torch, "__version__", None)
+    build = getattr(torch, "version", None)
+    cuda, revision = getattr(build, "cuda", None), getattr(build, "git_version", None)
+    # TorchVersion is a str subclass with version-aware equality. Compare its
+    # literal string using the base implementation, not normalized equality.
+    if (type(distribution) is not str or distribution != "2.13.0"
+            or not isinstance(runtime, str) or str.__str__(runtime) != "2.13.0+cu130"
+            or type(cuda) is not str or cuda != "13.0"
+            or type(revision) is not str or revision != "cf30153c4c131c8164ee7798e5022d810682e2cb"):
+        raise ProbeError("Installed Torch distribution or loaded CUDA build differs")
+    return {"distribution_version": distribution, "runtime_version": str.__str__(runtime),
+        "cuda_build": cuda, "git_revision": revision, "version_source_sha256": source_sha256}
 
 
 def source_manifest():
@@ -310,11 +332,11 @@ class OwnedNativeProbe:
                 or any(os.environ.get(k) for k in forbidden)):
             raise ProbeError("Original scale-corrected lane/M1-off contract differs")
         import importlib.metadata
-        for package, version in (("vllm", "0.30.0"), ("flashinfer-python", "0.6.18.post1"),
-                                 ("torch", "2.13.0+cu130")):
+        for package, version in (("vllm", "0.30.0"), ("flashinfer-python", "0.6.18.post1")):
             if importlib.metadata.version(package) != version:
                 raise ProbeError("Installed package differs: " + package)
         import torch
+        check_torch_build(root, torch)
         if not torch.is_inference_mode_enabled():
             raise ProbeError("Owned native inference-mode context required")
         model = runner.get_model()

@@ -1,0 +1,71 @@
+{
+  "schema": "megartx-native-torch-build-identity-cpu-validation-v1",
+  "review_base": "b9f8e95e9483daa7be263e3a02a1b6a63ab09844",
+  "implementation_binding": {
+    "speculative_native_lifecycle.py": "ae10f56bb7e33e5996c6673535c8fa32c618d667b18bdf8fbeca4d4324c175f5",
+    "speculative_native_receipt.py": "0b9b63a9e2ac8c4a3402cd37073cd5bf81b6fe82bf47e41018c3e1e66a4a016d",
+    "speculative_native_probe.py": "05471223bd96af167f53c23c5d74d33d23698f0320ff6f6772f74e52fa5911cb"
+  },
+  "zero_protocol_sha256": "52fe1aa9c74769c4140ce1fc0e53771eceec616c94cb83124431d1957f8ba9bb",
+  "minimal_protocol_sha256": "015266ed1d74f7912a83d847d28ad976cc93eef31e13c7b69a7210b7e58570e6",
+  "source_manifest_sha256": "9f3bc95cab7003e29aef1723bbc86ca3f85f3588a36151b5522f8e549ee16c5f",
+  "installed_source_observations": {
+    "method": "read-only metadata/version source and SHA256 inspection; independently matches client proof; no Torch/CUDA/model imports or native queries",
+    "distribution": {
+      "Name": "torch",
+      "Version": "2.13.0",
+      "sole_distribution_directory": "torch-2.13.0.dist-info"
+    },
+    "runtime_version_source": {
+      "path": "torch/version.py",
+      "sha256": "d7662da37d4b8b037c81e7ae20381a43893b379facf17988a6d4f17a93265140",
+      "literal_version": "2.13.0+cu130",
+      "literal_cuda_build": "13.0",
+      "literal_git_revision": "cf30153c4c131c8164ee7798e5022d810682e2cb"
+    }
+  },
+  "correction": "Shared check_torch_build requires exact distribution2.13.0 plus source-bound loaded literal runtime2.13.0+cu130/CUDA13.0/Git revision. Receipt and existing gated probe use this check; no version prefix acceptance, suffix stripping or normalized TorchVersion equality.",
+  "actual_style_regression": "CPU temporary torch/version.py contains exact inspected bytes and matches the target SHA256; distribution2.13.0 plus str-subclass runtime2.13.0+cu130 accepted; wrong distribution/runtime suffix/CUDA/Git/source and permissive version equality rejected. Existing collector fixture uses the actual distribution/runtime split and preserves false fit gates.",
+  "focused_CPU_tests": 75,
+  "full_CPU_tests": 358,
+  "full_CPU_skipped": 1,
+  "new_identity_CPU_controls": 4,
+  "local_replay_of_independent_base_controls": {
+    "count": 20,
+    "result": "passed locally; independent exact-commit correction review pending",
+    "script_sha256": "a41cb3a18158499a820e97d5572bc913d2fbb9a7d7494a1ae98bb7791579c312",
+    "body_changed": false
+  },
+  "validation": [
+    "focused lifecycle/probe CPU tests",
+    "full CPU scaffold",
+    "unchanged independent base controls",
+    "configuration validation",
+    "compileall",
+    "CPU-only -S freeze",
+    "git diff whitespace"
+  ],
+  "CI_at_freeze_creation": "new exact-head CI not yet run; verify after publication",
+  "native_executed": false,
+  "GPU_imports_or_jobs": 0,
+  "package_system_or_source_manifest_changed": false,
+  "shared_plugin_launcher_edited": false,
+  "registration_lease_cleanup_and_resource_controls_changed": false,
+  "original_runtime_build_pin_preserved": true,
+  "client_handoff": {
+    "task": "01a10651-18d3-7268-86df-bee5b2989041",
+    "source_proof_agrees": true,
+    "callback_worker_utility_admission_keys_scalar_allowlist": "unchanged",
+    "private_receipt_addition": "torch_build_identity with distinct measured metadata and loaded build identities",
+    "required_rebind": "new committed receipt/probe source hashes and zero_protocol_sha256; parent/same-reviewer exact-commit recheck required before composition/admission"
+  },
+  "remaining_gates": [
+    "independent correction review and parent acceptance",
+    "controlled client/shared-owner composition",
+    "serialized parent-owned GPU slot",
+    "original-lane temporary bounds",
+    "transitive FFI argument-route coverage",
+    "residual external CUDA allocation bound"
+  ],
+  "claim_limit": "Source and CPU fixtures only; actual loaded runtime build and allocator/native fit unexecuted. Existing snapshot omission, unknown native counter acquisition peak, 8MiB serialized evidence cap, separate8GiB host reserve and false fit decision remain intact. No GPU clearance."
+}

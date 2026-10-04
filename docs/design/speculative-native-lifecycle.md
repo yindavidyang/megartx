@@ -146,6 +146,20 @@ limitation remains for independent and owned startup/resource review before any
 execution. Neither reduced snapshot coverage nor these host readings can admit
 the native probe or resolve its FFI/temporary/external allocation blockers.
 
+The separate correction after `b9f8e95` distinguishes installed distribution
+metadata (`torch` version `2.13.0`) from the loaded runtime build
+(`torch.__version__` literal `2.13.0+cu130`). Read-only source inspection matches
+the client owner's proof: `torch/version.py` SHA256
+`d7662da37d4b8b037c81e7ae20381a43893b379facf17988a6d4f17a93265140`,
+CUDA build `13.0`, Git revision `cf30153c4c131c8164ee7798e5022d810682e2cb`.
+The shared `check_torch_build` guard hashes that source and requires all of these
+identities exactly in both the receipt and existing gated probe. It compares the
+base literal string of the `TorchVersion` subclass, preserving the full CUDA
+suffix without normalized equality or prefix acceptance. The private receipt
+records both identities; utility/admission arguments and the scalar allowlist
+are unchanged. The [version correction evidence](../evidence/speculative-native-torch-identity-cpu-validation.json)
+is a source/CPU freeze, not a runtime-build measurement or GPU qualification.
+
 Existing startup model frames come from the 30 routed dispatch counters and must
 fit the existing eleven-frame allowance. Six forced expert fixture pairs and
 their measured correction rows are recorded separately. The receipt invokes no
