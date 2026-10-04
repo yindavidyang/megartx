@@ -1,7 +1,7 @@
 {
   "base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
+  "cpu_review_pending": true,
   "gpu_execution_verified": false,
-  "metadata_commit": "7a12f37d282e67ef6637d2f6f8c6851c8199ef87",
   "numerical_qualified": false,
   "parent_ledger_sha256": "4e7ac0e132d0e6d5f3181d2d9e81a2b84914b0a54cadbd2818d5623d7b14c74c",
   "performance_qualified": false,
@@ -12,8 +12,9 @@
     "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
     "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962"
   },
-  "previous_runtime_commit": "090dcc5fcdd42d32eb4005683a26a4932a98380b",
-  "runtime_commit": "f13a4ec2b4d980505a80a5846556a37b9c2c9b2d",
+  "previous_runtime_commit": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
+  "runner_selection_sha256": "500905124e669d059671d749e7799e9cde8f70ee8b1d498d1433aada65fc833d",
+  "runtime_commit": "1e5f33b7631afd72a20218d8dd874a42f0f283f9",
   "schema": "megartx-prefill-native-numerical-lineage-v1",
   "scope": "CPU source lineage extension only; numerical oracle behavior unchanged",
   "superseded_sources": [
@@ -23,7 +24,7 @@
       "prior_sha256": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
     },
     {
-      "current_sha256": "6a124a9a33ae036f2d03e90245aed8c77df1b202676cee5eec38f32ece12ab57",
+      "current_sha256": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
       "path": "scripts/run_scale_validation.py",
       "prior_sha256": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8"
     },

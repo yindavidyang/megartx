@@ -1,25 +1,42 @@
 {
   "base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
+  "cpu_review_pending": true,
   "fit_qualified": false,
   "gpu_executed": false,
   "numerical_qualified": false,
   "performance_qualified": false,
-  "previous_runtime_commit": "090dcc5fcdd42d32eb4005683a26a4932a98380b",
+  "previous_runtime_commit": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
+  "prior_failed_attempt_preserved": {
+    "actual_emitted_token_correspondence_verified": false,
+    "actual_runner": "vllm.v1.worker.gpu.model_runner.GPUModelRunner",
+    "attempt_and_release_sha256": "094dc5bbff586aea7b6fe0818179606e1e9d88bed77696066944350a516a970b",
+    "clearance_consumed": true,
+    "fit_receipt_present": false,
+    "gpu_slot_released": true,
+    "legacy_hook_runner": "vllm.v1.worker.gpu_model_runner.GPUModelRunner",
+    "observer_receipt_present": false,
+    "owned_cleanup_verified": true,
+    "source_head": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
+    "status": "failed_observer_runner_binding"
+  },
   "prior_repo_files": {
     "scripts/run_scale_validation.py": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8",
     "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
     "src/megartx/vllm_scale_plugin.py": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
   },
   "purpose_hooks": [
-    "initialize_kv_cache observation exposure",
-    "actual metadata builder receipt",
-    "_prepare_inputs logits index receipt",
-    "model ForwardContext before/after query",
-    "compute_logits selected hidden bits",
-    "actual _sample output/discard receipt"
+    "runner_constructor",
+    "initialize_kv_cache",
+    "execute_model",
+    "prepare_inputs",
+    "prepare_attn",
+    "sample",
+    "metadata_build",
+    "model_forward",
+    "compute_logits"
   ],
   "repo_files": {
-    "scripts/run_scale_validation.py": "6a124a9a33ae036f2d03e90245aed8c77df1b202676cee5eec38f32ece12ab57",
+    "scripts/run_scale_validation.py": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
     "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
     "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
   },
@@ -30,10 +47,19 @@
     "actual imported adapter origins and bytes",
     "preserve run-wide allocated/reserved peaks across global counter resets",
     "missing-plan admission before HTTP runtime import; python -S regression",
-    "bound actual4,977,046byte checkpoint index as CPU input below8MiB; independent host domain"
+    "bound actual4,977,046byte checkpoint index as CPU input below8MiB; independent host domain",
+    "active default V2 bindings, owned live pre-POST receipt, scheduled-forward hook guard, historical I64 helper unchanged"
   ],
-  "runtime_commit": "f13a4ec2b4d980505a80a5846556a37b9c2c9b2d",
-  "runtime_tree": "a042012c1d9069107f6bc5356a8899f65e9f947e",
+  "runner_policy": {
+    "resolved_v2": true,
+    "runner_class": "GPUModelRunner",
+    "runner_module": "vllm.v1.worker.gpu.model_runner",
+    "selection_override_injected": false,
+    "selector_env": null
+  },
+  "runner_selection_sha256": "500905124e669d059671d749e7799e9cde8f70ee8b1d498d1433aada65fc833d",
+  "runtime_commit": "1e5f33b7631afd72a20218d8dd874a42f0f283f9",
+  "runtime_tree": "9360e2c1c56b8321457fc3195adbd1caa483fcb7",
   "schema": "megartx-prefill-native-source-reconciliation-v1",
   "scope": "exact_cpu_source_compatibility_only",
   "unchanged": [

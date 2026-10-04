@@ -23,7 +23,8 @@
     "observed_checkpoint_index_bytes": 4977046,
     "observed_checkpoint_index_sha256": "ac5e677ed9f8d9b689170bbae0c88ce163e284d02b09100e14afddaa9ec4a15c"
   },
-  "cpu_reviewed_source_head": "bc3cf50031beba64e9c8a51ac15ae4f01b38f087",
+  "cpu_review_pending": true,
+  "cpu_reviewed_source_head": null,
   "fit_qualified": false,
   "gpu_executed": false,
   "historical_catalogs": {
@@ -45,14 +46,27 @@
     "vllm.entrypoints.openai.completion.serving": "75d05ddddf303734a078a3e42fcb173fef58ea56da09bc0b5c7525cb9bbbf527"
   },
   "installed_sources": {
+    "vllm.config.vllm": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+    "vllm.envs": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f",
     "vllm.forward_context": "cc1473477dcc7b762c3901b25cc7bf35c06a2c42f193136fed553abf6fe33f0e",
     "vllm.model_executor.layers.attention.attention": "bc897e452f3aea603e353ca42a365d3be8836e9485d78cbf8cc4677baca2fb42",
     "vllm.model_executor.models.gemma4": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
     "vllm.v1.attention.backends.flashinfer": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f",
     "vllm.v1.core.kv_cache_utils": "2666c9f113584e52e7521058efd2c0d9598544559dc942d3a3da87001a3fedf2",
     "vllm.v1.kv_cache_interface": "1cf202f1a44d5bc5c3832b70b41507687ecceea3784e67a4f003bc0210d6eecb",
-    "vllm.v1.worker.block_table": "a09b8819e1417b7a186cf3472224e2138fc5d41a291c6692bb7df711b0c44259",
-    "vllm.v1.worker.gpu_model_runner": "87c29d08c0bbf66993d8b984811e7325e35e6436242a773feb55ec88f16b2c51"
+    "vllm.v1.worker.gpu.attn_utils": "b9b81e59dda2720b1f9c434471381f879228832443e52756e469b4ad4905888f",
+    "vllm.v1.worker.gpu.block_table": "61c004315d5af7e7eae4e2a9e6be92ea82c520327690a7f55a73bb9ce95f520a",
+    "vllm.v1.worker.gpu.input_batch": "d5dd956eb319bd69dd9e762047833d81ad40b21fce619fcb2133759e73620694",
+    "vllm.v1.worker.gpu.model_runner": "174c93db921c23cf0396eee4764be25b2bd2d4b6a06e9fa41ce3598b884ce8ce",
+    "vllm.v1.worker.gpu.model_states": "07815d0b788fc88185772f581bbf892a675259f9288375571f29887622f8d93c",
+    "vllm.v1.worker.gpu.model_states.default": "bb614f814780f052e869f9acf31dfbfa68718ee7dc6252eefa901b5730ee8a2a",
+    "vllm.v1.worker.gpu.model_states.interface": "5675b6fedc7403a9ab410b1e5565974e78fac23c42ab4253ae1da52d6e09b594",
+    "vllm.v1.worker.gpu.sample.output": "d6e298c0f197d487a8faaf7200f500fa83df1d7a4bbf4339cadd6a18008f7f9c",
+    "vllm.v1.worker.gpu.sample.sampler": "832c9945d201a1e730ff9b4b52076aa83bd4a5064e1e4cfea952cf84d4a8d1f0",
+    "vllm.v1.worker.gpu.states": "99418f5df43ca612ded72609fee011620b065b2cab2f249ccb387096bf4ae71a",
+    "vllm.v1.worker.gpu_model_runner": "87c29d08c0bbf66993d8b984811e7325e35e6436242a773feb55ec88f16b2c51",
+    "vllm.v1.worker.gpu_worker": "6994436e4547c0996ab555b3e814e8ccea26b650dfc1b378b97d640745309347",
+    "vllm.v1.worker.utils": "0ca3ec6bf4d20076145b7fe64e564962adebedc8f75a856b517ba0b2f2d77acf"
   },
   "integration_base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
   "memory_domains": {
@@ -68,15 +82,32 @@
   },
   "numerical_qualified": false,
   "performance_qualified": false,
-  "plan_schema": "megartx-prefill-native-plan-v2",
-  "protocol_sha256": "91d8ba666d8437282402241063d42cbe47ebbb4b803ad4e1684d88c6b8cb26ab",
+  "plan_schema": "megartx-prefill-native-plan-v3",
+  "previous_cpu_reviewed_source_head": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
+  "prior_failed_attempt_preserved": {
+    "actual_emitted_token_correspondence_verified": false,
+    "actual_runner": "vllm.v1.worker.gpu.model_runner.GPUModelRunner",
+    "attempt_and_release_sha256": "094dc5bbff586aea7b6fe0818179606e1e9d88bed77696066944350a516a970b",
+    "clearance_consumed": true,
+    "fit_receipt_present": false,
+    "gpu_slot_released": true,
+    "legacy_hook_runner": "vllm.v1.worker.gpu_model_runner.GPUModelRunner",
+    "observer_receipt_present": false,
+    "owned_cleanup_verified": true,
+    "source_head": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
+    "status": "failed_observer_runner_binding"
+  },
+  "protocol_sha256": "da584b841e923f8005e6fd96bc67b0610ad7f467ad387e578c6cd1c6169a1fc0",
   "purpose_hooks": [
-    "initialize_kv_cache observation exposure",
-    "actual metadata builder receipt",
-    "_prepare_inputs logits index receipt",
-    "model ForwardContext before/after query",
-    "compute_logits selected hidden bits",
-    "actual _sample output/discard receipt"
+    "runner_constructor",
+    "initialize_kv_cache",
+    "execute_model",
+    "prepare_inputs",
+    "prepare_attn",
+    "sample",
+    "metadata_build",
+    "model_forward",
+    "compute_logits"
   ],
   "remaining": [
     "independent CPU review",
@@ -87,28 +118,39 @@
   "reviewed_runtime_history": [
     "090dcc5fcdd42d32eb4005683a26a4932a98380b",
     "da89187e3fb1752a01d27b678c67b41b23dd9ff5",
-    "b28c4387bf2fbcd6f49905540750e6a4c5818e7c"
+    "b28c4387bf2fbcd6f49905540750e6a4c5818e7c",
+    "f13a4ec2b4d980505a80a5846556a37b9c2c9b2d",
+    "15c9d37b50a9977bbec9098f70dd60bb946594ef"
   ],
-  "runtime_commit": "f13a4ec2b4d980505a80a5846556a37b9c2c9b2d",
+  "runner_policy": {
+    "resolved_v2": true,
+    "runner_class": "GPUModelRunner",
+    "runner_module": "vllm.v1.worker.gpu.model_runner",
+    "selection_override_injected": false,
+    "selector_env": null
+  },
+  "runner_selection_sha256": "500905124e669d059671d749e7799e9cde8f70ee8b1d498d1433aada65fc833d",
+  "runtime_commit": "1e5f33b7631afd72a20218d8dd874a42f0f283f9",
   "runtime_source_hashes": {
     "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
-    "scripts/prefill_diagnostic_client.py": "a7ea8c850eb0e594237fe7bcf490566f895895e2b07663a540a0424f01c50315",
-    "scripts/run_scale_validation.py": "6a124a9a33ae036f2d03e90245aed8c77df1b202676cee5eec38f32ece12ab57",
+    "scripts/prefill_diagnostic_client.py": "4d0e3a57927ccf9d920ffc73438d45ed7591a689ba3e74104bb209cb5ca0b233",
+    "scripts/run_scale_validation.py": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
     "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
-    "src/megartx/loaded_engine_access.py": "30b9bedd74fa7e8180611797450046cf4cc64ef317078eb21b2491bae40fb6c2",
+    "src/megartx/loaded_engine_access.py": "2e46661c037c3356f619b8a965a60a2fcaac49851bad8e37c586f4851d81a10e",
     "src/megartx/m1_execution.py": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
     "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
     "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
     "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
     "src/megartx/prefill_collect.py": "be60fbb3233d025e543e4cad5af27c766ca1f4c228971ecd0ef53e66c2532afd",
-    "src/megartx/prefill_diagnostic_plan.py": "7ba34cee7c1f6b7273894257d04584e2d6eadda82c9a63aada9fe2583ae891d1",
+    "src/megartx/prefill_diagnostic_plan.py": "c0b632d5f813439d0ccc0fadc85e1b8a3620f3eae986e6509a8a5dc1c9e1d8a6",
     "src/megartx/prefill_kv.py": "99bf4c047d45425cdc0c840dadb64057603bf7a25f45321889a9728a77a1bafd",
-    "src/megartx/prefill_native.py": "a5f2f9ae8a969fb3339d5d13b773d2250070e3c3dd5c1ca6926ae0ba6306190b",
+    "src/megartx/prefill_native.py": "d91eccb83b9574b81ff0994f8aaf3b1b4a523a1abf275fe618dff3fa25a5dedf",
     "src/megartx/prefill_plan.py": "90a90e5af9fada13da2fa696840373af8210157475505d0586d5926707a2d68c",
     "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
+    "src/megartx/prefill_runner_binding.py": "33894126b93e64cc74c429009b622434f8c10be0a2080c43963bbf7715ca6f86",
     "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
   },
-  "runtime_tree": "a042012c1d9069107f6bc5356a8899f65e9f947e",
+  "runtime_tree": "9360e2c1c56b8321457fc3195adbd1caa483fcb7",
   "runtime_versions": {
     "flashinfer-python": "0.6.18.post1",
     "torch": "2.13.0",
