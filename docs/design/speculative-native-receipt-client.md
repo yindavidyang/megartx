@@ -5,7 +5,12 @@ source-bound plan, source/checkpoint preflight, bounded immutable private writer
 receipt comparison, and an owned supervisor. Its base is the exact reviewed
 lifecycle commit `95f31095f94d254b79c6620a046ccdffce712941`; historical protocol
 pins remain unchanged. No model, Torch/vLLM runtime import, device query, or CUDA
-job was used to develop or verify this packet. The CPU fixtures exercise faults
+job was used to develop or verify this packet. The parent-authorized exact
+collector correction `b9f8e95e9483daa7be263e3a02a1b6a63ab09844` is composed
+through a merge preserving both committed ancestries. Its independent CPU review
+is clear, and the parent accepts the prospective monitored native-counter query
+with its acquisition limitation explicit; this grants no live GPU execution.
+The CPU fixtures exercise faults
 and metadata; they are never admitted native owners. GPU execution and merge
 remain closed.
 
@@ -200,19 +205,32 @@ The child applies an 8 MiB kernel per-file bound to startup evidence before
 imports. A 64 MiB run evidence disk reserve is separate from these RAM/GPU limits
 and is not an allocation-coverage claim.
 
-Two source blockers are frozen in this branch: shared registration/evidence-hook
-integration is absent, and the pinned collector materializes a global allocator
-snapshot/full digest before its byte check. The lifecycle owner is correcting
-that acquisition/serialization issue in separate reviewed code. The writer's
-8 MiB serialized byte cap cannot bound earlier collector host acquisition; the
-8 GiB free-host reserve cannot substitute for that acquisition bound. The planned
-correction removes global snapshot materialization, bounds targeted records
-before copies, streams canonical hashing, and reports snapshot coverage as
-unavailable. Do not compose uncommitted or unreviewed correction content.
+The shared registration/evidence-hook integration is the remaining frozen source
+blocker in this branch. The composed exact
+correction removes global snapshot materialization, bounds targeted Python
+records before copies, streams canonical hashing, and reports segment/block
+snapshot coverage as unavailable. Its selected-device native Torch counter query
+still materializes a private-pool dictionary before Python can guard its count.
+That query's preallocation/peak host bound remains explicitly unavailable.
+The writer's 8 MiB serialized byte cap cannot bound earlier native collector host
+acquisition; the 8 GiB free-host reserve cannot substitute for that acquisition
+bound. No absent snapshot/private-pool observation is converted into zero
+allocations. Independent correction review passed 71 focused, 354 scaffold
+(one skip), 20 prior and 10 new controls, with all six correction CI checks green,
+as relayed by the parent from `task-5/review-bounded-summary.json`. The parent
+accepts the prospective single selected-device native query under fresh exclusive
+startup, host reserve checks before/after, bounded serialized evidence, and the
+existing cleanup/resource guards. This is acceptance of a measured/monitored
+limitation, not a hard heap bound or fit promotion. Only the exact committed
+correction authorized by the parent was composed; no sibling uncommitted content
+was read or incorporated.
 
-`validate_authorization` rejects these blockers before device queries, imports,
+`validate_authorization` rejects the remaining blocker before device queries, imports,
 output-directory acquisition, or model startup. No supplied boolean or edited
-authorization file can override them. After the exact correction and shared
-integration are reviewed, the plan generator/schema must be deliberately updated
+authorization file can override them. The collector guard binds the corrected
+receipt source SHA-256 and both committed ancestries; it records partial Python
+acquisition protection and the exact independent review/parent scope acceptance
+references, without claiming a native host peak bound. After shared integration
+and the exact client/plan are reviewed, the plan generator/schema must be deliberately updated
 and re-frozen at the accepted integrated HEAD. This packet makes no correctness,
 quality, timing, speed, workspace coverage, or live-fit claim.

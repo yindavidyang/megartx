@@ -281,11 +281,19 @@
       "const": false
     },
     "collector_materialization_guard": {
-      "type": "null"
+      "const": {
+        "correction_commit": "b9f8e95e9483daa7be263e3a02a1b6a63ab09844",
+        "receipt_source_sha256": "bcea2a8201529004220b46518df3e5d5e88f7b526e337a7e5ebcd251c897b308",
+        "targeted_python_records_bounded": true,
+        "canonical_serialization_bounded": true,
+        "native_counter_query_preallocation_bound_bytes": null,
+        "review_status": "independent_CPU_review_clear_parent_scope_accepted_GPU_closed",
+        "independent_review_reference": "task-5/review-bounded-summary.json; exact b9f8 correction",
+        "parent_scope_acceptance_reference": "parent-thread:01a0f166-1f28-7799-9a66-c30c5c758028; prospective monitored native counter query; no hard heap bound or GPU authorization"
+      }
     },
     "preflight_blockers": {
       "const": [
-        "collector_snapshot_and_digest_preallocation_bound_unresolved",
         "shared_plugin_registration_and_evidence_hook_not_integrated"
       ]
     },

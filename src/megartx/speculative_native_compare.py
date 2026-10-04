@@ -124,7 +124,13 @@ def verify_private_receipt(raw, identity, scalar, plan):
     # Never publish arbitrary private coverage text/objects. Presence of an
     # explicit source coverage field still cannot establish transitive bounds.
     coverage = "explicit_partial_or_unavailable" if ("snapshot_coverage" in allocator
-        or "snapshot_coverage" in raw or "collection_coverage" in raw) else "legacy_observation_only"
+        or "snapshot_coverage" in raw or "collection_coverage" in raw
+        or "coverage" in allocator or "snapshot_status" in allocator) else "legacy_observation_only"
+    if "acquisition" in allocator:
+        acquisition = allocator["acquisition"]
+        if (type(acquisition) is not dict or acquisition.get("native_query_preallocation_bound_bytes") is not None
+                or acquisition.get("queries") != 1):
+            raise ProbeError("Native allocator-query acquisition coverage was fabricated")
     if raw.get("external_gpu_workspace_bound_bytes") is not None or raw.get("ffi_allocator", {}).get("argument_exchange_coverage_verified") is not False:
         raise ProbeError("First receipt unexpectedly claims external allocation coverage")
     from .speculative_native_receipt import FFI_SOURCES

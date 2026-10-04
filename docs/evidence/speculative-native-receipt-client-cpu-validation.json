@@ -1,10 +1,8 @@
 {
   "schema": "megartx-native-receipt-client-cpu-validation-v1",
   "reviewed_lifecycle_base": "95f31095f94d254b79c6620a046ccdffce712941",
-  "collector_correction_to_compose": "b9f8e95e9483daa7be263e3a02a1b6a63ab09844",
-  "collector_correction_review": "pending_independent_review",
+  "collector_correction_review": "independent_CPU_clear_parent_native_query_scope_accepted_GPU_closed",
   "focused_cpu_tests": 55,
-  "full_cpu_tests": 394,
   "full_cpu_skipped": 1,
   "independent_reference_tests": 513,
   "installed_client_source_observations": {
@@ -19,7 +17,8 @@
     "configuration validation",
     "compileall",
     "python -S import and CLI help controls",
-    "git whitespace checks"
+    "git whitespace checks",
+    "exact committed collector correction composed; CPU controls replayed"
   ],
   "native_executed": false,
   "diagnostic_target_forwards": 0,
@@ -27,5 +26,11 @@
   "GPU_queries_or_jobs": 0,
   "shared_plugin_launcher_edited": false,
   "publication": "code/docs and sanitized CPU scalar evidence only",
-  "claim_limit": "CPU fixtures and installed-source inspection only; no native owner, fit, allocation coverage, correctness, quality or speed admission. Shared integration, collector correction review and parent GPU slot remain closed."
+  "claim_limit": "CPU fixtures and installed-source inspection only; no native owner, fit, allocation coverage, correctness, quality or speed admission. Shared integration, exact client/plan review and parent GPU slot remain closed.",
+  "composed_collector_correction": "b9f8e95e9483daa7be263e3a02a1b6a63ab09844",
+  "collector_native_counter_query_preallocation_bound_bytes": null,
+  "collector_counter_coverage": "selected_device_aggregate_counters_only_no_segment_or_block_coverage",
+  "precomposition_full_cpu_tests": 394,
+  "full_cpu_tests": 409,
+  "collector_review_evidence_reference": "task-5/review-bounded-summary.json; parent-relayed exact b9f8 source clearance"
 }

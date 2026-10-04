@@ -15,6 +15,16 @@ from .speculative_native_probe import ADAPTER_FILES, REVISION, ProbeError
 from .speculative_native_lifecycle import WORKER_EXTENSION
 
 REVIEWED_LIFECYCLE = "95f31095f94d254b79c6620a046ccdffce712941"
+COMPOSED_COLLECTOR_CORRECTION = "b9f8e95e9483daa7be263e3a02a1b6a63ab09844"
+COLLECTOR_GUARD = {
+    "correction_commit": COMPOSED_COLLECTOR_CORRECTION,
+    "receipt_source_sha256": "bcea2a8201529004220b46518df3e5d5e88f7b526e337a7e5ebcd251c897b308",
+    "targeted_python_records_bounded": True, "canonical_serialization_bounded": True,
+    "native_counter_query_preallocation_bound_bytes": None,
+    "review_status": "independent_CPU_review_clear_parent_scope_accepted_GPU_closed",
+    "independent_review_reference": "task-5/review-bounded-summary.json; exact b9f8 correction",
+    "parent_scope_acceptance_reference": "parent-thread:01a0f166-1f28-7799-9a66-c30c5c758028; prospective monitored native counter query; no hard heap bound or GPU authorization"}
+PREFLIGHT_BLOCKERS = ["shared_plugin_registration_and_evidence_hook_not_integrated"]
 BASE = Path("/home/yyang/projects/megartx-baseline-20260930")
 PYTHON = str(BASE / ".venv/bin/python")
 SITE = BASE / ".venv/lib/python3.12/site-packages"
@@ -172,15 +182,17 @@ def freeze(project, *, client_mode="async"):
         raise ProbeError("Freeze requires a clean committed source tree")
     head = _git(project, "rev-parse", "HEAD")
     subprocess.run(["git", "-C", str(project), "merge-base", "--is-ancestor", REVIEWED_LIFECYCLE, head], check=True)
+    subprocess.run(["git", "-C", str(project), "merge-base", "--is-ancestor", COMPOSED_COLLECTOR_CORRECTION, head], check=True)
+    if hash_file(project / "src/megartx/speculative_native_receipt.py", 1 << 20) != COLLECTOR_GUARD["receipt_source_sha256"]:
+        raise ProbeError("Composed exact collector correction source differs")
     result = {"schema": SCHEMA, "purpose": PURPOSE, "reviewed_lifecycle_commit": REVIEWED_LIFECYCLE,
               "source_head": head, "source_sha256": {p: hash_file(project / p, 1 << 20) for p in OWNED_FILES},
               "installed_client_sources": CLIENT_SOURCES, "checkpoint_revision": REVISION,
               "python": PYTHON, "installed_root": str(SITE), "model": MODEL,
               "client_mode": client_mode, "engine_kwargs": engine_kwargs(), "engine_argv": engine_argv(),
               "limits": LIMITS, "gpu_authorized": False, "target_probe_authorized": False,
-              "collector_materialization_guard": None,
-              "preflight_blockers": ["collector_snapshot_and_digest_preallocation_bound_unresolved",
-                                     "shared_plugin_registration_and_evidence_hook_not_integrated"]}
+              "collector_materialization_guard": COLLECTOR_GUARD,
+              "preflight_blockers": PREFLIGHT_BLOCKERS}
     result["plan_sha256"] = object_digest(result)
     return result
 
@@ -201,9 +213,9 @@ def validate_plan(plan, project):
 
 def installed_preflight(root):
     from .speculative_native_probe import inspect_sources
-    from .speculative_native_receipt import FFI_SOURCES
+    from .speculative_native_receipt import FFI_SOURCES, TORCH_MEMORY_SOURCE_SHA256
     result = inspect_sources(root)
-    for path, expected in {**CLIENT_SOURCES, **FFI_SOURCES}.items():
+    for path, expected in {**CLIENT_SOURCES, **FFI_SOURCES, "torch/cuda/memory.py": TORCH_MEMORY_SOURCE_SHA256}.items():
         actual = hash_file(Path(root) / path, 1 << 20)
         if actual != expected:
             raise ProbeError("Installed source changed: " + path)
