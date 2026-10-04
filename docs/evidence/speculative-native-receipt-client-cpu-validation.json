@@ -1,0 +1,53 @@
+{
+  "schema": "megartx-native-receipt-client-cpu-validation-v1",
+  "reviewed_lifecycle_base": "95f31095f94d254b79c6620a046ccdffce712941",
+  "collector_correction_review": "independent_CPU_clear_parent_native_query_scope_accepted_GPU_closed",
+  "focused_cpu_tests": 63,
+  "full_cpu_skipped": 1,
+  "independent_reference_tests": 513,
+  "installed_client_source_observations": {
+    "vllm/v1/engine/core_client.py": "fd6ca0cb7499b3086eef2fc57674b7ace56ef1c648f09e92e144b255b79018f8",
+    "vllm/engine/arg_utils.py": "ead004ca266419cd25f54a7aefc0e20e1eb046f363b7f5cc977e14f52ee44bb1",
+    "vllm/v1/executor/abstract.py": "97791426b549e4447c967f8b8e668c2e376c6a75fa7091fd9df11bc9dafb65f7"
+  },
+  "validation": [
+    "CPU fault and receipt metadata tests",
+    "full repository CPU unittest suite",
+    "independent numerical reference suite",
+    "configuration validation",
+    "compileall",
+    "python -S import and CLI help controls",
+    "git whitespace checks",
+    "exact committed collector correction composed; CPU controls replayed"
+  ],
+  "native_executed": false,
+  "diagnostic_target_forwards": 0,
+  "model_runtime_imports": 0,
+  "GPU_queries_or_jobs": 0,
+  "shared_plugin_launcher_edited": false,
+  "publication": "code/docs and sanitized CPU scalar evidence only",
+  "claim_limit": "CPU fixtures and installed-source inspection only; no native owner, fit, allocation coverage, correctness, quality or speed admission. Shared integration, exact client/plan review and parent GPU slot remain closed.",
+  "composed_collector_correction": "b9f8e95e9483daa7be263e3a02a1b6a63ab09844",
+  "collector_native_counter_query_preallocation_bound_bytes": null,
+  "collector_counter_coverage": "selected_device_aggregate_counters_only_no_segment_or_block_coverage",
+  "precomposition_full_cpu_tests": 394,
+  "full_cpu_tests": 421,
+  "collector_review_evidence_reference": "task-5/review-bounded-summary.json; parent-relayed exact b9f8 source clearance",
+  "installed_full_source_inspection_count": 30,
+  "installed_full_source_inspection_matches": true,
+  "torch_distribution_version": "2.13.0",
+  "torch_runtime_version_source": "2.13.0+cu130",
+  "torch_cuda_version_source": "13.0",
+  "torch_version_source_sha256": "d7662da37d4b8b037c81e7ae20381a43893b379facf17988a6d4f17a93265140",
+  "collector_version_distinction_dependency": "exact reviewed 43fb523 correction composed; distribution/runtime/build/source checked independently; historical runtime pin unchanged",
+  "shared_launcher_source_binding": "scripts/run_scale_validation.py explicit committed SHA in client plan; no shared edit",
+  "runner_selection_source_observations": {
+    "vllm/config/vllm.py": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+    "vllm/envs.py": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f"
+  },
+  "runner_selection_admission": "resolvedV2/unknown rejected before engine creation; no override; actual loaded runner identity unavailable; exact selection review pending",
+  "composed_identity_correction": "43fb52354cb0fd15845e0851d8eda3addb5835d3",
+  "identity_correction_review_evidence_reference": "task-5/review-torch-summary.json; parent-relayed exact 43fb523 CPU clearance",
+  "torch_git_version_source": "cf30153c4c131c8164ee7798e5022d810682e2cb",
+  "newer_main_composition": "not composed; exact reviewed ancestry preserved; any future merge requires a new freeze/review"
+}

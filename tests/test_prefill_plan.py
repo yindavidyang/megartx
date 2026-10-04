@@ -84,6 +84,7 @@ class PlanTests(unittest.TestCase):
                 manifest = prefill.read_json(MANIFEST)
                 manifest["reviewed_source_overlays"] = []
                 manifest.pop("native_source_overlay", None)
+                manifest.pop("native_composition_overlay", None)
                 manifest["repo_files"] = {source_name: hashlib.sha256(b"source").hexdigest()}
                 file = root / "manifest.json"
                 file.write_text(json.dumps(manifest))
@@ -109,6 +110,7 @@ class PlanTests(unittest.TestCase):
             manifest = prefill.read_json(MANIFEST)
             manifest["reviewed_source_overlays"] = []
             manifest.pop("native_source_overlay", None)
+            manifest.pop("native_composition_overlay", None)
             manifest["repo_files"] = {"source.py": hashlib.sha256(b"original").hexdigest()}
             file = root / "manifest.json"
             file.write_text(json.dumps(manifest))

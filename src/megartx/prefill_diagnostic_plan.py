@@ -24,7 +24,7 @@ SOURCES = (
     "src/megartx/prefill_kv.py", "src/megartx/controlled_kv_capture.py",
     "src/megartx/m1_execution.py", "src/megartx/prefill_plan.py",
     "src/megartx/prefill_runner.py", "src/megartx/prefill_collect.py",
-    "src/megartx/prefill_runner_binding.py")
+    "src/megartx/prefill_runner_binding.py", "src/megartx/native_diagnostic_composition.py")
 INSTALLED = {
     "vllm.config.vllm": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
     "vllm.envs": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f",

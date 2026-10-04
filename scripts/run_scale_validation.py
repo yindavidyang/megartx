@@ -25,7 +25,11 @@ parser.add_argument("--profile", action="store_true")
 parser.add_argument("--m1-decode-profile", action="store_true",
                     help="Untimed four-step CPU/CUDA attribution per 2K lane in the exact one-pair eager pilot")
 parser.add_argument("--mode", choices=("native", "reference", "control", "paired_reference", "gate_only_negative_control"), required=True)
-parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal", "m1-eager-benchmark", "prefill-native"), default="quality")
+parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal", "m1-eager-benchmark", "prefill-native", "native-v1-receipt", "native-v2-receipt"), default="quality")
+parser.add_argument("--native-receipt-plan", type=pathlib.Path)
+parser.add_argument("--native-receipt-authorization", type=pathlib.Path)
+parser.add_argument("--native-receipt-directory", type=pathlib.Path)
+parser.add_argument("--native-receipt-checkpoint-manifest", type=pathlib.Path)
 parser.add_argument("--prefill-native-plan", type=pathlib.Path)
 parser.add_argument("--prefill-native-clearance", type=pathlib.Path)
 parser.add_argument("--m1-eager-benchmark-plan", type=pathlib.Path)
@@ -49,6 +53,17 @@ parser.add_argument("--m1-normal-plan", type=pathlib.Path)
 parser.add_argument("--m1-external-observer", action="store_true",
                     help="Enable the perturbing capture-free launch/output sidecar")
 args = parser.parse_args()
+from megartx.native_diagnostic_composition import validate_launcher_environment, receipt_client_argv
+try:
+    validate_launcher_environment(os.environ, args.client)
+    receipt_argv = receipt_client_argv(args, pathlib.Path(__file__).resolve().parents[1])
+except (RuntimeError, ValueError) as error:
+    parser.error(str(error))
+if receipt_argv is not None:
+    # The dedicated client owns all review/slot, source, resource and lifecycle
+    # admission. No HTTP server, model acquisition or boolean waiver here.
+    from speculative_native_receipt_client import main as receipt_main
+    raise SystemExit(receipt_main(receipt_argv))
 prefill_native = args.client == "prefill-native"
 prefill_plan = None
 prefill_evidence = None

@@ -1,0 +1,78 @@
+{
+  "checks": {
+    "CPU_minus_S_import_audit": true,
+    "V2_adversarial_tests": 29,
+    "compileall": true,
+    "contracts": 8,
+    "diff_check": true,
+    "exact_public_KVCacheTensor_retention_control": true,
+    "numerical_reference_tests": 513,
+    "original_head_independent_controls": {
+      "failed": 2,
+      "passed": 2
+    },
+    "scaffold_tests": 450
+  },
+  "corrected_findings": [
+    "joint Worker/runner device replacement could previously change the successful-release drain target",
+    "placement owner address could previously be recycled after mutable list replacement"
+  ],
+  "environment": {
+    "execution": "dot_cloud_CPU_only",
+    "numpy": "2.3.5",
+    "python": "3.12.14",
+    "qualification": "CPU dependency versions are not claimed as the pinned native runtime"
+  },
+  "evidence_log_sha256": {
+    "contracts": "7329f1ea7e9c26154ff9bf505cf885d85a56c1f11b0a29fe8ee8dbbc02ca0263",
+    "independent_original_head_regressions": "f7849b414d5f5d7f22e7f6997015f40d6df670ee0d71206ed4f6ce52a0506ce4",
+    "numerical": "7381c07bddd6223aeda5ba8bed770e399d4a12ac3617ea4d4e8a3dce6827e7b6",
+    "reference_summary": "83d36b8144cde64c55e1531a8239d87110b4616ce957eaa600137309d45f5622",
+    "scaffold": "96b2d4eada5af3a3d607a22a918f3a22d9c15b755f5f81856c4a76329342b9fc",
+    "targeted": "fffb5af610658370c404711e7e0e5c5ff5c9e76580db936ab02d2b03bcb4b23a"
+  },
+  "module_and_protocol_sha256": {
+    "docs/design/speculative-native-v2-ownership.md": "a73f582a3e1339b8d36eae0fa49d8288be68c2663b85d9ff982d7874e8b49fd9",
+    "docs/design/speculative-native-v2-zero-forward-protocol.json": "3f0c392aadb5731d8e0b0886e61349b4174f6a5f0455291de96721b2f6892587",
+    "src/megartx/speculative_native_v2.py": "36a7ac672797f870a2bfe97dccc478438773467177c082986f7b92e670bfe624",
+    "src/megartx/speculative_native_v2_lifecycle.py": "485d86826a4dd08dc17f9b1364159f614d9cc03e8e792f5f60b88afc89fdcf6c",
+    "src/megartx/speculative_native_v2_receipt.py": "368a417535e345dbeef44eb02bb06cccbc01bdd61398824b0ae588002fc57b67",
+    "tests/fixtures/speculative_v2_cache_placement.json": "9c6af4d82b42972d662eec09393d0025633b9804803a88806cb874bfc3366f27",
+    "tests/test_speculative_native_v2.py": "e0a36865179ca7180e75b0d5d66a65d805ec2ce610c0a9e7f563d044ec235001"
+  },
+  "negative_control_scope": [
+    "original device object replacement, including same ordinal",
+    "explicit CUDA ordinal validation and in-place fixture ordinal drift",
+    "actual V2Owner, Worker and EngineCore device drift before release, during drain and during receipt",
+    "wrong-device cache rejected before drain or allocator query",
+    "receipt-drain device drift rejected before allocator query",
+    "primary KeyboardInterrupt preserved when cleanup cannot confirm original-device drain",
+    "unknown drain retains original BlockPool refs with ref_cnt=1, poisons and prevents retry/resume",
+    "successful original-device drain frees exactly once, including failure before V2Owner construction completes",
+    "strong group/spec/placement child retention and identity comparison",
+    "exact pinned public KVCacheTensor class extraction prevents original address reuse prerequisite"
+  ],
+  "qualification": {
+    "device_queries": false,
+    "drafter_admitted": false,
+    "fit_verified": false,
+    "historical_source_pins_changed": false,
+    "installed_runtime_imports": false,
+    "model_GPU_work_performed": false,
+    "native_runtime_observed": false,
+    "shared_files_edited": false,
+    "target_probe_admitted": false,
+    "training": false,
+    "weights_downloaded": false
+  },
+  "remaining": [
+    "independent exact-source delta review",
+    "shared V2 plugin/client/evidence composition and review",
+    "parent source/protocol acceptance and sole GPU slot",
+    "actual layout/fit and external/FFI/temporary bounds",
+    "separate persistent drafter weights/KV and feature budget plus native acceptance validation"
+  ],
+  "schema": "megartx-native-v2-owner-release-cpu-validation-v1",
+  "source_base": "6b8bd5387f37f57c836ab25002803f67352f09af",
+  "status": "CPU_source_controls_only_independent_delta_review_pending"
+}

@@ -217,6 +217,19 @@
     "triton": "3.7.1",
     "vllm": "0.30.0"
   },
+  "native_composition_overlay": {
+    "dspark_parent": "8027588365ed4b23c6ccbc73de2c8f710e2e166f",
+    "evidence_reference": "docs/prefill/native-composition-lineage.json",
+    "evidence_sha256": "aa887037d9972500fdde2b86a88f66d46ed203b0e11d337fdb2a38376786604b",
+    "prefill_parent": "418e1ecf5af0b5974ecf767a50c6d54f5578bee0",
+    "repo_files": {
+      "scripts/run_scale_validation.py": "cd3280a5f9e7660e8dfe877d55c07cab2d616336b5cdc81b1c9077f0495dde97",
+      "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+      "src/megartx/native_diagnostic_composition.py": "25c232d627a9eb11e9bb0ed0a15c99948081be7ae12c294b448fd6926656fb0e",
+      "src/megartx/vllm_scale_plugin.py": "2a04e37af7e679cd88b58a28488cca357081da90222221cc4beec2eb0d30b82e"
+    },
+    "review_scope": "exact_cpu_source_compatibility_only"
+  },
   "native_source_overlay": {
     "evidence_reference": "docs/prefill/native-source-reconciliation.json",
     "evidence_sha256": "f0efbc5019e001e91245267cc5a964871a84a0fc3478e13deadefc6511f0410b",

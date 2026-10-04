@@ -1,0 +1,40 @@
+{
+  "schema": "megartx-native-v2-client-protocol-v1",
+  "source_base": "95f7b20d91b08ed83e81fd3d9af82b91f3f6a31e",
+  "source_base_tree": "d6e5157e8cb9347a7276d35b021b7d118fdf358f",
+  "purpose": "first_v2_zero_forward_layout_workspace_measurement",
+  "selection": "explicit --runner-lane v2 freeze; distinct V2 plan and authorization schemas; observe resolved default V2 before EngineCoreClient.make_client; never inject VLLM_USE_V2_MODEL_RUNNER",
+  "legacy": "--runner-lane v1-legacy preserves the original V1 plan, lifecycle names, source pins and resolved-False guard; neither schema can authorize the other lane",
+  "registration": [
+    "megartx.speculative_native_v2_lifecycle.install_native_v2_diagnostic",
+    "megartx.speculative_native_evidence.install_native_v2_receipt_evidence"
+  ],
+  "environment": {
+    "MEGARTX_NATIVE_V2_DIAGNOSTIC": "1",
+    "MEGARTX_NATIVE_V2_RECEIPT_EVIDENCE": "1",
+    "MEGARTX_NATIVE_DIAGNOSTIC": null,
+    "MEGARTX_NATIVE_RECEIPT_EVIDENCE": null,
+    "VLLM_USE_V2_MODEL_RUNNER": null,
+    "MEGARTX_M1_PREPARATION": null
+  },
+  "utility_sequence": [
+    "fresh EMPTY EngineCore; pause_scheduler(keep, false); await completion",
+    "megartx_owned_native_v2_receipt(exact source/client/owner admission)",
+    "megartx_owned_native_v2_release; owned shutdown; never resume or serve"
+  ],
+  "evidence": "existing retained V2 lease only; exact V2-purpose immutable private raw receipt and identity; allowlisted V2 scalar summary; receipt digest, installed/adapter sources, actual V2 owner identities, cache pages and allocator geometry verified offline",
+  "uncertainty": "no second receipt or release RPC after transport uncertainty; known post-receipt writer failure uses existing V2 worker drain; unknown drain keeps original owner references through owned teardown",
+  "bounds": "8 MiB canonical serialized receipt; bounded targeted Python records; one native allocator-counter query with unknown native preacquisition host peak; monitored 8 GiB host reserve before/after is not a hard native heap bound",
+  "future_draft_budget": "Makora approximately 2.41 GB weights and draft KV are future persistent budget, separate from the unchanged 8 MiB candidate/observer scratch cap; no draft loading or fit claim",
+  "shared_composition": "Composed by docs/design/native-diagnostic-composition-protocol.json; exact clean source binds both public parents, lifecycle/evidence registration and dedicated launcher delegation. Independent review, exact-head CI, parent acceptance and GPU slot authorization remain required.",
+  "gpu_authorized": false,
+  "target_probe_authorized": false,
+  "drafter_authorized": false,
+  "fit_admitted": false,
+  "later_bounds": [
+    "FFI_argument_exchange_allocator_coverage_unverified",
+    "M1_M2_M256_original_lane_temporary_bound_unresolved",
+    "external_CUDA_allocation_bound_unresolved",
+    "V2_verifier_and_drafter_interfaces_not_admitted"
+  ]
+}

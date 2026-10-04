@@ -1,5 +1,5 @@
 {
-  "binding_sha256": "f1b762444aa73b554e2b696c0619c81a061392821df8e4dc1b4281bb31aed099",
+  "binding_sha256": "13af8a1de6fbcf33b7aaaaa6cc172e21bc6c9acc38d801f58e0252af3cc0fe40",
   "caps": {
     "gpu_free_floor_bytes": 2147483648,
     "host_free_floor_bytes": 8589934592,

@@ -7,6 +7,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from megartx.speculative_native_probe import ADAPTER_FILES, digest, inspect_sources
+from megartx.speculative_native_lifecycle import WORKER_EXTENSION, implementation_binding
 
 
 def main(argv=None):
@@ -23,7 +24,11 @@ def main(argv=None):
               "driver_sha256": digest(Path(__file__)),
               "adapter_source_sha256": {name: digest(root / "src/megartx" / name) for name in ADAPTER_FILES},
               "sources": inspect_sources(args.installed_root) if args.installed_root else None,
-              "blocking_extension": "reviewed owned lifecycle EngineCore utility + Worker extension",
+              "registration_callback": "megartx.speculative_native_lifecycle.install_native_diagnostic",
+              "worker_extension_cls": WORKER_EXTENSION,
+              "implementation_binding": implementation_binding(),
+              "zero_protocol_sha256": digest(root / "docs/design/speculative-native-zero-forward-protocol.json"),
+              "blocking_extension": "shared-owner launcher reconciliation, review, parent slot and actual workspace fit",
               "native_executed": False}
     payload = json.dumps(result, indent=2) + "\n"
     if args.output:

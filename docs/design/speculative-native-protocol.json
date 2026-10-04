@@ -1,7 +1,7 @@
 {
   "schema": "megartx-speculative-native-minimal-protocol-v1",
   "base_commit": "464c728a8758a558fd0bfe326f3ed7a2f10fe0c4",
-  "status": "CPU_implementation_frozen_launch_unregistered_pending_independent_review_parent_admission_slot",
+  "status": "CPU_registered_exclusive_receipt_path_launcher_reconciliation_fit_review_parent_slot_pending",
   "gpu_authorized": false,
   "target": {
     "repository": "nvidia/Gemma-4-26B-A4B-NVFP4",
@@ -19,8 +19,19 @@
   },
   "cached_prompt_tokens": 2048,
   "prefill_chunk_tokens": 256,
-  "candidate_counts": [0, 1],
-  "cases": ["k0", "forced_rejection", "full_accept", "cancel_before_forward", "cancel_after_forward_drain", "cancel_before_publication", "cancel_retry_next_forward"],
+  "candidate_counts": [
+    0,
+    1
+  ],
+  "cases": [
+    "k0",
+    "forced_rejection",
+    "full_accept",
+    "cancel_before_forward",
+    "cancel_after_forward_drain",
+    "cancel_before_publication",
+    "cancel_retry_next_forward"
+  ],
   "bootstrap": "Last prompt hidden row -> actual model.compute_logits -> CPU first-index argmax, emit first token once, pending at P",
   "comparison": {
     "hidden": "all_actual_rows_bit_equal_to_separate_serial_replay",
@@ -45,7 +56,14 @@
     "max_fresh_engine_leases": 1,
     "max_target_forwards": 96,
     "expected_target_forwards": 85,
-    "target_forwards_breakdown": {"prefill": 64, "greedy_serial_controls": 9, "wrong_candidate_branch": 2, "verifier": 3, "next_input_comparisons": 3, "cancellation_retry_continuation": 4},
+    "target_forwards_breakdown": {
+      "prefill": 64,
+      "greedy_serial_controls": 9,
+      "wrong_candidate_branch": 2,
+      "verifier": 3,
+      "next_input_comparisons": 3,
+      "cancellation_retry_continuation": 4
+    },
     "startup_forward_accounting": "reviewed_launcher_must_freeze_standard_startup_calls_in_remaining_11_forward_allowance; no_hidden_extra_target_calls",
     "max_wall_seconds_including_cleanup": 1800,
     "max_startup_seconds": 900,
@@ -68,11 +86,13 @@
     "staging_baseline": "serial_ceil((P+4)/B)_capacity_includes_one_committed_tail_page; one_additional_COW_page_per_group_is_charged_even_though_shared_arena_already_resident"
   },
   "required_launcher_exposure": {
-    "EngineCore_utility": "megartx_owned_native_probe -> run_engine_core_probe(..., enabled=True)",
-    "worker_extension_cls": "megartx.speculative_native_probe.NativeProbeWorkerExtension",
+    "EngineCore_utility": "megartx_owned_native_probe -> registered owned_probe; requires prior live zero-forward receipt and separate fit admission",
+    "worker_extension_cls": "megartx.speculative_native_lifecycle.NativeDiagnosticWorkerExtension",
     "site": "EngineCoreProc_existing_synchronous_utility_handler_after_initialize_from_config_and_empty_keep_pause",
     "shared_files_touched": [],
-    "lifecycle": "existing_m1_owned_processes_resource_startup_timeout_cleanup_controls_without_M256_benchmark_gate"
+    "lifecycle": "existing_m1_owned_processes_resource_startup_timeout_cleanup_controls_without_M256_benchmark_gate",
+    "registration_callback": "megartx.speculative_native_lifecycle.install_native_diagnostic",
+    "zero_forward_protocol": "speculative-native-zero-forward-protocol.json"
   },
   "admission": [
     "parent_accepts_exact_source_protocol",
@@ -83,5 +103,16 @@
     "existing_startup_30_corrected_routed_owner_callback_bindings_original_capture_proof54_tensors_and_six_experts_M1_absent_verified_without_prepare_rerun",
     "actual_page_layout_aliasing_padded_lower_bound_and_remaining_native_scratch_fit_reviewed"
   ],
-  "excluded": ["training", "downloads", "package_changes", "system_changes", "stochastic_sampler", "wider_context_k_matrix", "benchmark", "quality_claim", "speedup_claim", "merge"]
+  "excluded": [
+    "training",
+    "downloads",
+    "package_changes",
+    "system_changes",
+    "stochastic_sampler",
+    "wider_context_k_matrix",
+    "benchmark",
+    "quality_claim",
+    "speedup_claim",
+    "merge"
+  ]
 }

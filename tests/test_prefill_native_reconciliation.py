@@ -1,5 +1,6 @@
 """Exact source vector extension; historical catalogs are immutable inputs."""
 import ast
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -20,7 +21,7 @@ class NativeReconciliationTests(unittest.TestCase):
             plan=prefill_plan.read_json(root/'docs/prefill/profile-plan-native.json')
             self.assertEqual(prefill_plan.verify_source_binding(plan,manifest,root),12)
             review=prefill_plan.read_json(root/'docs/prefill/native-source-reconciliation.json')
-            for path in ('src/megartx/vllm_scale_plugin.py','scripts/run_scale_validation.py','src/megartx/m1_live.py','src/megartx/nvfp4_runtime.py'):
+            for path in ('src/megartx/vllm_scale_plugin.py','scripts/run_scale_validation.py','src/megartx/m1_live.py','src/megartx/nvfp4_runtime.py','src/megartx/native_diagnostic_composition.py'):
                 file=root/path; original=file.read_bytes()
                 variants=[original+b'\n# unknown vector\n']
                 if path=='src/megartx/vllm_scale_plugin.py':
@@ -36,6 +37,42 @@ class NativeReconciliationTests(unittest.TestCase):
                     with self.subTest(path=path),self.assertRaisesRegex(ValueError,'Source drift'):
                         prefill_plan.verify_source_binding(plan,manifest,root)
                 file.write_bytes(original)
+
+    def test_composition_cannot_select_parent_or_mix_rehashed_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'repo'
+            shutil.copytree(ROOT, root, ignore=shutil.ignore_patterns('.git', '__pycache__'))
+            manifest_path = root / 'docs/prefill/source-binding-native.json'
+            original = prefill_plan.read_json(manifest_path)
+            plan = prefill_plan.read_json(root / 'docs/prefill/profile-plan-native.json')
+            evidence_path = root / 'docs/prefill/native-composition-lineage.json'
+            evidence_bytes = evidence_path.read_bytes()
+            for mutation in ('absent', 'partial', 'unknown', 'parent', 'prior_vector', 'evidence_hash', 'qualification'):
+                manifest = copy.deepcopy(original)
+                overlay = manifest['native_composition_overlay']
+                review = json.loads(evidence_bytes)
+                if mutation == 'absent':
+                    del manifest['native_composition_overlay']
+                elif mutation == 'partial':
+                    overlay['repo_files'].pop('src/megartx/native_diagnostic_composition.py')
+                elif mutation == 'unknown':
+                    overlay['repo_files']['unreviewed.py'] = '0' * 64
+                elif mutation == 'parent':
+                    overlay['prefill_parent'] = '0' * 40
+                elif mutation == 'prior_vector':
+                    review['previous_shared_repo_files']['scripts/run_scale_validation.py'] = '0' * 64
+                elif mutation == 'qualification':
+                    review['gpu_executed'] = True
+                else:
+                    overlay['evidence_sha256'] = '0' * 64
+                if mutation in ('prior_vector', 'qualification'):
+                    evidence_path.write_text(json.dumps(review))
+                    overlay['evidence_sha256'] = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+                manifest_path.write_text(json.dumps(manifest))
+                plan['binding']['source_manifest_sha256'] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+                with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                    prefill_plan.verify_source_binding(plan, manifest_path, root)
+                evidence_path.write_bytes(evidence_bytes)
 
     def test_historical_catalog_hashes_and_plugin_arithmetic_ast_preserved(self):
         receipt=json.loads((ROOT/'docs/prefill/native-diagnostic-binding.json').read_text())

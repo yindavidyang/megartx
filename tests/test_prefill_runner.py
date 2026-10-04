@@ -179,8 +179,15 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(current["source_head"], attribution["source_head"])
         self.assertEqual(current["review_scope"], "cpu_source_compatibility_only")
         for name, expected in current["repo_files"].items():
-            self.assertEqual(hashlib.sha256((ROOT / name).read_bytes()).hexdigest(), source["native_source_overlay"]["repo_files"][name])
+            self.assertEqual(hashlib.sha256((ROOT / name).read_bytes()).hexdigest(), source["native_composition_overlay"]["repo_files"][name])
             self.assertEqual(attribution["files"][name]["candidate_sha256"], expected)
+        native_parent = p.read_json(DOCS / "native-source-reconciliation.json")
+        composition = p.read_json(DOCS / "native-composition-lineage.json")
+        self.assertEqual(source["native_source_overlay"]["repo_files"], native_parent["repo_files"])
+        self.assertEqual(composition["previous_shared_repo_files"], native_parent["repo_files"])
+        helper = "src/megartx/native_diagnostic_composition.py"
+        self.assertEqual(hashlib.sha256((ROOT / helper).read_bytes()).hexdigest(),
+                         source["native_composition_overlay"]["repo_files"][helper])
         self.assertEqual(manifest["repository_base_commit"], "5a32504b5ccb209a779b8a110eb2ebc56d72e373")
         self.assertEqual(hashlib.sha256((ROOT / "src/megartx/prefill_runner.py").read_bytes()).hexdigest(),
                          "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93")
@@ -349,6 +356,7 @@ class ProtocolTests(unittest.TestCase):
             root = Path(directory)
             source = p.read_json(DOCS / "source-binding-native.json")
             for name in set(source["repo_files"]) | r.RUNNER_FILES | {"scripts/run_scale_validation.py", "docs/prefill/native-source-reconciliation.json",
+                    "src/megartx/native_diagnostic_composition.py", "docs/prefill/native-composition-lineage.json",
                     "docs/prefill/runner-plan-native.json", "docs/prefill/profile-plan-native.json",
                     "docs/prefill/source-binding-native.json", "docs/prefill/runner-binding-native.json"}:
                 dest = root / name

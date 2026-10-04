@@ -295,6 +295,53 @@ class M1PreparationTests(unittest.TestCase):
 
     def test_committed_source_pins_match_exact_base_evidence(self):
         root = Path(__file__).resolve().parents[1]
+        shared = json.loads((root / "docs/prefill/native-composition-lineage.json").read_text())
+        self.assertEqual(shared["schema"], "megartx-native-v2-composition-lineage-v1")
+        self.assertEqual(shared["prefill_parent"], "418e1ecf5af0b5974ecf767a50c6d54f5578bee0")
+        self.assertEqual(shared["dspark_parent"], "8027588365ed4b23c6ccbc73de2c8f710e2e166f")
+        self.assertEqual(shared["main_parent"], "ca6c385562aff30e91e8bb6a7f4228c9d766c30d")
+        self.assertEqual(set(shared["parent_ledgers"]), {
+            "docs/prefill/native-source-reconciliation.json", "docs/prefill/native-diagnostic-binding.json",
+            "docs/prefill/native-selected-builder-correction.json", "docs/prefill/native-bound-callback-correction.json",
+            "docs/prefill/native-numerical-lineage.json", "docs/prefill/main-reconciliation-lineage.json",
+            "docs/evidence/m1-sf-layout-source-pins.json"})
+        for path, expected in shared["parent_ledgers"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+        for flag in ("gpu_executed", "fit_qualified", "numerical_qualified", "performance_qualified"):
+            self.assertIs(shared[flag], False)
+        shared_changes = {entry["path"]: entry for entry in shared["superseded_sources"]}
+        self.assertEqual(len(shared_changes), len(shared["superseded_sources"]))
+        self.assertEqual(set(shared_changes), {
+            "src/megartx/vllm_scale_plugin.py", "scripts/run_scale_validation.py",
+            "src/megartx/prefill_plan.py", "src/megartx/prefill_diagnostic_plan.py",
+            "tests/test_prefill_plan.py", "tests/test_prefill_runner.py",
+            "tests/test_prefill_native_reconciliation.py", "numerical_reference/test_m1_preparation_reference.py"})
+        parent_runtime = json.loads((root / "docs/prefill/native-diagnostic-binding.json").read_text())["runtime_source_hashes"]
+        self.assertEqual(set(shared["prefill_runtime_source_hashes"]),
+                         set(parent_runtime) | {"src/megartx/native_diagnostic_composition.py"})
+        for path, expected in shared["prefill_runtime_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+        for path in ("src/megartx/prefill_plan.py", "src/megartx/prefill_diagnostic_plan.py",
+                     "src/megartx/vllm_scale_plugin.py", "scripts/run_scale_validation.py"):
+            self.assertEqual(shared_changes[path]["prior_sha256"], parent_runtime[path], path)
+        self.assertEqual(shared_changes["tests/test_prefill_native_reconciliation.py"]["prior_sha256"],
+                         "40ee0efab698e0e878775846978055dae92271d136e2bb87d2ee22ce7a33b5e8")
+        for path, record in shared_changes.items():
+            self.assertEqual(set(record), {"path", "prior_sha256", "current_sha256"})
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), record["current_sha256"], path)
+        self.assertEqual(set(shared["added_source_hashes"]), {"src/megartx/native_diagnostic_composition.py"})
+        for path, expected in shared["added_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+        prior = json.loads((root / "docs/prefill/native-source-reconciliation.json").read_text())["repo_files"]
+        self.assertEqual(shared["previous_shared_repo_files"], prior)
+        self.assertEqual(shared["shared_repo_files"], {
+            **{path: shared_changes[path]["current_sha256"] if path in shared_changes else expected
+               for path, expected in prior.items()}, **shared["added_source_hashes"]})
+        def composition_current(path, previous):
+            if path in shared_changes:
+                self.assertEqual(shared_changes[path]["prior_sha256"], previous, path)
+                return shared_changes[path]["current_sha256"]
+            return previous
         historical = root / "docs/evidence/m1-preparation-source-pins.json"
         pins = json.loads(historical.read_text())
         self.assertFalse(pins["installed_binary_abi_verified"])
@@ -445,8 +492,8 @@ class M1PreparationTests(unittest.TestCase):
         def merged_current(path, parent_field, previous):
             if path in merged_changes:
                 self.assertEqual(merged_changes[path][parent_field], previous, path)
-                return merged_changes[path]["current_sha256"]
-            return previous
+                previous = merged_changes[path]["current_sha256"]
+            return composition_current(path, previous)
         for path, expected in native["preserved_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(), layout_current(path, expected), path)
         def native_current(path, previous):
@@ -545,6 +592,42 @@ class M1PreparationTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), merged_current(path, "main_parent_sha256", record["current_sha256"]), path)
         for path, expected in layout["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+
+    def test_shared_composition_rejects_parent_source_and_vector_drift(self):
+        root = Path(__file__).resolve().parents[1]
+        ledger = root / "docs/prefill/native-composition-lineage.json"
+        read_text = Path.read_text
+        for mutation in ("prefill_parent", "dspark_parent", "main_parent", "parent_ledger",
+                         "prior_sha256", "current_sha256", "unknown_source", "duplicate_source",
+                         "parent_only", "helper", "mixed_vector", "gpu_executed"):
+            def changed_text(path, *args, **kwargs):
+                data = read_text(path, *args, **kwargs)
+                if path == ledger:
+                    value = json.loads(data)
+                    entry = next(item for item in value["superseded_sources"]
+                                 if item["path"] == "scripts/run_scale_validation.py")
+                    if mutation in ("prefill_parent", "dspark_parent", "main_parent"):
+                        value[mutation] = "0" * 40
+                    elif mutation == "parent_ledger":
+                        value["parent_ledgers"]["docs/prefill/main-reconciliation-lineage.json"] = "0" * 64
+                    elif mutation in ("prior_sha256", "current_sha256"):
+                        entry[mutation] = "0" * 64
+                    elif mutation == "unknown_source":
+                        entry["path"] = "unknown.py"
+                    elif mutation == "duplicate_source":
+                        value["superseded_sources"].append(dict(entry))
+                    elif mutation == "parent_only":
+                        entry["current_sha256"] = entry["prior_sha256"]
+                    elif mutation == "helper":
+                        value["added_source_hashes"]["src/megartx/native_diagnostic_composition.py"] = "0" * 64
+                    elif mutation == "mixed_vector":
+                        value["shared_repo_files"][entry["path"]] = entry["prior_sha256"]
+                    else:
+                        value[mutation] = True
+                    return json.dumps(value)
+                return data
+            with self.subTest(mutation=mutation), patch.object(Path, "read_text", changed_text), self.assertRaises(AssertionError):
+                self.test_committed_source_pins_match_exact_base_evidence()
 
     def test_main_composition_rejects_wrong_parents_and_one_branch_resolution(self):
         root = Path(__file__).resolve().parents[1]
