@@ -6,7 +6,7 @@ its original compact evidence contract. Neither policy is rewritten here.
 """
 import ast
 import copy
-from contextlib import ExitStack, redirect_stdout
+from contextlib import ExitStack
 import datetime
 import hashlib
 import importlib.util
@@ -470,6 +470,31 @@ class ExtractedLauncherTests(unittest.TestCase):
         self.assertIn('resource telemetry failed', harness.cleanup()['failure'])
         self.assertEqual((harness.output / 'run.exit').read_text(), '1\n')
         harness.summary.assert_not_called()
+
+    def test_actual_warmed_dispatch_records_monotonic_boundaries_and_exact_flag(self):
+        harness = LauncherHarness(self, 'main')
+        harness.args.m1_warmed_timing = True
+        harness.env.update({'bench_command': ['cpu-client'], 'WARMED_RULE': 'cpu-warmed-rule'})
+        dispatch = next(node for node in run_node().body if isinstance(node, ast.If)
+                        and ast.unparse(node.test) == 'prefill_native'
+                        and any(isinstance(child, ast.Assign)
+                                and any(isinstance(target, ast.Name) and target.id == 'client_launch_ns'
+                                        for target in child.targets) for child in node.orelse))
+        monotonic_values = iter((100, 200, 300))
+        harness.env['time'] = NS(monotonic_ns=lambda: next(monotonic_values),
+                                 time_ns=lambda: 999, perf_counter_ns=lambda: self.fail('Decode used prefill clock'))
+        harness.env['subprocess'].run = Mock(return_value=NS(returncode=0))
+        try:
+            harness.env['server_ready_ns'] = harness.env['phase']('server_ready')
+            exec(code([dispatch]), harness.env)
+        finally:
+            harness.env['phases'].close()
+        boundary = json.loads((harness.output / 'warmed-launch-boundaries.json').read_text())
+        self.assertEqual([boundary[key] for key in ('server_ready_ns', 'client_launch_ns', 'client_returned_ns')],
+                         [100, 200, 300])
+        self.assertEqual(harness.env['bench_command'], ['cpu-client', '--m1-warmed-timing'])
+        self.assertEqual(harness.env['subprocess'].run.call_args.kwargs['timeout'], 3600)
+        self.assertEqual((harness.output / 'benchmark.exit').read_text(), '0\n')
 
     def test_interruption_preserves_primary_failure_and_completes_owned_cleanup(self):
         for purpose in ('main', 'native', 'storage'):
