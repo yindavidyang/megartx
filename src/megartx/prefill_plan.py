@@ -183,6 +183,28 @@ def verify_source_binding(plan, manifest_path, root):
         for name, expected in overlay["repo_files"].items():
             _sha(expected, name)
         candidates.append({**files, **overlay["repo_files"]})
+    native = manifest.get("native_source_overlay")
+    if native is not None:
+        _keys(native, {"source_base", "review_scope", "repo_files", "evidence_reference", "evidence_sha256"}, "native source overlay")
+        _equal(native["source_base"], "cf656d6632b9f1b08019a527a9269a9ed0fb0a26", "native source base")
+        _equal(native["review_scope"], "exact_cpu_source_compatibility_only", "native overlay scope")
+        _equal(native["evidence_reference"], "docs/prefill/native-source-reconciliation.json", "native overlay reference")
+        inventory = pair | {"scripts/run_scale_validation.py"}
+        _keys(native["repo_files"], inventory, "exact native controller/plugin/launcher vector")
+        evidence = root / native["evidence_reference"]
+        if evidence.is_symlink() or not evidence.is_file() or hashlib.sha256(evidence.read_bytes()).hexdigest() != native["evidence_sha256"]:
+            raise ValueError("Native source reconciliation digest changed")
+        review = read_json(evidence)
+        _equal(review["base"], native["source_base"], "native review base")
+        _equal(review["repo_files"], native["repo_files"], "native exact source vector")
+        for flag in ("gpu_executed", "fit_qualified", "numerical_qualified", "performance_qualified"):
+            _equal(review[flag], False, "native pending " + flag)
+        for name, expected in native["repo_files"].items():
+            _sha(expected, name)
+            source = root / name
+            if any((root / Path(*Path(name).parts[:i])).is_symlink() for i in range(1,len(Path(name).parts)+1)) or not source.is_file() or hashlib.sha256(source.read_bytes()).hexdigest() != expected:
+                raise ValueError("Source drift: native atomic plugin/launcher vector " + name)
+        candidates.append({**files, **{name: expected for name, expected in native["repo_files"].items() if name in files}})
     if actual not in candidates:
         changed = sorted(name for name in files if actual[name] != files[name])
         raise ValueError("Source drift: " + ", ".join(changed))

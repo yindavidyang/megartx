@@ -11,8 +11,8 @@ from megartx import prefill_plan as prefill
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PLAN = ROOT / "docs/prefill/profile-plan.json"
-MANIFEST = ROOT / "docs/prefill/source-binding.json"
+PLAN = ROOT / "docs/prefill/profile-plan-native.json"
+MANIFEST = ROOT / "docs/prefill/source-binding-native.json"
 
 
 class PlanTests(unittest.TestCase):
@@ -83,6 +83,7 @@ class PlanTests(unittest.TestCase):
             for source_name in ("../target.py", "/tmp/target.py", "link.py"):
                 manifest = prefill.read_json(MANIFEST)
                 manifest["reviewed_source_overlays"] = []
+                manifest.pop("native_source_overlay", None)
                 manifest["repo_files"] = {source_name: hashlib.sha256(b"source").hexdigest()}
                 file = root / "manifest.json"
                 file.write_text(json.dumps(manifest))
@@ -107,6 +108,7 @@ class PlanTests(unittest.TestCase):
             root = Path(directory)
             manifest = prefill.read_json(MANIFEST)
             manifest["reviewed_source_overlays"] = []
+            manifest.pop("native_source_overlay", None)
             manifest["repo_files"] = {"source.py": hashlib.sha256(b"original").hexdigest()}
             file = root / "manifest.json"
             file.write_text(json.dumps(manifest))
@@ -135,7 +137,7 @@ class PlanTests(unittest.TestCase):
     def test_cli_never_imports_device_packages_or_registers_runtime(self):
         code = """
 import runpy, sys
-sys.argv = ['prefill_plan', 'docs/prefill/profile-plan.json', '--source-manifest', 'docs/prefill/source-binding.json', '--root', '.']
+sys.argv = ['prefill_plan', 'docs/prefill/profile-plan-native.json', '--source-manifest', 'docs/prefill/source-binding-native.json', '--root', '.']
 try:
     runpy.run_module('megartx.prefill_plan', run_name='__main__')
 except SystemExit as result:

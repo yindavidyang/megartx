@@ -24,8 +24,8 @@ DIGEST = "a" * 64
 
 
 def inputs(filled=False):
-    manifest = p.read_json(DOCS / "runner-plan.json")
-    plan = p.read_json(DOCS / "profile-plan.json")
+    manifest = p.read_json(DOCS / "runner-plan-native.json")
+    plan = p.read_json(DOCS / "profile-plan-native.json")
     prompts = {"schema": "megartx-prefill-private-prompts-v1",
                "token_ids": {"p2048": [i % 262144 for i in range(2048)]}}
     if filled:
@@ -150,16 +150,16 @@ def synthetic_records(protocol, prompts):
 
 class ProtocolTests(unittest.TestCase):
     def test_merged_binding_preserves_reviewed_plan_and_historical_sources(self):
-        manifest, plan = r.load_inputs(DOCS / "runner-plan.json", DOCS / "profile-plan.json",
-            DOCS / "source-binding.json", DOCS / "runner-binding.json", ROOT)
+        manifest, plan = r.load_inputs(DOCS / "runner-plan-native.json", DOCS / "profile-plan-native.json",
+            DOCS / "source-binding-native.json", DOCS / "runner-binding-native.json", ROOT)
         # PR19's entire plan, except PR15's reviewed source-manifest pointer.
         semantic_plan = copy.deepcopy(plan)
         semantic_plan["binding"].pop("source_manifest_sha256")
         self.assertEqual(r.digest(semantic_plan),
                          "a3819e2816aa7f3292d216bdcef56e7fe3af3539ba1bacb6604c74e0c4b58196")
-        source = p.read_json(DOCS / "source-binding.json")
+        source = p.read_json(DOCS / "source-binding-native.json")
         self.assertEqual(plan["binding"]["source_manifest_sha256"],
-                         hashlib.sha256((DOCS / "source-binding.json").read_bytes()).hexdigest())
+                         hashlib.sha256((DOCS / "source-binding-native.json").read_bytes()).hexdigest())
         self.assertEqual(len(source["repo_files"]), 12)
         self.assertEqual(r.digest(source["repo_files"]),
                          "05f0b4f7f009024b082e170539217fe5839da5f86d6eb7e88105832feea2fc66")
@@ -179,7 +179,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(current["source_head"], attribution["source_head"])
         self.assertEqual(current["review_scope"], "cpu_source_compatibility_only")
         for name, expected in current["repo_files"].items():
-            self.assertEqual(hashlib.sha256((ROOT / name).read_bytes()).hexdigest(), expected)
+            self.assertEqual(hashlib.sha256((ROOT / name).read_bytes()).hexdigest(), source["native_source_overlay"]["repo_files"][name])
             self.assertEqual(attribution["files"][name]["candidate_sha256"], expected)
         self.assertEqual(manifest["repository_base_commit"], "5a32504b5ccb209a779b8a110eb2ebc56d72e373")
         self.assertEqual(hashlib.sha256((ROOT / "src/megartx/prefill_runner.py").read_bytes()).hexdigest(),
@@ -193,7 +193,7 @@ class ProtocolTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             paths = [directory / name for name in
-                     ("runner-plan.json", "profile-plan.json", "source-binding.json", "runner-binding.json")]
+                     ("runner-plan-native.json", "profile-plan-native.json", "source-binding-native.json", "runner-binding-native.json")]
             for path in paths:
                 shutil.copyfile(DOCS / path.name, path)
             r.load_inputs(*paths, ROOT)
@@ -225,8 +225,8 @@ class ProtocolTests(unittest.TestCase):
                     r.load_inputs(*paths, ROOT)
 
     def test_checked_in_inputs_bind_and_remain_disabled(self):
-        manifest, plan = r.load_inputs(DOCS / "runner-plan.json", DOCS / "profile-plan.json",
-            DOCS / "source-binding.json", DOCS / "runner-binding.json", ROOT)
+        manifest, plan = r.load_inputs(DOCS / "runner-plan-native.json", DOCS / "profile-plan-native.json",
+            DOCS / "source-binding-native.json", DOCS / "runner-binding-native.json", ROOT)
         protocol = r.compile_protocol(manifest, plan)
         self.assertEqual((len(protocol["jobs"]), protocol["request_count"]), (99, 88))
         self.assertFalse(protocol["prerequisites_complete"])
@@ -327,8 +327,8 @@ class ProtocolTests(unittest.TestCase):
             r.request_payload(protocol["jobs"][0], payload["prompt"])
 
     def test_cli_bindings_disabled_execution_exclusive_output_and_no_gpu_import(self):
-        args = ["--manifest", str(DOCS / "runner-plan.json"), "--plan", str(DOCS / "profile-plan.json"),
-                "--source-manifest", str(DOCS / "source-binding.json"), "--runner-binding", str(DOCS / "runner-binding.json"),
+        args = ["--manifest", str(DOCS / "runner-plan-native.json"), "--plan", str(DOCS / "profile-plan-native.json"),
+                "--source-manifest", str(DOCS / "source-binding-native.json"), "--runner-binding", str(DOCS / "runner-binding-native.json"),
                 "--root", str(ROOT), "--workload", "p2048", "--chunk", "2048"]
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "protocol.json"
@@ -347,15 +347,15 @@ class ProtocolTests(unittest.TestCase):
     def test_extended_source_binding_drift_inventory_and_symlinks(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            source = p.read_json(DOCS / "source-binding.json")
-            for name in set(source["repo_files"]) | r.RUNNER_FILES | {
-                    "docs/prefill/runner-plan.json", "docs/prefill/profile-plan.json",
-                    "docs/prefill/source-binding.json", "docs/prefill/runner-binding.json"}:
+            source = p.read_json(DOCS / "source-binding-native.json")
+            for name in set(source["repo_files"]) | r.RUNNER_FILES | {"scripts/run_scale_validation.py", "docs/prefill/native-source-reconciliation.json",
+                    "docs/prefill/runner-plan-native.json", "docs/prefill/profile-plan-native.json",
+                    "docs/prefill/source-binding-native.json", "docs/prefill/runner-binding-native.json"}:
                 dest = root / name
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / name, dest)
             paths = [root / "docs/prefill" / name for name in
-                     ("runner-plan.json", "profile-plan.json", "source-binding.json", "runner-binding.json")]
+                     ("runner-plan-native.json", "profile-plan-native.json", "source-binding-native.json", "runner-binding-native.json")]
             r.load_inputs(*paths, root)
             for name, error in (("docs/prefill/README.md", "Runner source drift"),
                                 ("src/megartx/prefill_plan.py", "Runner source drift"),
@@ -600,8 +600,8 @@ class RecordTests(unittest.TestCase):
             prompts_path.write_text(json.dumps(self.prompts))
             process = subprocess.run([sys.executable, "-m", "megartx.prefill_runner",
                 "--manifest", str(manifest_path), "--plan", str(plan_path),
-                "--source-manifest", str(DOCS / "source-binding.json"),
-                "--runner-binding", str(DOCS / "runner-binding.json"), "--root", str(ROOT),
+                "--source-manifest", str(DOCS / "source-binding-native.json"),
+                "--runner-binding", str(DOCS / "runner-binding-native.json"), "--root", str(ROOT),
                 "--workload", "p2048", "--chunk", "255", "--records", str(records_path),
                 "--prompts", str(prompts_path)], cwd=ROOT, capture_output=True, text=True, timeout=10)
             self.assertEqual(process.returncode, 0, process.stderr)

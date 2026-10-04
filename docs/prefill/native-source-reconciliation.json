@@ -1,0 +1,34 @@
+{
+  "base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
+  "fit_qualified": false,
+  "gpu_executed": false,
+  "numerical_qualified": false,
+  "performance_qualified": false,
+  "prior_repo_files": {
+    "scripts/run_scale_validation.py": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/vllm_scale_plugin.py": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
+  },
+  "purpose_hooks": [
+    "initialize_kv_cache observation exposure",
+    "actual metadata builder receipt",
+    "_prepare_inputs logits index receipt",
+    "model ForwardContext before/after query",
+    "compute_logits selected hidden bits",
+    "actual _sample output/discard receipt"
+  ],
+  "repo_files": {
+    "scripts/run_scale_validation.py": "738e9809e121f760fa280b47adb84ddb8d5d5b497951b47c14c83b76a675ba35",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
+  },
+  "runtime_commit": "090dcc5fcdd42d32eb4005683a26a4932a98380b",
+  "schema": "megartx-prefill-native-source-reconciliation-v1",
+  "scope": "exact_cpu_source_compatibility_only",
+  "unchanged": [
+    "nvfp4_runtime.py",
+    "nvfp4_integration.py",
+    "controlled_kv_capture.py",
+    "m1_live.py"
+  ]
+}

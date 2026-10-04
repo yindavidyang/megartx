@@ -1,0 +1,271 @@
+{
+  "association_note": "Historical repository evidence, not a fresh host receipt or binary/source equivalence attestation. Rebind exact target sources/binaries/driver/package lock before a future GPU slot.",
+  "attribution_review_sha256": "e9c03345f96a37b857f41e03aabdef6718ef8a31eb4b44adf79b2a781b6b744e",
+  "checkpoint_metadata": {
+    "config": {
+      "bytes": 10289,
+      "sha256": "4e379cc809c617a49179a49140f553a2d6a5ec538ed480832b0c54f6ace43d98",
+      "url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/config.json"
+    },
+    "coverage": "Only routed experts have NVFP4 W/A; dense/shared MLP, attention, router, head and vision excluded. KV export metadata is FP8; this plan explicitly requires BF16 KV.",
+    "hf_quant_config": {
+      "bytes": 5188,
+      "sha256": "fca2ea21cded31e6cff2c56ee83a162dcd5d3ff292cbf2f6083702e9fc324454",
+      "url": "https://huggingface.co/nvidia/Gemma-4-26B-A4B-NVFP4/resolve/a19cfe00be84568a6867111c9a68c9c44fdcffe6/hf_quant_config.json"
+    },
+    "producer": {
+      "name": "modelopt",
+      "version": "0.43.0rc2.dev91+gc79ebc014"
+    },
+    "quantization": {
+      "group_size": 16,
+      "kv_cache_quant_algo": "FP8",
+      "quant_algo": "NVFP4"
+    },
+    "text": {
+      "attention_k_eq_v": true,
+      "final_logit_softcapping": 30.0,
+      "global_head_dim": 512,
+      "head_dim": 256,
+      "hidden_activation": "gelu_pytorch_tanh",
+      "hidden_size": 2816,
+      "hidden_size_per_layer_input": 0,
+      "intermediate_size": 2112,
+      "layer_types": [
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "full_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "full_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "full_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "full_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "sliding_attention",
+        "full_attention"
+      ],
+      "moe_intermediate_size": 704,
+      "num_attention_heads": 16,
+      "num_experts": 128,
+      "num_global_key_value_heads": 2,
+      "num_hidden_layers": 30,
+      "num_key_value_heads": 8,
+      "num_kv_shared_layers": 0,
+      "rms_norm_eps": 1e-06,
+      "rope_parameters": {
+        "full_attention": {
+          "partial_rotary_factor": 0.25,
+          "rope_theta": 1000000.0,
+          "rope_type": "proportional"
+        },
+        "sliding_attention": {
+          "rope_theta": 10000.0,
+          "rope_type": "default"
+        }
+      },
+      "sliding_window": 1024,
+      "tie_word_embeddings": true,
+      "top_k_experts": 8,
+      "vocab_size": 262144
+    }
+  },
+  "checkpoint_repository": "nvidia/Gemma-4-26B-A4B-NVFP4",
+  "checkpoint_revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+  "gpu_qualified": false,
+  "historical_installed_files": {
+    "flashinfer/data/csrc/flashinfer_xqa_binding.cu": {
+      "bytes": 2167,
+      "sha256": "a4b4af8bab93ce363d67bed76ed7ee7f5d5ee27146345fcb39863142931fe80b"
+    },
+    "flashinfer/data/csrc/xqa/defines.h": {
+      "bytes": 5815,
+      "sha256": "722dd1cba129d23ba532bdab69c15c7255d6870af52d0d3e1d5667734e752973"
+    },
+    "flashinfer/data/csrc/xqa/mha.cu": {
+      "bytes": 137685,
+      "sha256": "fac9c9a116be125b800257c455ee3abe2a2a620b2816a3c254792d3a5033ace4"
+    },
+    "flashinfer/data/csrc/xqa/mha.h": {
+      "bytes": 11032,
+      "sha256": "e23d3741868ec09c3aa2cb08ffea298db21737362b7ba89bb9d6f9c6533746fa"
+    },
+    "flashinfer/data/csrc/xqa/mhaUtils.cuh": {
+      "bytes": 19177,
+      "sha256": "9a62daf9bc47e03d68eb4ea8e650d4f72b29ad50538a07404f3a0793d5a1ade8"
+    },
+    "flashinfer/data/csrc/xqa/mma.cuh": {
+      "bytes": 3413,
+      "sha256": "a4a8ffbd9ecb0329864f21943916640d805e92137387b7f23e0fbc06c6dfe4d2"
+    },
+    "flashinfer/data/csrc/xqa/xqa_wrapper.cu": {
+      "bytes": 7741,
+      "sha256": "31fbba7d0e912091b9aa16a1fd28338372be56b4543edcf556e21e33924a34aa"
+    },
+    "flashinfer/data/include/flashinfer/attention/decode.cuh": {
+      "bytes": 52677,
+      "sha256": "bd699c64cff0af922305e532de587ff4db8bc377c198bd653db1d48aa74c2942"
+    },
+    "flashinfer/data/include/flashinfer/attention/prefill.cuh": {
+      "bytes": 231175,
+      "sha256": "f93cbea96e3a723254c15f5a52d6dd4c13e3892e88eb9b9fed1c0c0048c7d710"
+    },
+    "flashinfer/data/include/flashinfer/attention/state.cuh": {
+      "bytes": 2554,
+      "sha256": "b2f59c104c2857e7e69f1837faf577525a292da98b375d5fb24dbcfc15d78159"
+    },
+    "flashinfer/data/include/flashinfer/attention/variants.cuh": {
+      "bytes": 3223,
+      "sha256": "90a228dd71b3ce8030d663e2b16f67f840fe4a3e99912f8b47774d3fd905a080"
+    },
+    "flashinfer/data/include/flashinfer/math.cuh": {
+      "bytes": 8141,
+      "sha256": "ad9461ba66273bf7e227af1e285a136b4e53f899fa60b3a41f08627ad738f2ed"
+    },
+    "flashinfer/data/include/flashinfer/mma.cuh": {
+      "bytes": 26618,
+      "sha256": "f6df5d6475bf2fc33932399b7063894a2a4ed27cfabe45ae7cd239a1c61943e9"
+    },
+    "flashinfer/data/include/flashinfer/vec_dtypes.cuh": {
+      "bytes": 77917,
+      "sha256": "3e292b05f261f29287cb18871fe62f6a9a59cf1f47e885bee45524776a984f2c"
+    },
+    "flashinfer/decode.py": {
+      "bytes": 165958,
+      "sha256": "d82d107a644596a9349780b839b34e690c50169ea4cea3d0ee02b78e9dc88c1a"
+    },
+    "flashinfer/jit/xqa.py": {
+      "bytes": 9348,
+      "sha256": "b47625e738bcef4324e874a20fa4c3aee91c477dafd72b24480e3d235c3d20cc"
+    },
+    "flashinfer/prefill.py": {
+      "bytes": 268368,
+      "sha256": "2ad12a8387b3f6bff192e5945769b68d90cfcab00b9eb2a8a524af8dd71a29de"
+    },
+    "flashinfer/xqa.py": {
+      "bytes": 24480,
+      "sha256": "6a3f7330980b976201cff0fcdf51e2958e454c4c5951ad2b30c1f2aa13722d33"
+    },
+    "vllm/_C_stable_libtorch.abi3.so": {
+      "bytes": 78014032,
+      "sha256": "7a283666e16f66348351ed0e877425016b09e1986a2a1086b0aaad08dbadd101",
+      "source_copy": false
+    },
+    "vllm/_version.py": {
+      "bytes": 530,
+      "sha256": "c8b934f984aeeb61bbe5f0bdfe0fa80783e39d18369cbf47d63f7ff7581ac8f9"
+    },
+    "vllm/kernels/vllm_c.py": {
+      "bytes": 3320,
+      "sha256": "ef37e71736807026f0b8ad187155b63f147984c03d287a78790ef8f8ed642ec1"
+    },
+    "vllm/model_executor/layers/layernorm.py": {
+      "bytes": 11691,
+      "sha256": "4126258bf85aa3af54c78cfbf2a0f32000491e42be37661f2d1ac9f0beea00f3"
+    },
+    "vllm/model_executor/layers/rotary_embedding/base.py": {
+      "bytes": 10964,
+      "sha256": "c81804498f08f072356a26b41967f211475df2694dabf5da9f488c074d1fdef5"
+    },
+    "vllm/model_executor/models/gemma4.py": {
+      "bytes": 69524,
+      "sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3"
+    },
+    "vllm/v1/attention/backends/flashinfer.py": {
+      "bytes": 117007,
+      "sha256": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f"
+    }
+  },
+  "historical_matmul_flags": {
+    "allow_bf16_reduced_precision_reduction": true,
+    "allow_bf16_reduced_precision_reduction_split_k": true,
+    "allow_fp16_reduced_precision_reduction": true,
+    "allow_tf32": false
+  },
+  "historical_stack": {
+    "compute_dtype": "bfloat16",
+    "enforce_eager": true,
+    "flashinfer_python": "0.6.18.post1",
+    "gpu_compute_capability": "12.0",
+    "kv_dtype": "bfloat16",
+    "max_active_sequences": 1,
+    "moe_backend": "FLASHINFER_CUTLASS",
+    "numpy_target": "2.3.5",
+    "prefix_cache": false,
+    "python_target": "3.12.3",
+    "speculation": false,
+    "torch": "2.13.0+cu130",
+    "transformers": "5.18.0",
+    "triton": "3.7.1",
+    "vllm": "0.30.0"
+  },
+  "native_source_overlay": {
+    "evidence_reference": "docs/prefill/native-source-reconciliation.json",
+    "evidence_sha256": "d69682a0e5af2f814f6c5c06e031e10879de247b6f4d025ed00f544211d5fde8",
+    "repo_files": {
+      "scripts/run_scale_validation.py": "738e9809e121f760fa280b47adb84ddb8d5d5b497951b47c14c83b76a675ba35",
+      "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+      "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
+    },
+    "review_scope": "exact_cpu_source_compatibility_only",
+    "source_base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26"
+  },
+  "repo_files": {
+    "docs/evidence/layer0-norm-attention-source-pins.json": "2d14fd78e074d71a8275f0dc86ca68150de7559206bc7ecc39732fa7b978729b",
+    "docs/evidence/m1-normal-matched.json": "39524059c6d6f7870251f990ff3c4a1e8c6a94756e26298d54868dbddc291a1a",
+    "docs/evidence/nvfp4-controlled-live.json": "654187c82784e43f2541f27dca2c86aeec72f4d38341920afd55d1405baddb20",
+    "docs/evidence/nvfp4-router-scores.json": "0f640f2a476a29d4691cb2eab932dbd1765158d26ddc3c2234d953c53fb7ad9e",
+    "docs/nvfp4-scale-correction.md": "3d95289c41bfdcc90cfc7c26faf234d994468964898ea168829daf9f7bd9679b",
+    "numerical_reference/router_reference.py": "55b066ae2e7340c3ae0a9f7e9cc6c8b031a7120bd1b795117c6b235877948978",
+    "scripts/replay_layer0_norm_attention.py": "1b39ffae165baf29fd2f4919e08eea14d95b2b0c1d2a94c56b5e2f91e42d4896",
+    "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
+    "src/megartx/m1_live.py": "d43adffdece9ec51627fa3b42125367ec3370bb01d800aad7b1fc6dc4d0f4431",
+    "src/megartx/m1_normal_plan.py": "5de0b23e2c836b8ee44326763ed5ccc9dcda691b2a1654470c05d5c428212ee2",
+    "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
+    "src/megartx/vllm_scale_plugin.py": "8f673b71d62d5e4c7ac1707e09d188b6d2013af8dbe7420d81dc41b6470c71ae"
+  },
+  "repository_base_commit": "09341f2ad3f6e4b03e8f264b9e3c59fe5ddb52ed",
+  "reviewed_source_overlays": [
+    {
+      "evidence_reference": "docs/prefill/pr15-source-reconciliation.json",
+      "id": "pr15-eager-benchmark-dfd77d8c",
+      "repo_files": {
+        "src/megartx/m1_live.py": "5c555e420c77a590c9fad47b45f6aff36af6f22279f29fdfbbd4641cd80368a4",
+        "src/megartx/vllm_scale_plugin.py": "5bbdd7ba1b6777eb48cafae742ba7d808b28ef166292f8a1c2e79df2d621b54a"
+      },
+      "review_scope": "cpu_source_compatibility_only",
+      "source_head": "dfd77d8c80d333fc9531955795476f7e9c0cbab2"
+    },
+    {
+      "evidence_reference": "docs/prefill/decode-attribution-source-reconciliation.json",
+      "id": "m1-decode-attribution-19b74de",
+      "repo_files": {
+        "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+        "src/megartx/vllm_scale_plugin.py": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
+      },
+      "review_scope": "cpu_source_compatibility_only",
+      "source_head": "19b74de0400b4201550874bd7e9431c068876ef3"
+    }
+  ],
+  "schema": "megartx-prefill-source-binding-v1",
+  "source_review_sha256": "51aaa3ce4bc39307536981c17016cee608db9409fce31cb2c3a16f2d98fa1851",
+  "upstream_vllm_commit": "ced6857afa0ea7b2e3f0846a62e1394e90f15607"
+}

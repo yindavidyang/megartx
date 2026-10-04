@@ -1,0 +1,45 @@
+{
+  "binding_sha256": "d78f19180b114930a006fa62f0366616e060c4b93d19abcc70d02990542cabb3",
+  "caps": {
+    "gpu_free_floor_bytes": 2147483648,
+    "host_free_floor_bytes": 8589934592,
+    "max_build_rss_bytes": 2147483648,
+    "max_build_seconds": 300,
+    "max_extra_scratch_bytes": 8388608,
+    "max_gpu_jobs": 1,
+    "max_requests": 8,
+    "max_trace_bytes": 8388608,
+    "max_wall_seconds": 1800,
+    "memory_reserve_bytes": 2147483648
+  },
+  "decode_rows": 1,
+  "gpu_enabled": false,
+  "phase_order": [
+    "fit",
+    "cache_correctness",
+    "baseline"
+  ],
+  "receipts": {
+    "cleanup": null,
+    "decode_control": null,
+    "dispatch": null,
+    "environment": null,
+    "fit": null,
+    "gpu_scope": null,
+    "launcher_review": null,
+    "numerical": null,
+    "ownership": null,
+    "resource": null,
+    "source_review": null
+  },
+  "repository_base_commit": "0581f09259d18044ffb5f9e1363d0760f37ddd4f",
+  "schema": "megartx-prefill-live-plan-v1",
+  "supported_chunk_tokens": [
+    255,
+    256,
+    512,
+    1024,
+    2048,
+    8192
+  ]
+}
