@@ -27,7 +27,11 @@ CLIENT_FILES = ("src/megartx/speculative_native_v2_plan.py", PROTOCOL,
                 "docs/evidence/speculative-preparation-source-contract.json")
 PREPARATION_SOURCES = {
     "vllm/utils/network_utils.py": "383648e9374a6f2304fec91bd6a54aeb0301c009e69c267bcdc4dfbed38e20e9",
-    "vllm/plugins/__init__.py": "fb6e6ee432c5a4ae207aaffe4b546aca9381f56ee8498b0a3e0d9af2d289d023"}
+    "vllm/plugins/__init__.py": "fb6e6ee432c5a4ae207aaffe4b546aca9381f56ee8498b0a3e0d9af2d289d023",
+    "vllm/model_executor/model_loader/default_loader.py": "9c9d54b1b650bf5affc924ebb8b8c73711e187ae7486cadd9f737bb1279cc7b8",
+    "vllm/model_executor/model_loader/weight_utils.py": "7443e55184777dcc99f621b0d97d9149d52c2ea8b4304c6621eb4902e1c8ba5b",
+    "vllm/config/load.py": "bd6431c22e078362d749a56a2c84145432ebf2605d8bcfa2ac679182d18ed630",
+    "vllm/transformers_utils/repo_utils.py": "e49f14267604cf7e5a9b95e09c7be2801cf4364e06ea9b3fe7226d6654731793"}
 PREFLIGHT_BLOCKERS = []  # This exact source composes the shared hooks; review/CI/slot admission remains mandatory.
 LIMITS = legacy.LIMITS
 RUNNER_BINDING = {"expected_model_runner_class": owner.RUNNER_MODULE + ".GPUModelRunner",

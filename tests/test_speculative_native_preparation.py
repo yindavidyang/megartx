@@ -62,7 +62,28 @@ class CheckpointPreparationControls(unittest.TestCase):
 
     def test_unrelated_non_file_children_do_not_add_a_host_layout_requirement(self):
         (self.model / '.cache').mkdir()
+        (self.model / 'consolidated-directory.safetensors').mkdir()
+        (self.model / '.cache' / 'download-metadata.json').write_text('{}')
+        (self.model / 'unused.safetensors').write_bytes(b'index-filtered unrelated file')
         self.assertTrue(self.run_preflight()['full_files_rehashed'])
+
+    def test_alternate_auto_loader_input_rejected_including_nested_and_symlink(self):
+        for name in ('consolidated.safetensors','.cache/consolidated-00001.safetensors'):
+            path=self.model/name;path.parent.mkdir(exist_ok=True);path.write_bytes(b'unbound alternate weights')
+            with self.assertRaisesRegex(ProbeError,'changes auto loader'): self.run_preflight()
+            path.unlink()
+        path=self.model/'consolidated.safetensors';path.symlink_to(self.model/'model-00001-of-00002.safetensors')
+        with self.assertRaisesRegex(ProbeError,'changes auto loader'): self.run_preflight()
+
+    def test_alternate_loader_input_added_during_hash_is_rejected(self):
+        original=plan.hash_file
+        def add_file(path,*args):
+            result=original(path,*args)
+            if str(path).endswith('model-00002-of-00002.safetensors'):
+                (self.model/'consolidated.safetensors').write_bytes(b'unbound')
+            return result
+        with patch.object(plan,'hash_file',side_effect=add_file):
+            with self.assertRaisesRegex(ProbeError,'changes auto loader'): self.run_preflight()
 
     def test_missing_extra_duplicate_manifest_rows_rejected_before_payload_hash(self):
         originals = copy.deepcopy(self.manifest['files'])
@@ -185,6 +206,19 @@ class RuntimePreparationControls(unittest.TestCase):
         changed=copy.deepcopy(self.binding); changed['paths']['cache']=str(plan.BASE/'cache')
         with self.assertRaises(ProbeError): prep.runtime_preflight(changed,self.private)
         with self.assertRaises(ProbeError): prep.runtime_preflight(self.binding,self.runtime/'evidence')
+
+    def test_evidence_cannot_write_baseline_or_source_tree(self):
+        for private in (plan.BASE/'results/new-receipt',self.project/'results',self.project,plan.BASE):
+            with self.assertRaisesRegex(ProbeError,'overlap'):
+                prep.runtime_preflight(self.binding,private)
+
+    def test_source_only_V2_freeze_blocks_baseline_evidence_before_writer(self):
+        spec=importlib.util.spec_from_file_location('preparation_freeze_fixture',ROOT/'scripts/speculative_native_receipt_preflight.py')
+        client=importlib.util.module_from_spec(spec);spec.loader.exec_module(client)
+        with patch.object(client,'freeze',return_value={'runtime_binding':None}),patch.object(client,'PrivateEvidence') as writer:
+            with self.assertRaisesRegex(ProbeError,'overlap'):
+                client.main(['--freeze','--runner-lane','v2','--private-directory',str(plan.BASE/'results')])
+            writer.assert_not_called()
 
     def test_stale_wheel_metadata_and_source_rejected(self):
         (self.dist/'WHEEL').write_text('changed\n')

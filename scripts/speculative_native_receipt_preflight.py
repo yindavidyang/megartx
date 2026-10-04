@@ -9,7 +9,7 @@ sys.path.insert(0, str(PROJECT / "src"))
 from megartx.speculative_native_plan import (LIMITS, freeze, installed_preflight,
     checkpoint_preflight, read_json, validate_plan)
 from megartx.speculative_native_evidence import PrivateEvidence
-from megartx.speculative_native_preparation import runtime_preflight
+from megartx.speculative_native_preparation import runtime_preflight, evidence_path
 
 
 def main(argv=None):
@@ -58,6 +58,11 @@ def main(argv=None):
                                                   installed_root=args.installed_root)
         name = "native-receipt-preflight.private.json"
     if args.private_directory:
+        lane = args.runner_lane if args.freeze else plan.get("runner_lane", "v1-legacy")
+        if lane == "v2":
+            evidence_path(args.private_directory, PROJECT)
+            if args.freeze and result.get("runtime_binding") is not None:
+                runtime_preflight(result["runtime_binding"], args.private_directory)
         with PrivateEvidence(args.private_directory) as evidence:
             evidence.write(name, result, cap=LIMITS["plan_bytes"])
     else:

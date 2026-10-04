@@ -13,6 +13,7 @@ import re
 import subprocess
 import stat
 from collections import Counter
+import fnmatch
 
 from .speculative_native_probe import ADAPTER_FILES, REVISION, ProbeError
 from .speculative_native_lifecycle import WORKER_EXTENSION
@@ -319,6 +320,16 @@ def _file_identity(path):
     return [info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns]
 
 
+def checkpoint_loader_preflight(model):
+    # Pinned default auto loader recursively discovers local files and matches
+    # their basenames. Even a nested consolidated file switches it to Mistral's
+    # alternate index/pattern, outside the frozen HF checkpoint coverage.
+    # Ordinary cache directories and index-filtered unrelated files are allowed.
+    for path in Path(model).rglob("*"):
+        if path.is_file() and fnmatch.fnmatch(path.name, "consolidated*.safetensors"):
+            raise ProbeError("Unbound consolidated checkpoint file changes auto loader selection")
+
+
 def checkpoint_preflight(manifest_path, model=MODEL):
     """Fresh full streaming hashes, bound to public immutable source metadata.
 
@@ -362,6 +373,7 @@ def checkpoint_preflight(manifest_path, model=MODEL):
         raise ProbeError("Checkpoint total byte metadata differs")
     # Only the frozen loader inputs are in scope. Unrelated directories such as
     # a downloader's .cache are not checkpoint entries and need not be absent.
+    checkpoint_loader_preflight(model)
     identities = {}
     for name, row in rows.items():
         path = model / name
@@ -392,6 +404,7 @@ def checkpoint_preflight(manifest_path, model=MODEL):
             or hash_file(manifest_path, 64 << 10) != manifest_sha
             or any(_file_identity(model / name) != row["stat"] for name, row in identities.items())):
         raise ProbeError("Checkpoint source/manifest became stale during preflight")
+    checkpoint_loader_preflight(model)
     return {"checkpoint_revision": REVISION, "manifest_sha256": manifest_sha,
             "files": identities, "full_shards_rehashed": True, "full_files_rehashed": True,
             "verification": "fresh_full_streaming_hash", "shard_names": sorted(shards),

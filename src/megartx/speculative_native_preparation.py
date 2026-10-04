@@ -156,6 +156,14 @@ def runtime_environment(binding):
                                     binding["entrypoint"]["root"]))}
 
 
+def evidence_path(private, project):
+    from .speculative_native_plan import BASE
+    private = canonical_path(private)
+    for other in (BASE, canonical_path(project)):
+        _separate(private, other)
+    return private
+
+
 def runtime_preflight(binding, private, *, created=False, installed_root=None):
     """Read-only path/ownership validation; fresh means no prior run artifacts."""
     from .speculative_native_plan import canonical
@@ -165,7 +173,7 @@ def runtime_preflight(binding, private, *, created=False, installed_root=None):
     if installed_root is not None:
         validate_entrypoint_discovery(binding["entrypoint"],
             runtime_environment(binding)["PYTHONPATH"].split(":") + [str(installed_root)])
-    private = canonical_path(private)
+    private = evidence_path(private, binding["project_root"])
     _separate(Path(binding["paths"]["root"]), private)
     _separate(Path(binding["entrypoint"]["root"]), private)
     for key, value in binding["paths"].items():

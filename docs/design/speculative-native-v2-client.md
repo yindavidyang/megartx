@@ -154,6 +154,12 @@ stat/size records are insufficient: `full_shards_rehashed` is emitted only after
 the fresh full read succeeds. The public metadata review did not download shard
 or tokenizer payloads and establishes no target-side rehash result. Unrelated
 non-file model-directory children do not become new host-layout requirements.
+The unchanged auto loader recursively detects `consolidated*.safetensors` by
+basename and switches to the Mistral index/pattern. Such unbound files (including
+nested or file-symlink matches) are rejected before and after hashing. Ordinary
+cache directories and unrelated files filtered by the pinned HF index remain
+allowed. The default loader and its selection/filter sources are separately
+pinned and checked; no `load_format` override is introduced.
 
 For a later source-only preparation, retain the existing task-local wheel flow:
 install the exact source wheel with `--no-index --no-deps --no-build-isolation
@@ -169,7 +175,8 @@ reference paths precede that installation on the frozen `PYTHONPATH`.
 
 A separate short `--runtime-root` is reserved for execution-time caches and tmp.
 It must be outside the baseline, source checkout, adapter-site and evidence
-paths. The source-only freeze reads paths/metadata but creates nothing. At
+paths. Private evidence is also excluded from the baseline and source checkout.
+The source-only freeze reads paths/metadata but creates nothing. At
 execution, the supervisor exclusively creates the previously absent root and
 its owned mode-0700 cache/tmp/home/config children; an existing root is never
 adopted or reused. Both `TMPDIR` and `VLLM_RPC_BASE_PATH` point to its tmp child.
@@ -201,7 +208,7 @@ A plan without both task-local paths records
 `task_local_runtime_and_entrypoint_binding_required`; it cannot be authorized
 by clearing or relabelling that blocker. Runtime-bound plans are re-frozen and
 compared by the supervisor, child, EngineCore and worker. The target must still
-pass the two additional installed IPC/plugin source hashes, full checkpoint
+pass the six additional installed IPC/plugin/loader source hashes, full checkpoint
 rehash, exact-head independent review and CI, and parent GPU-slot admission.
 No preparation result grants fit, target forwards, draft loading or a second
 GPU owner. CPU fixtures use synthetic tiny checkpoint bytes and synthetic wheel
