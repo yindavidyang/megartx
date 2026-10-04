@@ -773,6 +773,29 @@ class ReviewRegressionTests(unittest.TestCase):
         self.assertTrue(h.p.failed)
         self.assertTrue(any('failure-record write failed' in note for note in caught.exception.__notes__))
 
+    def test_second_row_copy_cap_and_interrupt_never_report_prior_row_digest(self):
+        for kind in ('key_cap','value_cap','key_interrupt'):
+            with self.subTest(kind=kind):
+                h=self.harness(real_control=True)
+                if kind != 'key_interrupt':
+                    h.p.transfer=TransferBudget(2048+8192+(4096 if kind=='value_cap' else 0))
+                original=Tensor.cpu;key_calls=[]
+                def cpu(tensor):
+                    if tensor.label=='key':
+                        key_calls.append(None)
+                        if kind=='key_interrupt' and len(key_calls)==2:
+                            raise KeyboardInterrupt('second source row copy interrupted')
+                    return original(tensor)
+                expected=KeyboardInterrupt if kind=='key_interrupt' else RuntimeError
+                with patch.object(Tensor,'cpu',cpu), self.assertRaises(expected): h.write(0)
+                records=[v for n,v in h.p.evidence.records if n=='storage-failure.json']
+                self.assertEqual(len(records),1)
+                record=records[0]
+                self.assertEqual((record['phase'],record['layer'],record['absolute_position'],record['slot']),('processed',0,1,17))
+                self.assertIsNone(record['expected_k_sha256']);self.assertIsNone(record['expected_v_sha256'])
+                self.assertIsNone(record['observed_k_sha256']);self.assertIsNone(record['observed_v_sha256'])
+                self.assertEqual(h.p.counts['processed'],1);self.assertTrue(h.p.failed)
+
 
 class SourceBoundMethodFixture:
     def operation(self, value):

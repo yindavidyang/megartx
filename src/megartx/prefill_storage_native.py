@@ -283,9 +283,9 @@ class StorageProvider(NativeProvider):
             positions = self.contract.required_positions(layer, start, end)
             stop = start if phase == 'pre' else end
             for position in range(positions.start, stop):
-                remaining(self.deadline)
                 slot = tables[layer][position]
                 self.row_diagnostic(phase, layer, position, slot)
+                remaining(self.deadline)
                 key, value = stored_row(cache, slot, descriptor['kv_heads'], descriptor['head_dim'],
                                         self.torch, self.transfer, phase)
                 self.row_diagnostic(phase, layer, position, slot, key, value)
@@ -377,6 +377,7 @@ class StorageProvider(NativeProvider):
         if end <= 2049:
             with self.scratch.scope('processed_writer'):
                 for row, position in enumerate(range(start, end)):
+                    self.row_diagnostic('processed', layer, position, slots[layer][row])
                     remaining(self.deadline)
                     k = native_bytes(key[row], self.torch, self.transfer, 'processed')
                     v = native_bytes(value[row], self.torch, self.transfer, 'processed')

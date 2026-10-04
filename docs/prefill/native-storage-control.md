@@ -113,7 +113,10 @@ requires the exhaustive comparison and exact raw manifest root. One bounded stor
 position, slot, and role-separated expected/observed digests. Word comparison is
 explicitly unperformed; discarded expected words and an exact differing word
 index are never invented. The same provenance is added to the primary exception,
-and diagnostic I/O failure stays secondary. No second cache dump is added.
+and diagnostic I/O failure stays secondary. The current row identity is installed
+before its deadline check or either D2H copy, with unknown digests until both
+source rows are available; an interrupted second row never reports the preceding
+successful row. No second cache dump is added.
 
 The other261 heads use a finite scalar reduction plus hidden/index identity;
 there is no all-head raw-logit download or retention. The boolean reduction
