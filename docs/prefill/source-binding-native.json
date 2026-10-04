@@ -219,7 +219,7 @@
   },
   "native_source_overlay": {
     "evidence_reference": "docs/prefill/native-source-reconciliation.json",
-    "evidence_sha256": "fec2e1d99ad70ed667422cf6fe51a8692868c283b1e3eaccdf93f186f191fb06",
+    "evidence_sha256": "7ecf6316b0cc1918a09b6770d30e944823101e29e687dad10053be935b7fbbe9",
     "repo_files": {
       "scripts/run_scale_validation.py": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
       "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",

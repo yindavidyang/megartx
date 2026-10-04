@@ -1,6 +1,6 @@
 {
   "base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
-  "bound_callback_correction_sha256": "3ae3a1880fac72a745c71df98e22a710232db7db10f4fb019dd418f902edca3a",
+  "bound_callback_correction_sha256": "2e45e78dd0cad8adf2242c3903fd339bb911db6cbdaaff98c24483de5c626d07",
   "cpu_review_pending": true,
   "fit_qualified": false,
   "gpu_executed": false,
@@ -60,7 +60,7 @@
     "selection_override_injected": false,
     "selector_env": null
   },
-  "runner_selection_sha256": "8a6b1e8cf451afd55256e460431a40b17f3d373eea53b0f677108e2550e83af8",
+  "runner_selection_sha256": "3293c959be3fd8573cbe2b3e8d3310f2360ef64b3698340d9e93c91e92aca6ce",
   "runtime_commit": "83d06cc0d04093fb29070cc81fc447ae0bf4feeb",
   "runtime_tree": "d0cf7b583b24d702598b41d9a032d4d8f245bc9d",
   "schema": "megartx-prefill-native-source-reconciliation-v1",

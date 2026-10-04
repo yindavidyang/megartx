@@ -8,7 +8,7 @@
     "actual sample result and sampled/rejected tensor identities"
   ],
   "baseline_equivalence_claimed": false,
-  "bound_callback_correction_sha256": "3ae3a1880fac72a745c71df98e22a710232db7db10f4fb019dd418f902edca3a",
+  "bound_callback_correction_sha256": "2e45e78dd0cad8adf2242c3903fd339bb911db6cbdaaff98c24483de5c626d07",
   "dspark_exposure": "legacy native collector targets V1; independently reviewed client must reject resolved V2 before make_client until its runner path is reviewed",
   "explicit_v1_override_admitted": false,
   "fit_qualified": false,
