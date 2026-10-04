@@ -3,6 +3,7 @@ import argparse
 import datetime
 import hashlib
 import json
+import math
 import os
 import pathlib
 import signal
@@ -330,16 +331,23 @@ def sampler():
     global guard_failure
     fields = "memory.used,memory.free,utilization.gpu,power.draw,temperature.gpu,clocks.sm,clocks.mem,pstate"
     with (output / "gpu-telemetry.jsonl").open("a", buffering=1) as logfile:
-        while not stop_sample.is_set():
+        while True:
+            # One final bounded sample after the client returns provides closing
+            # evidence; joining this thread still precedes owned cleanup.
+            final_sample = stop_sample.is_set()
             try:
+                sample_started_ns = time.monotonic_ns()
                 result = subprocess.run(["nvidia-smi", "--query-gpu=" + fields, "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=5)
                 values = result.stdout.strip().split(", ")
-                logfile.write(json.dumps({"monotonic_ns": time.monotonic_ns(), "unix_ns": time.time_ns(), "fields": fields.split(","), "values": values, "exit": result.returncode}) + "\n")
-                if eager_benchmark and (result.returncode != 0 or len(values) != len(fields.split(","))):
-                    raise RuntimeError("eager benchmark GPU headroom telemetry unavailable")
+                available_kib = int(next(l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:")))
+                row = {"sample_started_ns": sample_started_ns, "monotonic_ns": time.monotonic_ns(), "unix_ns": time.time_ns(),
+                       "fields": fields.split(","), "values": values, "exit": result.returncode, "host_available_kib": available_kib}
+                logfile.write(json.dumps(row) + "\n")
+                if eager_benchmark:
+                    from megartx.m1_eager_benchmark import validate_resource_sample
+                    validate_resource_sample(row)
                 if result.returncode == 0 and len(values) >= 2 and float(values[1]) < 2048 and server is not None and server.poll() is None:
                     fail_guard("GPU free memory fell below the 2 GiB headroom guard")
-                available_kib = int(next(l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:")))
                 if available_kib < 8 * 1024 * 1024 and server is not None and server.poll() is None:
                     fail_guard("Host available RAM fell below the 8 GiB headroom guard")
             except Exception as error:
@@ -349,6 +357,8 @@ def sampler():
                         fail_guard("Eager benchmark resource telemetry failed: " + str(error))
                     except ProcessLookupError:
                         pass
+            if final_sample:
+                break
             stop_sample.wait(.2)
 
 
@@ -435,7 +445,8 @@ try:
         available_kib = int(next(l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:")))
         if available_kib < 8 * 1024 * 1024:
             raise RuntimeError("Host available RAM below 8 GiB before launch")
-        if idle.returncode != 0 or float(idle.stdout.splitlines()[-1].split(",")[3].strip().split()[0]) < 2048:
+        idle_free = float(idle.stdout.splitlines()[-1].split(",")[3].strip().split()[0]) if idle.returncode == 0 else float("nan")
+        if not math.isfinite(idle_free) or idle_free < 2048:
             raise RuntimeError("GPU free memory below 2 GiB or preflight unavailable")
     logfile = (output / "server.log").open("w")
     phase("server_launch")
@@ -500,9 +511,11 @@ try:
     if ownership is not None:
         from m1_owned_processes import snapshot
         with ownership.lock:
-            sample_started = time.monotonic()
+            sample_started_ns = time.monotonic_ns()
             owned_snapshot = snapshot()
-            ownership.observe(owned_snapshot, time.monotonic(), sampled_start=sample_started)
+            sample_finished_ns = time.monotonic_ns()
+            ownership.observe(owned_snapshot, sample_finished_ns / 1e9,
+                              sampled_start_ns=sample_started_ns, observed_ns=sample_finished_ns)
     for pid in gpu_jobs():
         try:
             if ((ownership is not None and (pid not in owned_snapshot or owned_snapshot[pid].identity not in ownership.remembered))

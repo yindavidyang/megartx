@@ -1,0 +1,63 @@
+{
+  "schema": "megartx-m1-warmed-evidence-source-pins-v1",
+  "parent_head": "2ea93e24848a6bbaf20949e5d7cf9ef39be6713f",
+  "parent_ledger_sha256": "da428cd43a7466fde3ea757858923e72fe9f0ec2c428d9234ac11a6517af3410",
+  "scope": "CPU-only review hardening: exact integer process observation clocks and complete finite whole-run resource telemetry; strict compiler policy and all prior source ledgers preserved.",
+  "status": "cpu_candidate_pending_exact_commit_independent_recheck",
+  "superseded_sources": [
+    {
+      "path": "scripts/m1_eager_benchmark_client.py",
+      "prior_sha256": "ce13d6e7152547308b6605c01b659193ef8005244001139be1521bae7fbfb3f3",
+      "current_sha256": "f83b5ffa7c7fcfd6c8332534ba69c3f27d3cec47f8055fe5991f92d78880c16d"
+    },
+    {
+      "path": "scripts/m1_owned_processes.py",
+      "prior_sha256": "91280dc1f788a24ea0c51d725b49c1b048cafbdfc7b4f169962172b3ef2ca010",
+      "current_sha256": "b193ac3b991723d82f3d92b4908d5dfd5e04fce32c0b9d62435cc66f95797253"
+    },
+    {
+      "path": "scripts/run_scale_validation.py",
+      "prior_sha256": "941741954d68a20a7841b476b1df874ca8e6ba341a2ef6e6a6f4f5eddc3b8b8f",
+      "current_sha256": "9a07af53ac5cbbf73592c36adfda3abc7a2cb1c55c98ca7996331e1df9346203"
+    },
+    {
+      "path": "src/megartx/m1_eager_benchmark.py",
+      "prior_sha256": "611c969fbfe0ab96aca8f89d4657d98b78bc3e67d43ad6cedc50f5b3eb0683e8",
+      "current_sha256": "217931c696dbfb5db6e4a9ad727a1d8abe87604165caa79e74cc7f1ba3e8863b"
+    },
+    {
+      "path": "tests/test_m1_warmed_timing.py",
+      "prior_sha256": "efca35f0521d238df4f536a8915ecc8a50139ddb97bf05564c9148dc8aa69925",
+      "current_sha256": "d1347baf1d3fb79f7a503db0738d68b9f091de0fe163df5b9acf78afc94d4f52"
+    },
+    {
+      "path": "docs/m1-warmed-timing-policy.md",
+      "prior_sha256": "b7aab7f070a5487df144e73fdce851edbea4b86b0da2d1798bfecf470c647bf5",
+      "current_sha256": "55af1b50e0ff74cdc3ae11d136d4ee7296b2a7a33e42d32eced1a4018a630598"
+    },
+    {
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "prior_sha256": "ec4953ba521e99b5dd4b7de5a959706a3184cf5827f284510d6768e8ac2d625f",
+      "current_sha256": "b6e4dcaa33a356055b35fd2dc752cc235d5de0f688c91f9f025f1d2b020d3286"
+    }
+  ],
+  "preserved_historical_ledgers": {
+    "docs/evidence/m1-capture-free-source-pins.json": "c9686c933a7e6ad0bccd6df46518e4feba27159f0173e9d61bdacb26e5ee9f1f",
+    "docs/evidence/m1-decode-attribution-source-pins.json": "92fa45c6498597ace5baf275a22ce2d75a5429146723bf813b8961e652fc1da6",
+    "docs/evidence/m1-eager-benchmark-source-pins.json": "45d224fbadfa80eb90c091d3d5525a775f69627506a08287b049eaff066b5b33",
+    "docs/evidence/m1-lean-source-pins.json": "469d7877c33957d29af29ee82b40f8f7f424528f673043d4b6814bf7da2e27dd",
+    "docs/evidence/m1-live-source-pins.json": "015426cd18349c3f5be6a437a3bef8256e1b9697a836ecd4f18410f5042bb7b7",
+    "docs/evidence/m1-normal-source-pins.json": "6b077a415eda036207e1127246b175f4af049813d46f87c8b4e9ff12a154640a",
+    "docs/evidence/m1-preparation-source-pins.json": "f58129400843beed7eb0b3ccf8580fe6aa97209d97c4bd734465d20e074e2d70",
+    "docs/evidence/m1-process-lifecycle-source-pins.json": "942106acc72152e84f78429c31ad4dd5bf2525dea8df20ba46f4623aa2793ba0",
+    "docs/evidence/m1-profile-admission-source-pins.json": "4e7ac0e132d0e6d5f3181d2d9e81a2b84914b0a54cadbd2818d5623d7b14c74c",
+    "docs/evidence/m1-reconciliation-source-pins.json": "c90bfeb6ff2351a03c98ab83221844b95b0e0875fa5e1a4e89887074c5b60624",
+    "docs/evidence/m1-sf-layout-source-pins.json": "ccd75f81c2476c3434f1c500af3a1fbdf37cd6bccf0f1132e86f9739944a191d",
+    "docs/evidence/m1-warmed-timing-source-pins.json": "da428cd43a7466fde3ea757858923e72fe9f0ec2c428d9234ac11a6517af3410"
+  },
+  "native_build_verified": false,
+  "gpu_execution_verified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false
+}

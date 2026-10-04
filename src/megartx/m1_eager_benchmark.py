@@ -19,6 +19,9 @@ WARMED_BOUNDARY_SCHEMA = "megartx-m1-warmed-boundaries-v1"
 WARMED_SUMMARY_SCHEMA = "megartx-m1-warmed-eager-summary-v1"
 CONTEXTS = (2048, 8192)
 OUTPUTS = 256
+RESOURCE_FIELDS = ("memory.used", "memory.free", "utilization.gpu", "power.draw", "temperature.gpu",
+                   "clocks.sm", "clocks.mem", "pstate")
+WARMED_MAX_RESOURCE_GAP_NS = 1_000_000_000
 DRIVER_SOURCES = ("scripts/m1_eager_benchmark_client.py", "scripts/prepare_m1_eager_benchmark.py",
                   "scripts/run_scale_validation.py", "scripts/m1_owned_processes.py",
                   "scripts/m1_private_aot.py", "scripts/check_m1_private_aot.py",
@@ -118,6 +121,55 @@ def require_profile_intent(plan, enabled):
     if type(enabled) is not bool or (plan["schema"] == PROFILE_SCHEMA) != enabled:
         raise RuntimeError("decode profile intent differs from the source-bound plan")
 
+
+
+
+def validate_resource_sample(row):
+    """Finite scalar evidence for the existing whole-run headroom guard."""
+    values = row.get("values")
+    start, end = row.get("sample_started_ns"), row.get("monotonic_ns")
+    if (row.get("fields") != list(RESOURCE_FIELDS) or not isinstance(values, list)
+            or len(values) != len(RESOURCE_FIELDS) or type(row.get("exit")) is not int or row["exit"] != 0
+            or type(start) is not int or type(end) is not int or not 0 < start <= end
+            or type(row.get("host_available_kib")) is not int or row["host_available_kib"] < 8 * 1024 * 1024
+            or any(type(v) not in (str, int, float) for v in values[:7])
+            or values[-1] not in tuple("P" + str(i) for i in range(16))):
+        raise RuntimeError("eager resource telemetry incomplete or unavailable")
+    try:
+        numbers = [float(v) for v in values[:7]]
+    except (TypeError, ValueError, OverflowError) as error:
+        raise RuntimeError("eager resource telemetry scalar invalid") from error
+    if any(not math.isfinite(v) or v < 0 for v in numbers) or numbers[2] > 100:
+        raise RuntimeError("eager resource telemetry scalar nonfinite or negative")
+    if numbers[1] < 2048:
+        raise RuntimeError("GPU free memory fell below the 2 GiB headroom guard")
+    return numbers
+
+
+def validate_warmed_telemetry(rows, boundaries, lifecycle):
+    if not isinstance(rows, list) or not rows:
+        raise RuntimeError("warmed resource telemetry missing")
+    numbers = [validate_resource_sample(row) for row in rows]
+    if (any(b["sample_started_ns"] < a["monotonic_ns"] for a,b in zip(rows, rows[1:]))
+            or rows[0]["sample_started_ns"] >= lifecycle["server_ready_ns"]
+            or rows[-1]["sample_started_ns"] <= lifecycle["client_returned_ns"]):
+        raise RuntimeError("warmed resource telemetry lifecycle coverage uncertain")
+    start, end = boundaries["measurement_start_ns"], boundaries["measurement_end_ns"]
+    before = [i for i,r in enumerate(rows) if r["monotonic_ns"] < start]
+    after = [i for i,r in enumerate(rows) if r["sample_started_ns"] > end]
+    if not before or not after:
+        raise RuntimeError("warmed resource telemetry measurement coverage missing")
+    cover = rows[before[-1]:after[0]+1]
+    if (any(r["monotonic_ns"] - r["sample_started_ns"] > WARMED_MAX_RESOURCE_GAP_NS for r in cover)
+            or any(b["monotonic_ns"] - a["sample_started_ns"] > WARMED_MAX_RESOURCE_GAP_NS
+                   for a,b in zip(cover,cover[1:]))):
+        raise RuntimeError("warmed resource telemetry measurement coverage gap uncertain")
+    return {"samples": len(rows), "finite_complete_samples": True,
+            "first_sample_started_ns": rows[0]["sample_started_ns"], "last_sample_closed_ns": rows[-1]["monotonic_ns"],
+            "measurement_max_sample_gap_ns": WARMED_MAX_RESOURCE_GAP_NS,
+            "sampled_peak_memory_used_mib": max(n[0] for n in numbers),
+            "sampled_minimum_memory_free_mib": min(n[1] for n in numbers),
+            "sampled_minimum_host_available_kib": min(r["host_available_kib"] for r in rows)}
 
 
 def require_warmed_intent(plan, enabled):

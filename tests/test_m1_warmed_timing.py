@@ -21,7 +21,7 @@ import m1_eager_benchmark_client as client
 from m1_owned_processes import OwnedProcesses, Process, evaluate_warmed_quiescence
 from prepare_m1_eager_benchmark import make_plan
 from megartx.m1_eager_benchmark import (EagerBenchmark, PROFILE_DRIVER_SOURCES, WARMED_RULE, WARMED_SCHEMA,
-    WARMED_SUMMARY_SCHEMA, drain_marker, require_warmed_intent, validate_plan, validate_warmed_boundaries)
+    WARMED_SUMMARY_SCHEMA, RESOURCE_FIELDS, drain_marker, require_warmed_intent, validate_plan, validate_warmed_boundaries)
 from megartx.m1_execution import CONTROLLER_SOURCES
 from megartx.m1_normal_plan import digest
 from test_m1_eager_benchmark import finish
@@ -86,7 +86,11 @@ def client_packet(root, *, completed=True, explicit=True, launch_enabled=True):
                  "client_launch_ns":200_000_000, "client_returned_ns":clock_value[0]+1_000_000}
     write_json(root / "warmed-launch-boundaries.json", lifecycle)
     for name in ("run.exit", "benchmark.exit"): (root / name).write_text("0\n")
-    (root / "gpu-telemetry.jsonl").write_text("")
+    telemetry=[{"sample_started_ns":ns, "monotonic_ns":ns+1_000_000, "unix_ns":ns,
+                "host_available_kib":16*1024*1024, "fields":list(RESOURCE_FIELDS),
+                "values":["23000","9000","40","100","40","1000","1000","P0"], "exit":0}
+               for ns in range(50_000_000,clock_value[0]+201_000_000,100_000_000)]
+    (root / "gpu-telemetry.jsonl").write_text("".join(json.dumps(r)+"\n" for r in telemetry))
     return p, records, boundary, lifecycle, calls
 
 
@@ -99,13 +103,18 @@ class FileGuard:
                 "failure":self.error, "final":{"passed":self.error is None,"errors":[self.error] if self.error else []}}
 
 
+def observe_exact(owner, processes, now):
+    ns=round(now*1e9)
+    return owner.observe(processes,now,sampled_start_ns=ns,observed_ns=ns)
+
+
 def sampled_owner(end, samples=()):
     root = Process(20,20,10)
     owner = OwnedProcesses(Process(10,10,1)); owner.register(root)
     for when, processes in samples:
-        owner.observe({20:root, **{p.pid:p for p in processes}},when)
+        observe_exact(owner,{20:root, **{p.pid:p for p in processes}},when)
     for ns in range(1_000_000_000, end+200_000_000, 50_000_000):
-        owner.observe({20:root}, ns/1e9)
+        observe_exact(owner,{20:root}, ns/1e9)
     owner.runtime_files = FileGuard()
     return owner
 
@@ -231,17 +240,17 @@ class WarmedOverlapTests(unittest.TestCase):
                 now = tick/10
                 processes = {20:root}
                 if start <= now <= end:processes[30] = replace(self.compiler,state="S")
-                owner.observe(processes,now)
+                observe_exact(owner,processes,now)
             with self.subTest(start=start),self.assertRaisesRegex(RuntimeError,"overlap or late"):
                 owner.require_warmed_quiescence(self.window)
 
     def test_late_zombie_terminal_ambiguity_and_missing_observation_reject(self):
         owner = sampled_owner(4_000_000_000)
-        owner.observe({20:Process(20,20,10),30:self.compiler},4.5)
+        observe_exact(owner,{20:Process(20,20,10),30:self.compiler},4.5)
         with self.assertRaisesRegex(RuntimeError,"late/uncertain"):owner.require_warmed_quiescence(self.window)
         owner = OwnedProcesses(Process(10,10,1));owner.register(Process(20,20,10))
         for tick in range(10,43):
-            owner.observe({20:Process(20,20,10),30:replace(self.compiler,compiler_identity_verified=False)},tick/10)
+            observe_exact(owner,{20:Process(20,20,10),30:replace(self.compiler,compiler_identity_verified=False)},tick/10)
         with self.assertRaisesRegex(RuntimeError,"uncertain"):owner.require_warmed_quiescence(self.window)
         report = sampled_owner(4_000_000_000).report()
         report["compiler_observation_intervals_ns"] = [s for s in report["compiler_observation_intervals_ns"] if not 2.5e9 < s[0] < 3e9]
@@ -253,7 +262,7 @@ class WarmedOverlapTests(unittest.TestCase):
             now=tick/10
             observed={20:root}
             if tick in (10,12):observed[30]=replace(self.compiler,state="S")
-            owner.observe(observed,now)
+            observe_exact(owner,observed,now)
         with self.assertRaisesRegex(RuntimeError,"uncertain"):owner.require_warmed_quiescence(self.window)
         self.assertTrue(owner.compiler_lifetimes[(30,30)]["completion_conflict"])
 
@@ -391,7 +400,7 @@ class WarmedRuntimeFileTests(unittest.TestCase):
     def test_actual_guard_latches_ownership_failure_during_measurement(self):
         owner=sampled_owner(4_000_000_000);owner.runtime_files=self.guard
         (self.root/"source.py").write_bytes(b"drift")
-        owner.observe({},4.3)
+        observe_exact(owner,{},4.3)
         self.assertIn("version drift",owner.failure)
         with self.assertRaisesRegex(RuntimeError,"version drift"):
             owner.require_warmed_quiescence({"measurement_start_ns":2_000_000_000,"measurement_end_ns":4_000_000_000})
@@ -417,7 +426,7 @@ class WarmedReplayHardeningTests(unittest.TestCase):
 
     def test_identity_reappearing_as_zombie_after_disappearance_is_uncertain(self):
         owner=sampled_owner(4_000_000_000,[(.4,[Process(30,30,20,0,"tileiras","S")]),(.5,[])])
-        owner.observe({20:Process(20,20,10),30:Process(30,30,20,0,"tileiras","Z",compiler_identity_verified=True)},4.3)
+        observe_exact(owner,{20:Process(20,20,10),30:Process(30,30,20,0,"tileiras","Z",compiler_identity_verified=True)},4.3)
         with self.assertRaisesRegex(RuntimeError,"uncertain"):
             owner.require_warmed_quiescence({"measurement_start_ns":2_000_000_000,"measurement_end_ns":4_000_000_000})
 
@@ -436,3 +445,90 @@ class WarmedReplayHardeningTests(unittest.TestCase):
         for field in ("timing_classification_history","timing_unknown_or_work_identities","compiler_lifetimes"):
             with self.subTest(field=field),self.assertRaises(RuntimeError):
                 evaluate_warmed_quiescence({**report,field:[]},{"measurement_start_ns":2_000_000_000,"measurement_end_ns":4_000_000_000})
+
+
+class WarmedResourceEvidenceTests(unittest.TestCase):
+    def test_initial_admission_and_replay_reject_empty_malformed_and_nonfinite_telemetry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);p,_,boundary,_,_=client_packet(root)
+            owned=write_owned(root,sampled_owner(boundary["measurement_end_ns"]))
+            path=root/"gpu-telemetry.jsonl"
+            good=[json.loads(line) for line in path.read_text().splitlines()]
+            receipt=client.validate_warmed_run(root,p,owned)
+            write_json(root/"warmed-timing-admission.json",receipt)
+            mutations=[[],good[1:-1],good[:1],list(reversed(good))]
+            for field in range(7):
+                for value in ("NaN","Infinity","-1",True,None):
+                    rows=copy.deepcopy(good);rows[0]["values"][field]=value;mutations.append(rows)
+            for field,value in (("fields",["memory.used","memory.free"]),("values",["23000","9000"]),
+                                ("exit",1),("exit",False),("host_available_kib",None),
+                                ("host_available_kib",float("nan")),("host_available_kib",-1),
+                                ("sample_started_ns",True)):
+                rows=copy.deepcopy(good);rows[0][field]=value;mutations.append(rows)
+            rows=copy.deepcopy(good);rows[0]["values"][1]="2047";mutations.append(rows)
+            rows=copy.deepcopy(good);rows[0]["values"][2]="101";mutations.append(rows)
+            rows=copy.deepcopy(good);rows[0]["values"][-1]="unknown";mutations.append(rows)
+            for i,rows in enumerate(mutations):
+                path.write_text("".join(json.dumps(r)+"\n" for r in rows))
+                with self.subTest(mutation=i),self.assertRaises(RuntimeError):client.validate_warmed_run(root,p,owned)
+                with self.subTest(replay=i),self.assertRaises(RuntimeError):client.summarize_run(root)
+
+    def test_actual_sampler_rejects_nan_inf_negative_and_missing_scalars_and_writes_final_sample(self):
+        import ast
+        from test_m1_launcher_resources import TREE
+        sampler_code=code([next(n for n in TREE.body if isinstance(n,ast.FunctionDef) and n.name=="sampler")])
+        for used,free,host in (("NaN","NaN",16*1024*1024),("23000","Infinity",16*1024*1024),
+                               ("-1","9000",16*1024*1024),("23000","9000",-1),("23000","9000",16*1024*1024)):
+            with self.subTest(used=used,free=free,host=host),tempfile.TemporaryDirectory() as directory:
+                stop=SimpleNamespace(is_set=Mock(side_effect=[False,True]),wait=Mock())
+                fail=Mock();values=f"{used}, {free}, 0, 100, 40, 1000, 1000, P0"
+                env={"output":Path(directory),"stop_sample":stop,"subprocess":SimpleNamespace(run=Mock(
+                    return_value=SimpleNamespace(returncode=0,stdout=values))),"json":json,
+                    "time":SimpleNamespace(monotonic_ns=Mock(side_effect=[1,2,3,4]),time_ns=lambda:1),
+                    "eager_benchmark":True,"server":SimpleNamespace(poll=lambda:None),"fail_guard":fail,
+                    "pathlib":__import__("pathlib")}
+                with patch.object(Path,"read_text",return_value=f"MemAvailable: {host} kB\n"):
+                    exec(sampler_code,env);env["sampler"]()
+                self.assertEqual(fail.call_count,0 if used=="23000" and free=="9000" and host>0 else 2)
+                rows=[json.loads(r) for r in (Path(directory)/"gpu-telemetry.jsonl").read_text().splitlines()]
+                samples=[r for r in rows if "values" in r]
+                self.assertEqual(len(samples),2)
+                self.assertEqual(samples[-1]["sample_started_ns"],3)
+                self.assertEqual(samples[-1]["monotonic_ns"],4)
+
+    def test_actual_preflight_rejects_nonfinite_negative_or_unavailable_gpu_headroom(self):
+        import ast, math
+        block=RUN.body[0].body
+        i=next(i for i,n in enumerate(block) if isinstance(n,ast.Assign) and ast.unparse(n.targets[0])=="idle_free")
+        preflight=code(block[i:i+2])
+        for value,status in (("NaN",0),("Infinity",0),("-1",0),("2047",0),("9000",1)):
+            with self.subTest(value=value,status=status),self.assertRaisesRegex(RuntimeError,"preflight unavailable"):
+                exec(preflight,{"math":math,"idle":SimpleNamespace(returncode=status,stdout=f"name,12.0,24000,{value},driver,450")})
+
+
+class WarmedIntegerClockTests(unittest.TestCase):
+    def test_actual_snapshot_exact_ns_terminal_at_opening_boundary_rejects_without_rounding(self):
+        ns=2_000_000_003
+        for delta in (-1,0,1):
+            owner=OwnedProcesses(Process(10,10,1));root=Process(20,20,10);owner.register(root)
+            zombie=Process(30,30,20,0,"tileiras","Z",compiler_identity_verified=True)
+            def sample(at,processes):
+                with patch("m1_owned_processes.snapshot",return_value=processes), \
+                     patch("m1_owned_processes.time.monotonic_ns",side_effect=[at,at]):owner.sample()
+            for at in range(1_800_000_000,2_000_000_000,50_000_000):sample(at,{20:root})
+            sample(ns+delta,{20:root,30:zombie})
+            for at in range(2_050_000_000,4_200_000_000,50_000_000):sample(at,{20:root})
+            self.assertEqual(owner.compiler_lifetimes[(30,30)]["completed_by_ns"],ns+delta)
+            self.assertEqual(owner.timing_history[(30,30)]["first_sample_ns"],ns+delta)
+            with self.subTest(delta=delta):
+                if delta<0:self.assertTrue(owner.require_warmed_quiescence({"measurement_start_ns":ns,"measurement_end_ns":4_000_000_000})["sampled_quiescence_passed"])
+                else:
+                    with self.assertRaisesRegex(RuntimeError,"late/uncertain"):
+                        owner.require_warmed_quiescence({"measurement_start_ns":ns,"measurement_end_ns":4_000_000_000})
+
+    def test_legacy_float_observation_never_supplies_warmed_boundary_authority(self):
+        ns=2_000_000_003
+        owner=sampled_owner(4_000_000_000)
+        owner.observe({},ns/1e9)
+        with self.assertRaisesRegex(RuntimeError,"exact integer observation clock"):
+            owner.require_warmed_quiescence({"measurement_start_ns":ns,"measurement_end_ns":4_000_000_000})

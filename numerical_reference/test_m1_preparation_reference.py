@@ -415,11 +415,30 @@ class M1PreparationTests(unittest.TestCase):
         self.assertEqual(set(warmed["added_source_hashes"]), {"tests/test_m1_warmed_timing.py", "docs/m1-warmed-timing-policy.md"})
         for path, expected in warmed["preserved_historical_ledgers"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),expected,path)
+        clock_resource = json.loads((root / "docs/evidence/m1-warmed-evidence-source-pins.json").read_text())
+        self.assertEqual(clock_resource["schema"], "megartx-m1-warmed-evidence-source-pins-v1")
+        self.assertEqual(clock_resource["parent_head"], "2ea93e24848a6bbaf20949e5d7cf9ef39be6713f")
+        self.assertEqual(clock_resource["parent_ledger_sha256"], hashlib.sha256(
+            (root / "docs/evidence/m1-warmed-timing-source-pins.json").read_bytes()).hexdigest())
+        for field in ("native_build_verified", "gpu_execution_verified", "quality_qualified", "graphs_qualified", "performance_qualified"):
+            self.assertIs(clock_resource[field], False)
+        clock_resource_changes = {r["path"]: r for r in clock_resource["superseded_sources"]}
+        self.assertEqual(len(clock_resource_changes),len(clock_resource["superseded_sources"]))
+        self.assertEqual(set(clock_resource_changes), {"scripts/m1_eager_benchmark_client.py", "scripts/m1_owned_processes.py",
+            "scripts/run_scale_validation.py", "src/megartx/m1_eager_benchmark.py", "tests/test_m1_warmed_timing.py",
+            "docs/m1-warmed-timing-policy.md", "numerical_reference/test_m1_preparation_reference.py"})
+        for path, expected in clock_resource["preserved_historical_ledgers"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),expected,path)
+        def clock_resource_current(path, previous):
+            if path in clock_resource_changes:
+                self.assertEqual(clock_resource_changes[path]["prior_sha256"],previous,path)
+                return clock_resource_changes[path]["current_sha256"]
+            return previous
         def warmed_current(path, previous):
             if path in warmed_changes:
                 self.assertEqual(warmed_changes[path]["prior_sha256"],previous,path)
-                return warmed_changes[path]["current_sha256"]
-            return previous
+                previous = warmed_changes[path]["current_sha256"]
+            return clock_resource_current(path,previous)
         def layout_current(path, previous):
             if path in layout_changes:
                 self.assertEqual(layout_changes[path]["prior_sha256"],previous,path)
@@ -515,9 +534,28 @@ class M1PreparationTests(unittest.TestCase):
         for path, expected in layout["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),warmed_current(path,expected),path)
         for path, record in warmed_changes.items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),record["current_sha256"],path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),clock_resource_current(path,record["current_sha256"]),path)
         for path, expected in warmed["added_source_hashes"].items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),expected,path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),clock_resource_current(path,expected),path)
+        for path, record in clock_resource_changes.items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),record["current_sha256"],path)
+
+    def test_warmed_evidence_overlay_cannot_relabel_prior_or_current_source(self):
+        root = Path(__file__).resolve().parents[1]
+        ledger = root / "docs/evidence/m1-warmed-evidence-source-pins.json"
+        read_text = Path.read_text
+        for field in ("prior_sha256", "current_sha256"):
+            def changed_text(path, *args, **kwargs):
+                data = read_text(path, *args, **kwargs)
+                if path == ledger:
+                    value = json.loads(data)
+                    row = next(r for r in value["superseded_sources"] if r["path"] == "src/megartx/m1_eager_benchmark.py")
+                    row[field] = "0" * 64
+                    return json.dumps(value)
+                return data
+            with self.subTest(field=field), patch.object(Path, "read_text", changed_text), \
+                 self.assertRaisesRegex(AssertionError, "src/megartx/m1_eager_benchmark.py"):
+                self.test_committed_source_pins_match_exact_base_evidence()
 
     def test_warmed_overlay_cannot_erase_prior_lineage_or_relabel_unknown_source(self):
         root = Path(__file__).resolve().parents[1]

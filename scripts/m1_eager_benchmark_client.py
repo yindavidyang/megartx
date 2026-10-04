@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from megartx.m1_eager_benchmark import (OUTPUTS, PROFILE_SCHEMA, PROFILE_RULE, drain_marker,
                                       load_plan, marker, require_profile_intent, WARMED_SCHEMA, WARMED_RULE,
                                       WARMED_SUMMARY_SCHEMA, require_warmed_intent, warmed_boundaries,
-                                      validate_warmed_boundaries)
+                                      validate_warmed_boundaries, validate_warmed_telemetry)
 from megartx.m1_normal_plan import digest
 from megartx.stats import paired_median_reduction, quantile
 
@@ -272,7 +272,10 @@ def validate_warmed_run(directory, plan, owned, *, replay=False):
         raise RuntimeError("warmed timing launch policy differs")
     records = [json.loads(line) for line in read_evidence(root / "eager-requests.jsonl").splitlines()]
     validate_dispatch(plan, read("eager-benchmark/dispatch.json"), records)
-    boundary = validate_warmed_boundaries(plan, records, read("warmed-boundaries.json"), read("warmed-launch-boundaries.json"))
+    lifecycle = read("warmed-launch-boundaries.json")
+    boundary = validate_warmed_boundaries(plan, records, read("warmed-boundaries.json"), lifecycle)
+    telemetry = [json.loads(line) for line in read_evidence(root / "gpu-telemetry.jsonl").splitlines()]
+    resource_evidence = validate_warmed_telemetry(telemetry, boundary, lifecycle)
     saved_owned = read("owned-processes.json")
     saved_cleanup = read("eager-benchmark-cleanup.json")
     if (any(saved_cleanup.get(k) != v or owned.get(k) != v for k, v in saved_owned.items())
@@ -295,7 +298,7 @@ def validate_warmed_run(directory, plan, owned, *, replay=False):
                "plan_sha256": plan["plan_sha256"], "source_head": plan["source_head"],
                "boundary_sha256": boundary["boundary_sha256"], "compiler_quiescence": compiler,
                "evidence_sha256": {n: hashlib.sha256(read_evidence(root / n).encode()).hexdigest() for n in names},
-               "whole_run_integrity_passed": True, "performance_gate_passed": False,
+               "whole_run_integrity_passed": True, "resource_evidence": resource_evidence, "performance_gate_passed": False,
                "quality_qualified": False, "graphs_qualified": False}
     # Normalize tuples to the on-disk JSON representation before comparison.
     receipt = json.loads(json.dumps(receipt))

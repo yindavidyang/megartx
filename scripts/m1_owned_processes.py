@@ -311,6 +311,7 @@ class OwnedProcesses:
         self.failure_sample = None
         self.lock = threading.RLock()
         self.observation_intervals = []
+        self.observation_clock_exact = True
         self.compiler_lifetimes = {}
         self.runtime_files = None
 
@@ -321,13 +322,20 @@ class OwnedProcesses:
 
     def sample(self):
         with self.lock:
-            started = time.monotonic()
-            return self.observe(snapshot(), time.monotonic(), sampled_start=started)
+            started_ns = time.monotonic_ns()
+            processes = snapshot()
+            finished_ns = time.monotonic_ns()
+            return self.observe(processes, finished_ns / 1e9, sampled_start_ns=started_ns, observed_ns=finished_ns)
 
-    def observe(self, processes, now, *, sampled_start=None):
+    def observe(self, processes, now, *, sampled_start=None, sampled_start_ns=None, observed_ns=None):
         with self.lock:
-            started_ns = int((now if sampled_start is None else sampled_start) * 1e9)
-            finished_ns = int(now * 1e9)
+            exact = (type(sampled_start_ns) is int and type(observed_ns) is int
+                     and 0 <= sampled_start_ns <= observed_ns)
+            self.observation_clock_exact &= exact
+            # Legacy synthetic/lifetime callers retain their original seconds.
+            # They cannot supply warmed boundary authority through a float cast.
+            started_ns = sampled_start_ns if exact else int((now if sampled_start is None else sampled_start) * 1e9)
+            finished_ns = observed_ns if exact else int(now * 1e9)
             self.observation_intervals.append([started_ns, finished_ns])
             if self.runtime_files is not None:
                 if error := self.runtime_files.version_error():
@@ -357,7 +365,7 @@ class OwnedProcesses:
                     self.compiler_identities.add(process.identity)
                     if process.identity not in self.compiler_samples or process.compiler_argv is not None:
                         self.compiler_samples[process.identity] = process
-                    self.classify_timing(process, now)
+                    self.classify_timing(process, now, observed_ns=finished_ns)
             changed = True
             while changed:
                 changed = False
@@ -365,10 +373,10 @@ class OwnedProcesses:
                 for process in alive:
                     if process.ppid in parents and process.identity not in self.compiler_identities:
                         self.compiler_identities.add(process.identity)
-                        self.classify_timing(process, now, descendant=True)
+                        self.classify_timing(process, now, descendant=True, observed_ns=finished_ns)
                         changed = True
                     elif process.ppid in parents:
-                        self.classify_timing(process, now, descendant=True)
+                        self.classify_timing(process, now, descendant=True, observed_ns=finished_ns)
             present = {p.identity: p for p in alive}
             for identity in self.compiler_identities:
                 history = self.compiler_lifetimes.setdefault(identity, {
@@ -405,10 +413,12 @@ class OwnedProcesses:
                                        "compiler_identities": [asdict(p) for p in compiling]})
             return alive
 
-    def classify_timing(self, process, now, descendant=False):
+    def classify_timing(self, process, now, descendant=False, observed_ns=None):
         history = self.timing_history.setdefault(process.identity, {"first_sample": now, "last_sample": now,
+                    "first_sample_ns": observed_ns, "last_sample_ns": observed_ns,
                     "metadata_samples": 0, "first_unknown_or_work_sample": None})
         history["last_sample"] = now
+        history["last_sample_ns"] = observed_ns
         qualifies = (not descendant and not self.metadata_timing_invalid and self.metadata_timing is not None
                      and self.metadata_timing.qualifies(process))
         terminal = (not descendant and process.state == "Z" and process.compiler_identity_verified
@@ -421,7 +431,7 @@ class OwnedProcesses:
         elif not terminal:
             self.non_metadata_identities.add(process.identity)
             if history["first_unknown_or_work_sample"] is None:
-                history["first_unknown_or_work_sample"] = {"time": now, "descendant": descendant, **asdict(process)}
+                history["first_unknown_or_work_sample"] = {"time": now, "time_ns": observed_ns, "descendant": descendant, **asdict(process)}
 
     def fail(self, reason, sample=None):
         with self.lock:
@@ -452,6 +462,7 @@ class OwnedProcesses:
                     "timing_unknown_or_work_identities": sorted(self.non_metadata_identities),
                     "timing_classification_history": [{"identity": i, **h} for i,h in self.timing_history.items()],
                     "compiler_observation_intervals_ns": list(self.observation_intervals),
+                    "compiler_observation_clock_exact": self.observation_clock_exact,
                     "compiler_lifetimes": [{"identity": i, **h} for i, h in sorted(self.compiler_lifetimes.items())],
                     "warmed_runtime_files": self.runtime_files.report() if self.runtime_files is not None else None,
                     "remembered_identities": [asdict(p) for p in self.remembered.values()]}
@@ -553,9 +564,13 @@ class OwnedProcesses:
             operation, identity = "gpu_query", None
             queried_gpu_pids = gpu_query()
             operation = "final_snapshot"
-            processes = snapshot()
-            operation = "final_observe"
-            remaining = self.observe(processes, time.monotonic())
+            with self.lock:
+                started_ns = time.monotonic_ns()
+                processes = snapshot()
+                finished_ns = time.monotonic_ns()
+                operation = "final_observe"
+                remaining = self.observe(processes, finished_ns / 1e9,
+                                         sampled_start_ns=started_ns, observed_ns=finished_ns)
             # Query PID then check current start time: a reused unrelated GPU PID
             # is not considered owned and is never selected for termination.
             gpu_pids = [pid for pid in queried_gpu_pids if pid in processes and processes[pid].identity in self.remembered]
@@ -600,6 +615,8 @@ def evaluate_warmed_quiescence(report, boundaries):
     metadata = report.get("timing_metadata_policy")
     if metadata is not None and (metadata.get("final") or {}).get("passed") is not True:
         raise RuntimeError("warmed timing requires successful final metadata verification")
+    if report.get("compiler_observation_clock_exact") is not True:
+        raise RuntimeError("warmed timing requires exact integer observation clock evidence")
     samples = report.get("compiler_observation_intervals_ns", [])
     previous = -1
     for interval in samples:
@@ -640,8 +657,8 @@ def evaluate_warmed_quiescence(report, boundaries):
                 or h.get("completion_conflict") is not False
                 or first not in observed_times or completed not in observed_times or last not in observed_times
                 or live is not None and live not in observed_times
-                or first != int(classified[tuple(h["identity"])]["first_sample"] * 1e9)
-                or last != int(classified[tuple(h["identity"])]["last_sample"] * 1e9)):
+                or first != classified[tuple(h["identity"])].get("first_sample_ns")
+                or last != classified[tuple(h["identity"])].get("last_sample_ns")):
             raise RuntimeError("Owned compiler overlap or late/uncertain observation invalidates warmed timing")
     return {"sampled_quiescence_passed": True, "measurement_start_ns": start, "measurement_end_ns": end,
             "max_sample_gap_ns": WARMED_MAX_SAMPLE_GAP_NS,
