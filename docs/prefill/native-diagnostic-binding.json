@@ -7,7 +7,7 @@
     "max_build_rss_bytes": 2147483648,
     "max_build_seconds": 300,
     "max_evidence_bytes": 8388608,
-    "max_observer_scratch_bytes": 8388608,
+    "max_observer_gpu_scratch_bytes": 8388608,
     "max_requests": 1,
     "max_wall_seconds": 1800,
     "output_tokens": 256,
@@ -27,6 +27,10 @@
     "docs/prefill/runner-plan.json": "45e43c7a420112b6b81e527bb4173eb8eb2c9bd20a9ec0ca4421c43f7f9b7a96",
     "docs/prefill/source-binding.json": "953991a313d808069f52e8e75b64c826f1450cef8be09018bd5f689b34560fc6"
   },
+  "historical_source_fixtures": {
+    "tests/fixtures/prefill-native-base/run_scale_validation.source": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8",
+    "tests/fixtures/prefill-native-base/vllm_scale_plugin.source": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
+  },
   "installed_http_sources": {
     "vllm.entrypoints.openai.completion.protocol": "5f7930635fd3924826015211032fb298206b27c7f04cd6cd2224bb128e4a3a50",
     "vllm.entrypoints.openai.completion.serving": "75d05ddddf303734a078a3e42fcb173fef58ea56da09bc0b5c7525cb9bbbf527"
@@ -42,9 +46,18 @@
     "vllm.v1.worker.gpu_model_runner": "87c29d08c0bbf66993d8b984811e7325e35e6436242a773feb55ec88f16b2c51"
   },
   "integration_base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
+  "memory_domains": {
+    "gpu_allocator_peak_per_observer_phase": true,
+    "gpu_native_measurement_pending": true,
+    "host_available_reserve_bytes": 8589934592,
+    "host_retained_ledger_separately_measured": true,
+    "incremental_gpu_scratch_cap_bytes": 8388608,
+    "new_evidence_cap_bytes": 8388608
+  },
   "numerical_qualified": false,
   "performance_qualified": false,
-  "protocol_sha256": "80a6af7a1c265c749b9e3a4b91581130634db0803532fa07915141031fccb14d",
+  "plan_schema": "megartx-prefill-native-plan-v2",
+  "protocol_sha256": "a148fbeae649652a422bdc23ed4650d6508a6c0b6a3df45ca521728d961f20bf",
   "purpose_hooks": [
     "initialize_kv_cache observation exposure",
     "actual metadata builder receipt",
@@ -59,22 +72,30 @@
     "actual installed runtime geometry and phase fit",
     "independent native correctness control"
   ],
-  "runtime_commit": "090dcc5fcdd42d32eb4005683a26a4932a98380b",
+  "reviewed_runtime_history": [
+    "090dcc5fcdd42d32eb4005683a26a4932a98380b",
+    "da89187e3fb1752a01d27b678c67b41b23dd9ff5"
+  ],
+  "runtime_commit": "da89187e3fb1752a01d27b678c67b41b23dd9ff5",
   "runtime_source_hashes": {
     "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
-    "scripts/prefill_diagnostic_client.py": "b6195df988277329f57f100df6eb6213a84bd0af57b028c87251c7878767bc71",
-    "scripts/run_scale_validation.py": "738e9809e121f760fa280b47adb84ddb8d5d5b497951b47c14c83b76a675ba35",
+    "scripts/prefill_diagnostic_client.py": "a7ea8c850eb0e594237fe7bcf490566f895895e2b07663a540a0424f01c50315",
+    "scripts/run_scale_validation.py": "a6e6d63afe8666911ad9c8f690c25ec913b071e161600baf28479096e96a728f",
     "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
-    "src/megartx/loaded_engine_access.py": "4bac5099d19d863caa7b19e1295c19bde888f2c8648eacdfd520f0f7bd85219b",
+    "src/megartx/loaded_engine_access.py": "30b9bedd74fa7e8180611797450046cf4cc64ef317078eb21b2491bae40fb6c2",
+    "src/megartx/m1_execution.py": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
     "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
     "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
     "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
-    "src/megartx/prefill_diagnostic_plan.py": "1384d02b36549efc237dde642b64e20501387ec79ab62befcabf80b9d6b7c8fa",
+    "src/megartx/prefill_collect.py": "be60fbb3233d025e543e4cad5af27c766ca1f4c228971ecd0ef53e66c2532afd",
+    "src/megartx/prefill_diagnostic_plan.py": "0b8a5943bcbe6efae4a9f53dad086630e9f927c5c5eb397bbd1148d7cbdc14b9",
     "src/megartx/prefill_kv.py": "99bf4c047d45425cdc0c840dadb64057603bf7a25f45321889a9728a77a1bafd",
-    "src/megartx/prefill_native.py": "b429eb07982b68999b7cccf9aee8ac1ad69de14045a1d0214bf648e4044b9f00",
+    "src/megartx/prefill_native.py": "43d46824bae37b7794a6175d6c83a62d1bb646f878635bb37e8d9e34bbe3e6a9",
+    "src/megartx/prefill_plan.py": "90a90e5af9fada13da2fa696840373af8210157475505d0586d5926707a2d68c",
+    "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
     "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
   },
-  "runtime_tree": "a1c411e3d711e67ea7ecc4d4cc7e666693b651a1",
+  "runtime_tree": "e148cc712f137a1921f3218c4a6a84efdb811248",
   "runtime_versions": {
     "flashinfer-python": "0.6.18.post1",
     "torch": "2.13.0",

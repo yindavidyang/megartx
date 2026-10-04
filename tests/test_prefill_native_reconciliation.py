@@ -4,7 +4,6 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
-import subprocess
 import tempfile
 import unittest
 from megartx import prefill_plan
@@ -29,7 +28,9 @@ class NativeReconciliationTests(unittest.TestCase):
                     self.assertNotEqual(changed,original)
                     variants.append(changed)
                 if path in review['prior_repo_files'] and review['prior_repo_files'][path]!=review['repo_files'][path]:
-                    variants.append(subprocess.check_output(['git','show',review['base']+':'+path],cwd=ROOT))
+                    fixture=ROOT/'tests/fixtures/prefill-native-base'/(Path(path).stem+'.source')
+                    self.assertEqual(hashlib.sha256(fixture.read_bytes()).hexdigest(),review['prior_repo_files'][path])
+                    variants.append(fixture.read_bytes())
                 for changed in variants:
                     file.write_bytes(changed)
                     with self.subTest(path=path),self.assertRaisesRegex(ValueError,'Source drift'):
@@ -40,7 +41,9 @@ class NativeReconciliationTests(unittest.TestCase):
         receipt=json.loads((ROOT/'docs/prefill/native-diagnostic-binding.json').read_text())
         for path,expected in receipt['historical_catalogs'].items():
             self.assertEqual(hashlib.sha256((ROOT/path).read_bytes()).hexdigest(),expected,path)
-        old=ast.parse(subprocess.check_output(['git','show',receipt['integration_base']+':src/megartx/vllm_scale_plugin.py'],cwd=ROOT,text=True))
+        for path,expected in receipt['historical_source_fixtures'].items():
+            self.assertEqual(hashlib.sha256((ROOT/path).read_bytes()).hexdigest(),expected,path)
+        old=ast.parse((ROOT/'tests/fixtures/prefill-native-base/vllm_scale_plugin.source').read_text())
         new=ast.parse((ROOT/'src/megartx/vllm_scale_plugin.py').read_text())
         def functions(tree):
             return {node.name:ast.dump(node) for node in ast.walk(tree) if isinstance(node,ast.FunctionDef) and node.name in {'load','routed_adapter','deterministic_fused','incumbent_routed','model_forward','logits_forward'}}

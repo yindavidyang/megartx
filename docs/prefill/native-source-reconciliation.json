@@ -4,6 +4,7 @@
   "gpu_executed": false,
   "numerical_qualified": false,
   "performance_qualified": false,
+  "previous_runtime_commit": "090dcc5fcdd42d32eb4005683a26a4932a98380b",
   "prior_repo_files": {
     "scripts/run_scale_validation.py": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8",
     "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
@@ -18,11 +19,18 @@
     "actual _sample output/discard receipt"
   ],
   "repo_files": {
-    "scripts/run_scale_validation.py": "738e9809e121f760fa280b47adb84ddb8d5d5b497951b47c14c83b76a675ba35",
+    "scripts/run_scale_validation.py": "a6e6d63afe8666911ad9c8f690c25ec913b071e161600baf28479096e96a728f",
     "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
     "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
   },
-  "runtime_commit": "090dcc5fcdd42d32eb4005683a26a4932a98380b",
+  "review_repairs": [
+    "required retained query mappings",
+    "prepare/build BaseException poison",
+    "aggregate GPU scratch domains",
+    "actual imported adapter origins and bytes"
+  ],
+  "runtime_commit": "da89187e3fb1752a01d27b678c67b41b23dd9ff5",
+  "runtime_tree": "e148cc712f137a1921f3218c4a6a84efdb811248",
   "schema": "megartx-prefill-native-source-reconciliation-v1",
   "scope": "exact_cpu_source_compatibility_only",
   "unchanged": [
