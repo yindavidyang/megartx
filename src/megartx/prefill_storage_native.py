@@ -17,7 +17,7 @@ from .prefill_native import NativeProvider, memory_sample, retained_host_bytes
 from .prefill_diagnostic_plan import digest, remaining, INSTALLED
 from .controlled_kv_capture import SOURCE_HASHES
 from .prefill_storage import (ManagerInputs, InstanceHook, SpecialCallHook, TransferBudget,
-                              native_bytes, stored_row, require_source, canonical_runtime, table_owner_signature, require_method_source)
+                              native_bytes, stored_row, require_source, canonical_runtime, table_owner_signature, require_method_source, add_failure_note)
 from .prefill_storage_plan import CompactEvidence, load_plan, verify_adapter_sources, raw_manifest, file_sha
 
 
@@ -29,6 +29,7 @@ class StorageProvider(NativeProvider):
     def __init__(self, runner, plan, directory, torch, hook_checks):
         self.torch = torch
         self.storage_ready, self.storage_hooks = False, []
+        self.failure_context, self.failure_emitted = None, False
         self.transfer = TransferBudget()
         self.counts = {'pre': 0, 'processed': 0, 'post': 0}
         self.roots = {key: hashlib.sha256() for key in self.counts}
@@ -79,7 +80,43 @@ class StorageProvider(NativeProvider):
             self.poison_storage(error)
             raise
 
+    def row_diagnostic(self, phase, layer, position, slot, key=None, value=None):
+        tag = struct.pack('<II', layer, position)
+        hashed = (hashlib.sha256(b'processed-k\0'+tag+key).hexdigest(),
+                  hashlib.sha256(b'processed-v\0'+tag+value).hexdigest()) if key is not None else (None, None)
+        retained = self.control.expected.get(layer, {}).get(position)
+        expected = tuple(x.hex() for x in retained) if retained is not None else (None, None)
+        if phase == 'processed':
+            expected, hashed = hashed, (None, None)
+        self.failure_context = {'phase': phase, 'layer': layer, 'absolute_position': position,
+            'slot': slot, 'expected_k_sha256': expected[0], 'expected_v_sha256': expected[1],
+            'observed_k_sha256': hashed[0], 'observed_v_sha256': hashed[1]}
+
+    def record_failure(self, primary):
+        """One bounded provenance record; never invent discarded expected words."""
+        if primary is None or getattr(self, 'failure_emitted', False):
+            return
+        self.failure_emitted = True
+        record = {'schema': 'megartx-prefill-storage-failure-v1', 'status': 'failed',
+            'plan_sha256': getattr(self, 'plan', {}).get('plan_sha256'),
+            'phase': 'admission', 'layer': None, 'absolute_position': None, 'slot': None,
+            'expected_k_sha256': None, 'expected_v_sha256': None,
+            'observed_k_sha256': None, 'observed_v_sha256': None,
+            **(getattr(self, 'failure_context', None) or {}),
+            'exception_type': type(primary).__name__, 'word_comparison_performed': False,
+            'first_differing_word_index': None, 'expected_word': None, 'observed_word': None,
+            'diagnostic_semantics': 'role_separated_row_digests_no_second_tensor_capture'}
+        add_failure_note(primary, 'Storage failure provenance: ' + json.dumps(record, sort_keys=True, separators=(',', ':')))
+        try:
+            self.evidence.write('storage-failure.json', record)
+        except BaseException as error:
+            add_failure_note(primary, 'Secondary storage failure-record write failed: '+type(error).__name__)
+
     def poison_storage(self, primary):
+        try:
+            self.record_failure(primary)
+        except BaseException as error:
+            add_failure_note(primary, 'Secondary storage provenance construction failed: '+type(error).__name__)
         self.failed = True
         self.control.poisoned = True
         self.manager.poisoned = True
@@ -96,8 +133,7 @@ class StorageProvider(NativeProvider):
                 self.failed = True
                 if primary is None:
                     raise RuntimeError('Storage callback drain failed; owned teardown required') from error
-                if hasattr(primary, 'add_note'):
-                    primary.add_note('Storage drain failed; hooks retained for owned teardown: ' + repr(error))
+                add_failure_note(primary, 'Storage drain failed; hooks retained for owned teardown: ' + repr(error))
                 return
         for hook in reversed(self.storage_hooks):
             try:
@@ -108,8 +144,7 @@ class StorageProvider(NativeProvider):
             self.failed = True
             if primary is None:
                 raise RuntimeError('Storage callback restoration failed') from errors[0]
-            if hasattr(primary, 'add_note'):
-                primary.add_note('Storage callback restoration failed: ' + repr(errors[0]))
+            add_failure_note(primary, 'Storage callback restoration failed: ' + repr(errors[0]))
 
     def require_hooks(self):
         super().require_hooks()
@@ -135,6 +170,7 @@ class StorageProvider(NativeProvider):
 
     def install_storage_hooks(self):
         manager, sampler = self.manager_owner, self.sampler_owner
+        self.writer_policies = {}
         require_source(manager, 'vllm.v1.worker.gpu.block_table', 'BlockTables',
                        INSTALLED['vllm.v1.worker.gpu.block_table'])
         require_source(sampler, 'vllm.v1.worker.gpu.sample.sampler', 'Sampler',
@@ -197,9 +233,11 @@ class StorageProvider(NativeProvider):
             require_source(impl, 'vllm.v1.attention.backends.flashinfer', 'FlashInferImpl',
                            SOURCE_HASHES['vllm.v1.attention.backends.flashinfer'])
             require_method_source(impl, 'do_kv_cache_update')
+            attn = self.layers[ordinal][2]
+            self.writer_policies[ordinal] = (attn.attn_backend, attn.kv_cache_dtype, impl.cache_dtype)
             self.storage_hooks.append(InstanceHook(impl, 'do_kv_cache_update',
                 lambda arguments, layer=ordinal: self.before_writer(layer, arguments),
-                lambda ticket, result: None, self.poison_storage))
+                self.after_writer, self.poison_storage))
 
     def reconstruct_tables(self, ticket, start, end):
         """Observe both native tables, independently expected from captured manager IDs."""
@@ -247,10 +285,13 @@ class StorageProvider(NativeProvider):
             for position in range(positions.start, stop):
                 remaining(self.deadline)
                 slot = tables[layer][position]
+                self.row_diagnostic(phase, layer, position, slot)
                 key, value = stored_row(cache, slot, descriptor['kv_heads'], descriptor['head_dim'],
                                         self.torch, self.transfer, phase)
+                self.row_diagnostic(phase, layer, position, slot, key, value)
                 self.control.retained(layer, position, slot, key, value, phase=phase)
                 self.record_row(phase, layer, position, key, value)
+                self.failure_context = None
 
     def begin(self, model, tokens, positions):
         # Source-audited conservative D2H quota covers existing loaded-access,
@@ -287,6 +328,23 @@ class StorageProvider(NativeProvider):
         if self.failed or frame is None or layer in self.writer_seen:
             raise RuntimeError('Missing frame or repeated actual layer writer')
         name, parent, attn, impl = self.layers[layer]
+        self.failure_context = {'phase': 'writer_dispatch', 'layer': layer}
+        backend, cache_mode, impl_mode = self.writer_policies[layer]
+        descriptor = self.descriptors[layer]
+        if (parent.attn is not attn or attn.impl is not impl or attn.attn_backend is not backend
+                or parent.is_kv_shared_layer is not False
+                or attn.kv_sharing_target_layer_name is not None
+                or impl.kv_sharing_target_layer_name is not None
+                or backend.forward_includes_kv_cache_update is not False
+                or impl.is_kvcache_nvfp4 is not False
+                or attn.num_kv_heads != descriptor['kv_heads'] or impl.num_kv_heads != descriptor['kv_heads']
+                or attn.head_size != descriptor['head_dim'] or attn.head_size_v != descriptor['head_dim']
+                or impl.head_size != descriptor['head_dim']
+                or attn.sliding_window != descriptor['window_size']
+                or impl.window_left != (1023 if descriptor['window_size'] else -1)
+                or attn.kv_cache_dtype != cache_mode or impl.cache_dtype != impl_mode
+                or cache_mode not in ('auto', 'bfloat16') or impl_mode != cache_mode):
+            raise RuntimeError('Actual selected writer sharing/dispatch policy changed')
         key, value = arguments['key'], arguments['value']
         if (arguments['layer'] is not attn or arguments['kv_cache'] is not attn.kv_cache
                 or arguments['slot_mapping'] is not frame.context.slot_mapping[name]):
@@ -322,13 +380,19 @@ class StorageProvider(NativeProvider):
                     remaining(self.deadline)
                     k = native_bytes(key[row], self.torch, self.transfer, 'processed')
                     v = native_bytes(value[row], self.torch, self.transfer, 'processed')
+                    self.row_diagnostic('processed', layer, position, slots[layer][row], k, v)
                     self.control.processed(layer, position, slots[layer][row], k, v)
                     self.record_row('processed', layer, position, k, v)
                     if position in (15, 16, 1023, 1024, 2047, 2048):
                         self.evidence.raw(f'kv-layer-{layer:02d}-position-{position:04d}.bf16', k+v)
                         self.sample_count += 1
         self.writer_seen.add(layer)
+        self.failure_context = {'phase': 'native_writer', 'layer': layer}
         return frame
+
+    def after_writer(self, ticket, result):
+        if ticket is not None:
+            self.failure_context = None
 
     def finish(self, ticket, result):
         if ticket is not self.frame or ticket.owner is not self or ticket.sequence != self.ledger.frames:
@@ -461,15 +525,22 @@ class StorageProvider(NativeProvider):
                 'sampled_repeatability_qualified': False, 'natural_positive_correction_coverage': None,
                 'raw_samples_sha256': digest(raw_manifest(self.directory)),
                 'frame_records_sha256': file_sha(self.directory/'control-frames.jsonl'),
-                'head_records_sha256': file_sha(self.directory/'heads.jsonl')})
+                'head_records_sha256': file_sha(self.directory/'heads.jsonl'),
+                'sample_records_sha256': file_sha(self.directory/'samples.jsonl'),
+                'sample_hashes_sha256': digest([digest([token]) for token in self.ledger.outputs])})
 
     def abort(self):
+        primary = sys.exc_info()[1]
+        try:
+            self.record_failure(primary)
+        except BaseException as error:
+            add_failure_note(primary, 'Secondary storage provenance construction failed: '+type(error).__name__)
         self.control.poisoned = True
         self.manager.poisoned = True
         try:
             super().abort()
         finally:
-            self.restore_storage()
+            self.restore_storage(primary)
 
 
 def install_storage_observer(torch, model_cls):

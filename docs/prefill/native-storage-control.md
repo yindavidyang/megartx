@@ -67,7 +67,11 @@ observer is perturbing; these synchronizations invalidate timing claims.
 
 Existing loaded model/cache/group/builder/ForwardContext checks remain active.
 The new hooks additionally bind actual class functions, instance wrappers,
-receivers, cache views, manager owners, sampler owners and source files. The
+receivers, cache views, manager owners, sampler owners and source files. At every
+actual writer call, it rechecks parent/Attention/backend owners, no-sharing flags,
+writer-included policy, unchanged BF16 cache modes, non-NVFP4 branch and current
+head/window geometry. A late flag change that would skip the native write cannot
+be accepted merely because preexisting cache bits happen to match. The
 actual manager num_blocks GPU tensor legitimately rotates among the fixed
 source-defined UVA pool. The control freezes num_blocks/CPU/NumPy/pool/list/buffer
 owners, requires the active view to point into the selected unchanged pool slot,
@@ -105,8 +109,11 @@ on CPU. Raw inputs are hashed/discarded immediately, except six selected positio
 15/16/1023/1024/2047/2048 in each of all30 layers, both K and V. Exactly180 combined
 K/V files contain1351680bytes. Two full native BF16 head rows at input positions
 2047/2048 contain1048576bytes. Each selected K/V has one copy only, and publication
-requires the exhaustive comparison and exact raw manifest root. A bounded
-scalar mismatch exception is retained; no second cache dump is added.
+requires the exhaustive comparison and exact raw manifest root. One bounded storage-failure.json records the first known phase, layer, absolute
+position, slot, and role-separated expected/observed digests. Word comparison is
+explicitly unperformed; discarded expected words and an exact differing word
+index are never invented. The same provenance is added to the primary exception,
+and diagnostic I/O failure stays secondary. No second cache dump is added.
 
 The other261 heads use a finite scalar reduction plus hidden/index identity;
 there is no all-head raw-logit download or retention. The boolean reduction
@@ -122,7 +129,10 @@ The exhaustive storage payload is4024934400bytes (3.749GiB). Exact extra head,
 writer-slot and selection payloads plus the conservative inherited metadata
 allowance total4071312461bytes before actual independent manager-table reads.
 The inherited allowance is1MiB per prompt frame and128KiB per decode frame,
-charged before entering existing metadata helpers; it is an upper bound, not
+exactly41,811,968bytes, and final admission requires that exact amount. Actual
+independent manager-table copies must be566,016..585,984bytes per captured manager
+group. Inherited quota is charged before entering existing metadata helpers; it
+is an upper bound, not
 measured traffic. All remaining explicit copies charge the shared4GiB transfer
 ledger before copying. Thus the transfer receipt combines exact payload domains
 and an explicitly named conservative domain. No claim of exact total PCIe
@@ -130,7 +140,10 @@ traffic is made. One common1800s deadline starts before startup, includes reques
 drain and publication, with inherited separately bounded owned cleanup.
 
 All new control evidence uses one cross-process flock budget:8MiB total and2MiB
-metadata, including temporary publication files. Writers reserve before writing,
+metadata, including temporary publication files. A4096-byte first-failure
+allowance is reserved *inside both existing caps* before ordinary writes; one
+exclusive bounded storage-failure.json consumes it and prevents positive
+publication. Writers reserve before writing,
 reject links/nonregular entries, and never silently truncate. The directory
 reserves the two-byte external run.exit lifecycle signal before its first write.
 Raw sample files are exact-name/exact-size whitelisted. The old2.93MB diagnostic
@@ -142,6 +155,11 @@ and lossless timestamp/value/exit arrays retain every observation (max130bytes
 per record,9000records); no downsampling or peak erasure occurs. Duplicate outer
 phase, status and telemetry files are disabled for this purpose. Launch manifest,
 owned process/cleanup receipts and bounded client console are budgeted once.
+The client console is collected incrementally, with reads no larger than4096bytes
+or the remaining64KiB allowance plus one overflow sentinel. Excess output stops
+and reaps only that owned child immediately; no unbounded PIPE/communicate buffer
+is accumulated. A single binary-safe console receipt preserves primary execution
+errors if its own I/O fails.
 Inherited server console and fixed activation/forced-startup artifacts are listed
 in the separate startup/reference domain; they cannot serve as storage evidence.
 Six artificial startup fixtures do not establish natural positive correction
@@ -151,9 +169,13 @@ coverage, which remains explicitly null.
 
 `storage-binding.json` is required before POST, in addition to the existing exact
 runner binding. `control-frames.jsonl` and `heads.jsonl` contain263 compact ordered
-records; `samples.jsonl` retains256 scalar output bindings. `control.json` binds
+records; `samples.jsonl` retains256 scalar output bindings. Publication requires every ordered sample record,
+its exact head/output/cached-anchor fields, all255 consumed input hash links,
+and all8 prompt-frame hashes against the frozen private prompt. A native ordered
+scalar-hash root must match a separately computed root from the actual client
+stream, including the final uncached output. `control.json` binds
 counts, roots, actual manager geometry, actual sampler identity, transfer domains,
-raw manifest and independent frontier. The storage-specific client receipt
+raw manifest, scalar sample transcript/root and independent frontier. The storage-specific client receipt
 requires exact transport agreement. `storage.json` is written only after complete
 owned cleanup and revalidation; **fit.json is forbidden in this purpose**.
 
@@ -200,3 +222,16 @@ replacements, current default-fit equivalence, primary-error/cleanup ordering,
 and complete resource domains. Only a later, explicit exact-head review and
 parent slot clearance may admit one experiment. No merge, GPU experiment or
 second context is authorized by this source packet.
+
+## First independent review and repair boundary
+
+The initial unpublished freeze f8ab28ca59ccebaed667a03b6d28f0c7ddaad2d5 remains
+preserved in history. Independent CPU review reproduced six P2 gaps: late
+writer-sharing dispatch drift, missing sample-transcript revalidation,
+undercharged final inherited-quota validation, diagnostic I/O masking a known
+client mismatch, missing row-level mismatch provenance, and post-overflow
+console capture. The implementation above closes those six gates and includes
+explicit regressions. The reviewer also completed a full fake263-frame
+source/provider/frontier exercise successfully. Those CPU results are not a
+native GPU result; repaired source still requires exact-head re-review and
+separate experiment clearance.

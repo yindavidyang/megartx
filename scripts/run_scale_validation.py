@@ -648,14 +648,8 @@ try:
         bench_command.append("--routing-diagnostic")
     phase("client_launch", command=bench_command)
     if prefill_storage:
-        # The client emits no stream/token payload on stdout. Save its bounded
-        # diagnostic console exactly once through the shared evidence ledger.
-        result = subprocess.run(bench_command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                timeout=max(1, prefill_deadline-time.monotonic()))
-        if len(result.stdout) > 65536:
-            raise RuntimeError("Storage client console exceeded the declared64KiB bound")
-        storage_write("client-console.json", {"stdout": result.stdout.decode("utf-8", errors="replace"),
-                                                       "exit": result.returncode})
+        from megartx.prefill_storage_process import run_bounded_client
+        result = run_bounded_client(bench_command, env, prefill_deadline, prefill_evidence)
     else:
         with (output / "client.log").open("w") as bench_log:
             result = subprocess.run(bench_command, env=env, stdout=bench_log, stderr=subprocess.STDOUT, timeout=max(1, prefill_deadline-time.monotonic()) if prefill_native else 3600)

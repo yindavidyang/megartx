@@ -34,6 +34,13 @@ def source_fixture(root):
         target = root/name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT/name).read_bytes())
+    # This temporary synthetic source fixture follows current test inputs; it
+    # does not amend or admit the real reviewed repository source catalog.
+    catalog['runtime_source_hashes'] = {name: storage.file_sha(root/name)
+        for name in storage.SOURCES if name != storage.CATALOG_SOURCE}
+    eq = catalog['default_fit_equivalence']
+    eq['test_sha256'] = storage.file_sha(root/eq['test_path'])
+    (root/storage.CATALOG_SOURCE).write_text(json.dumps(catalog))
     return storage.freeze_plan(list(range(2048)), '3' * 40, root, {
         'config_sha256': CONFIG_SHA256, 'index_sha256': 'a' * 64,
         'shard_stats': {'synthetic.safetensors': {'size': 1, 'mtime_ns': 1}},
@@ -101,7 +108,8 @@ def receipt_fixture(directory, plan):
             'plan_sha256': plan['plan_sha256'], 'storage_checked': sequence < 9,
             'storage_counts': dict(counts) if sequence < 9 else None,
             'storage_roots': roots if sequence < 9 else None,
-            'queries_complete': True, 'input_ids_sha256': storage.digest([17])}, append=True)
+            'queries_complete': True, 'input_ids_sha256': storage.digest(
+                plan['tokens'][start:end] if sequence < 8 else [17])}, append=True)
         evidence.write('heads.jsonl', {'sequence': sequence, 'logit_position': end - 1,
             'plan_sha256': plan['plan_sha256'], 'before_sampler_transforms': True,
             'selected_row_index': 255 if sequence < 8 else 0,
@@ -109,13 +117,18 @@ def receipt_fixture(directory, plan):
             'predicts_position': end, 'expected_sampler_discard': sequence < 7,
             'hidden_bits_sha256': 'c'*64,
             'logit_bits_sha256': hashlib.sha256(bytes(524288)).hexdigest() if sequence in (7,8) else None}, append=True)
+    for index in range(256):
+        evidence.write('samples.jsonl', {'output_index': index, 'head_sequence': index + 7,
+            'head_phase': 'final_prompt' if index == 0 else 'decode',
+            'sample_sha256': storage.digest([17]), 'cached_length': 2048 + index,
+            'pending_anchor_position': 2048 + index, 'anchor_kv_written': False}, append=True)
     frontier = {'checked_heads': 263, 'emitted_tokens': 256, 'decode_inputs': 255,
         'committed_length': 2303, 'uncached_output_position': 2303,
         'token_ids_encoding': 'canonical-compact-json-integer-array-utf8',
         'token_ids_sha256': observer['output_ids_sha256']}
     domains = {'pre': 1550868480, 'processed': 461598720, 'post': 2012467200,
         'raw_heads': 1048576, 'head_index': 2104, 'selected_hidden': 2962432,
-        'head_finite_scalar': 261, 'manager_table_metadata': 1024,
+        'head_finite_scalar': 261, 'manager_table_metadata': 1132032,
         'inherited_metadata_upper_bound': 41811968, 'writer_slot_metadata': 552720}
     control = {'schema': 'megartx-prefill-storage-control-v1', 'plan_sha256': plan['plan_sha256'],
         'status': 'storage_frontier_observed', 'storage_exact': True, 'frontier_verified': True,
@@ -130,7 +143,9 @@ def receipt_fixture(directory, plan):
             'expected_address_source':'actual_append_block_ids_before_native_subdivision'},
         'raw_samples_sha256': storage.digest(storage.raw_manifest(directory)),
         'frame_records_sha256': storage.file_sha(directory / 'control-frames.jsonl'),
-        'head_records_sha256': storage.file_sha(directory / 'heads.jsonl')}
+        'head_records_sha256': storage.file_sha(directory / 'heads.jsonl'),
+        'sample_records_sha256': storage.file_sha(directory / 'samples.jsonl'),
+        'sample_hashes_sha256': storage.digest([storage.digest([t]) for t in stream.tokens])}
     client = client_receipt(plan, stream, observer)
     for name, value in (
         ('runner-binding.json', binding), ('storage-binding.json', mode_binding),
@@ -140,7 +155,7 @@ def receipt_fixture(directory, plan):
         ('geometry.json', {'physical_policy': 'full_context', 'capacity_tokens': 2304,
                           'actual_owned_page_ranges_disjoint': True}),
         ('client-stream.json', stream_observation(plan, stream)), ('control.json', control),
-        ('storage-client.json', storage_client_receipt(plan, control, client)),
+        ('storage-client.json', storage_client_receipt(plan, control, client, stream)),
     ):
         evidence.write(name, value)
     ownership = {'cleanup_complete': True, 'failure': None, 'owned_identities_remaining': [],
@@ -261,7 +276,7 @@ class StoragePlanTests(unittest.TestCase):
 class CompactEvidenceTests(unittest.TestCase):
     def test_metadata_append_limit_includes_unknown_temporary_files(self):
         with tempfile.TemporaryDirectory() as d:
-            root = Path(d); evidence = storage.CompactEvidence(root, 1000, 100)
+            root = Path(d); evidence = storage.CompactEvidence(root, 5096, 4196)
             evidence.write('events.jsonl', {'v': 'a' * 20}, append=True)
             old = (root / 'events.jsonl').read_bytes()
             (root / '.publication-temp').write_bytes(b'x' * 50)
@@ -274,7 +289,7 @@ class CompactEvidenceTests(unittest.TestCase):
 
     def test_raw_whitelist_extent_and_total_are_shared_with_metadata(self):
         with tempfile.TemporaryDirectory() as d:
-            root = Path(d); evidence = storage.CompactEvidence(root, 8250, 100)
+            root = Path(d); evidence = storage.CompactEvidence(root, 12346, 4196)
             name = 'kv-layer-00-position-0015.bf16'
             evidence.raw(name, bytes(8192))
             evidence.write('summary.json', {'ok': True})
@@ -339,12 +354,65 @@ class CompactEvidenceTests(unittest.TestCase):
             self.assertEqual(json.loads((Path(d)/'telemetry.jsonl').read_text().splitlines()[1]), [1,2,[''],1])
             with self.assertRaisesRegex(ValueError, 'Telemetry loss'): storage.validate_telemetry(d)
 
+    def test_failure_reservation_survives_normal_overflow_and_is_consumed_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)/'prefill-storage'
+            evidence = storage.CompactEvidence(root, 4500, 4500)
+            evidence.write('normal.json', {'data':'x'*350})
+            initial = evidence.sizes()
+            self.assertEqual(initial['metadata_bytes'], (root/'normal.json').stat().st_size+2)
+            with self.assertRaisesRegex(ValueError, 'before write'):
+                evidence.write('overflow.json', {'data':'x'*100})
+            self.assertFalse((root/'overflow.json').exists())
+            evidence.write(storage.FAILURE_FILE, {'schema':'cpu-failure', 'phase':'post',
+                'layer':13, 'position':23, 'slot':23, 'expected_k_sha256':'a'*64,
+                'observed_k_sha256':'b'*64, 'expected_v_sha256':'c'*64, 'observed_v_sha256':'c'*64})
+            original = (root/storage.FAILURE_FILE).read_bytes()
+            self.assertLessEqual(len(original), 4096)
+            with self.assertRaises(FileExistsError): evidence.write(storage.FAILURE_FILE, {})
+            with self.assertRaisesRegex(ValueError, 'Exactly one'):
+                evidence.write(storage.FAILURE_FILE, {}, append=True)
+            with self.assertRaisesRegex(ValueError, 'forbids'):
+                evidence.write('storage.json', {'status':'success'})
+            self.assertEqual((root/storage.FAILURE_FILE).read_bytes(), original)
+            self.assertLessEqual(evidence.sizes()['metadata_bytes'], 4500)
+
+    def test_failure_larger_than_reserve_rejected_without_consuming_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            evidence = storage.CompactEvidence(d, 4500, 4500)
+            with self.assertRaisesRegex(ValueError, 'Exactly one'):
+                evidence.write(storage.FAILURE_FILE, {'data':'x'*4096})
+            self.assertFalse((Path(d)/storage.FAILURE_FILE).exists())
+            evidence.write(storage.FAILURE_FILE, {'status':'failed'})
+            self.assertTrue((Path(d)/storage.FAILURE_FILE).is_file())
+
+    def test_competing_failure_writers_can_consume_reservation_only_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            evidence = storage.CompactEvidence(d, 4500, 4500)
+            evidence.write('normal.json', {'data':'x'*350})
+            code = """from megartx.prefill_storage_plan import CompactEvidence
+import sys
+try:
+    CompactEvidence(sys.argv[1],4500,4500).write('storage-failure.json', {'writer':sys.argv[2]})
+except FileExistsError:
+    sys.exit(3)
+"""
+            processes = [subprocess.Popen([sys.executable, '-c', code, d, str(index)], cwd=ROOT,
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE) for index in range(4)]
+            statuses = []
+            for process in processes:
+                _, error = process.communicate(timeout=20)
+                self.assertIn(process.returncode, (0,3), error.decode())
+                statuses.append(process.returncode)
+            self.assertEqual(statuses.count(0), 1)
+            self.assertLessEqual(evidence.sizes()['total_bytes'], 4500)
+
     def test_cross_process_budget_is_serialized(self):
         with tempfile.TemporaryDirectory() as d:
             code = """from megartx.prefill_storage_plan import CompactEvidence
 import sys
 try:
-    CompactEvidence(sys.argv[1], 1000, 350).write(sys.argv[2]+'.json', {'payload':'x'*180})
+    CompactEvidence(sys.argv[1], 5096, 4446).write(sys.argv[2]+'.json', {'payload':'x'*180})
 except ValueError:
     sys.exit(3)
 """
@@ -356,7 +424,7 @@ except ValueError:
                 self.assertIn(process.returncode, (0, 3), err.decode())
                 statuses.append(process.returncode)
             self.assertEqual(statuses.count(0), 1)
-            self.assertLessEqual(storage.CompactEvidence(d, 1000, 350).sizes()['metadata_bytes'], 350)
+            self.assertLessEqual(storage.CompactEvidence(d, 5096, 4446).sizes()['metadata_bytes'], 350)
 
 
 class StoragePublicationTests(unittest.TestCase):
@@ -421,6 +489,106 @@ class StoragePublicationTests(unittest.TestCase):
                     with self.assertRaises((ValueError, OSError)): storage.publish_storage(evidence, plan, ownership)
                     write.assert_not_called()
                 self.assertFalse((evidence.directory / 'fit.json').exists())
+
+    def test_required_samples_and_consumed_input_chain_fail_closed_even_with_rebound_roots(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); plan = source_fixture(root/'source')
+            evidence, control, ownership = receipt_fixture(root/'evidence', plan)
+            directory = evidence.directory
+            names = ('samples.jsonl','control-frames.jsonl','control.json','storage-client.json')
+            originals = {name:(directory/name).read_bytes() for name in names}
+            mutations = [('missing',None),('invalid',None),('truncated',None),('duplicate',None),
+                         ('sample-hash',None),('decode-input',None),('prompt-input',None)]
+            sample = json.loads(originals['samples.jsonl'].splitlines()[0])
+            mutations += [('field:'+key,None) for key in sample]
+            mutations += [('field-type:'+key,None) for key in ('output_index','head_sequence',
+                'cached_length','pending_anchor_position','anchor_kv_written')]
+            for mutation, _ in mutations:
+                with self.subTest(mutation=mutation):
+                    for name, data in originals.items(): (directory/name).write_bytes(data)
+                    records = [json.loads(line) for line in originals['samples.jsonl'].splitlines()]
+                    frames = [json.loads(line) for line in originals['control-frames.jsonl'].splitlines()]
+                    if mutation == 'missing': (directory/'samples.jsonl').unlink()
+                    elif mutation == 'invalid': (directory/'samples.jsonl').write_text('{"invalid":true}\n')
+                    else:
+                        if mutation == 'truncated': records.pop()
+                        elif mutation == 'duplicate': records[-1] = records[-2]
+                        elif mutation == 'sample-hash': records[100]['sample_sha256'] = 'f'*64
+                        elif mutation.startswith('field:'): del records[17][mutation.split(':')[1]]
+                        elif mutation.startswith('field-type:'):
+                            key = mutation.split(':')[1]
+                            records[17][key] = 0 if key == 'anchor_kv_written' else float(records[17][key])
+                        elif mutation == 'decode-input': frames[25]['input_ids_sha256'] = 'f'*64
+                        elif mutation == 'prompt-input': frames[3]['input_ids_sha256'] = 'f'*64
+                        (directory/'samples.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in records))
+                    (directory/'control-frames.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in frames))
+                    altered = copy.deepcopy(control)
+                    if (directory/'samples.jsonl').exists():
+                        altered['sample_records_sha256'] = storage.file_sha(directory/'samples.jsonl')
+                    altered['frame_records_sha256'] = storage.file_sha(directory/'control-frames.jsonl')
+                    (directory/'control.json').write_text(json.dumps(altered))
+                    mode = json.loads(originals['storage-client.json'])
+                    mode['control_sha256'] = storage.digest(altered)
+                    (directory/'storage-client.json').write_text(json.dumps(mode))
+                    with patch.object(evidence, 'write') as write:
+                        with self.assertRaises(ValueError): storage.publish_storage(evidence, plan, ownership)
+                        write.assert_not_called()
+
+    def test_actual_client_independently_binds_final_uncached_sample_digest(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); plan = source_fixture(root/'source')
+            _, control, _ = receipt_fixture(root/'evidence', plan)
+            stream, observer = stream_fixture(plan)
+            client = client_receipt(plan, stream, observer)
+            mode = storage_client_receipt(plan, control, client, stream)
+            self.assertEqual(mode['sample_hashes_sha256'], storage.digest([storage.digest([17])]*256))
+            forged_hashes = [storage.digest([17])]*255+[storage.digest([18])]
+            forged = {**control, 'sample_hashes_sha256':storage.digest(forged_hashes)}
+            with self.assertRaisesRegex(ValueError, 'scalar sample hash root'):
+                storage_client_receipt(plan, forged, client, stream)
+
+    def test_exact_inherited_and_per_group_manager_transfer_bounds(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); plan = source_fixture(root/'source')
+            _, control, _ = receipt_fixture(root/'evidence', plan)
+            for domain, bad in [('inherited_metadata_upper_bound',1),
+                ('inherited_metadata_upper_bound',41811967), ('inherited_metadata_upper_bound',41811969),
+                ('manager_table_metadata',1), ('manager_table_metadata',566016*2-1),
+                ('manager_table_metadata',585984*2+1)]:
+                altered = copy.deepcopy(control)
+                altered['transfer']['domains'][domain] = bad
+                altered['transfer']['transferred_bytes'] = sum(altered['transfer']['domains'].values())
+                with self.subTest(domain=domain,bad=bad), self.assertRaises(ValueError):
+                    storage.validate_control(plan, altered)
+            for good in (566016*2, 585984*2):
+                altered = copy.deepcopy(control)
+                altered['transfer']['domains']['manager_table_metadata'] = good
+                altered['transfer']['transferred_bytes'] = sum(altered['transfer']['domains'].values())
+                storage.validate_control(plan, altered)
+
+    def test_failure_file_blocks_publication_before_any_success_write(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); plan = source_fixture(root/'source')
+            evidence, _, ownership = receipt_fixture(root/'evidence', plan)
+            evidence.write(storage.FAILURE_FILE, {'phase':'post','layer':13,'position':23})
+            with patch.object(evidence,'write') as write:
+                with self.assertRaisesRegex(ValueError,'forbids'): storage.publish_storage(evidence,plan,ownership)
+                write.assert_not_called()
+
+    def test_known_ledger_mismatch_survives_secondary_evidence_failure(self):
+        from prefill_diagnostic_client import LedgerMismatch
+        plan = {'plan_sha256':'a'*64,'tokens':list(range(2048))}
+        stream, observer = stream_fixture(plan)
+        def failed_write(*args, **kwargs): raise OSError('secondary disk failure')
+        evidence = SimpleNamespace(write=failed_write)
+        with self.assertRaises(LedgerMismatch) as caught:
+            validate_observation(plan,stream,{**observer,'output_ids_sha256':'f'*64},evidence)
+        self.assertIn('output_ids_sha256',caught.exception.diagnostic['failed_fields'])
+        self.assertIsInstance(caught.exception.__cause__,OSError)
+        if hasattr(caught.exception,'__notes__'):
+            self.assertIn('OSError',' '.join(caught.exception.__notes__))
+        with self.assertRaisesRegex(OSError,'secondary disk failure'):
+            validate_observation(plan,stream,observer,evidence)
 
     def test_client_primary_http_failure_survives_close_failure_and_cleans_marker(self):
         plan = {'plan_sha256':'a'*64, 'tokens':list(range(2048))}

@@ -319,3 +319,16 @@ def require_method_source(owner, name):
             or callback.__func__.__code__.co_name != name
             or inspect.getsourcefile(callback.__func__) != inspect.getsourcefile(type(owner))):
         raise RuntimeError('Selected native method is not its source-defined owner: '+name)
+
+
+def add_failure_note(primary, text):
+    """Keep diagnostics secondary, including on supported Python 3.10."""
+    if primary is None:
+        return
+    try:
+        if hasattr(primary, 'add_note'):
+            primary.add_note(text)
+        else:
+            primary.__notes__ = [*getattr(primary, '__notes__', ()), text]
+    except BaseException:
+        pass

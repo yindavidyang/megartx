@@ -108,7 +108,7 @@ class Evidence:
 
 
 class RecordingControl:
-    def __init__(self): self.processed_rows, self.retained_rows, self.poisoned = [], [], False
+    def __init__(self): self.processed_rows, self.retained_rows, self.poisoned, self.expected = [], [], False, {}
     def processed(self, *row): self.processed_rows.append(row)
     def retained(self, *row, phase): self.retained_rows.append((phase, *row))
 
@@ -206,12 +206,20 @@ class Harness:
             backing = np.zeros((pages, 16, heads, 2 * dim), dtype=np.uint16)
             cache = Tensor(backing.transpose(0, 2, 1, 3), backing=backing, events=events,
                            label='cache-' + str(layer))
-            attn, impl = NS(kv_cache=cache), Writer()
+            attn, impl = NS(kv_cache=cache, kv_cache_dtype="auto", kv_sharing_target_layer_name=None,
+                            attn_backend=NS(forward_includes_kv_cache_update=False)), Writer()
             impl.ordinal, impl.dim, impl.calls, impl.mutate_inputs, impl.error = layer, dim, 0, False, None
+            impl.kv_sharing_target_layer_name = None
+            impl.is_kvcache_nvfp4 = False
+            impl.cache_dtype = "auto"
+            impl.num_kv_heads, impl.head_size = heads, dim
+            impl.window_left = -1 if layer % 6 == 5 else 1023
+            attn.num_kv_heads, attn.head_size, attn.head_size_v = heads, dim, dim
+            attn.sliding_window = None if layer % 6 == 5 else 1024
             attn.impl = impl
             name = 'layer-' + str(layer)
-            p.layers[layer] = (name, NS(attn=attn), attn, impl)
-            p.descriptors.append({'kv_heads': heads, 'head_dim': dim})
+            p.layers[layer] = (name, NS(attn=attn, is_kv_shared_layer=False), attn, impl)
+            p.descriptors.append({'kv_heads': heads, 'head_dim': dim, 'window_size': attn.sliding_window})
             p.access.groups[name] = (0, None)
             slots[layer] = [position + 16 for position in range(start, end)]
             mappings[name] = Tensor(np.array(slots[layer], dtype=np.int64), I64, events=events,
@@ -693,6 +701,77 @@ class CopyAndHookTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
+
+
+class ReviewRegressionTests(unittest.TestCase):
+    setUp = ProviderTests.setUp
+    tearDown = ProviderTests.tearDown
+    harness = ProviderTests.harness
+    cleanup = staticmethod(ProviderTests.cleanup)
+    def test_selected_writer_dispatch_mutations_stop_before_any_native_call(self):
+        for kind in ('parent_sharing','attention_sharing','impl_sharing','included_writer','nvfp4','cache_mode','head_size','head_count','window','parent_owner'):
+            with self.subTest(kind=kind):
+                h=self.harness();p=h.p;name,parent,attn,impl=p.layers[0]
+                if kind=='parent_sharing': parent.is_kv_shared_layer=True
+                elif kind=='attention_sharing': attn.kv_sharing_target_layer_name='other'
+                elif kind=='impl_sharing': impl.kv_sharing_target_layer_name='other'
+                elif kind=='included_writer': attn.attn_backend.forward_includes_kv_cache_update=True
+                elif kind=='nvfp4': impl.is_kvcache_nvfp4=True
+                elif kind=='cache_mode': impl.cache_dtype='fp8'
+                elif kind=='head_size': impl.head_size=257
+                elif kind=='head_count': impl.num_kv_heads=7
+                elif kind=='window': impl.window_left=1022
+                else: parent.attn=object()
+                with self.assertRaisesRegex(RuntimeError,'sharing/dispatch'):
+                    h.write(0)
+                self.assertEqual(impl.calls,0)
+                self.assertTrue(p.failed)
+
+    def test_actual_extracted_writer_cannot_silently_skip_after_sharing_drift(self):
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('storage_extracted_regression',ROOT/'tests/test_prefill_storage_extracted.py')
+        fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
+        h=self.harness();p=h.p;p.restore_storage();p.storage_hooks=[];p.storage_ready=False
+        klass,namespace=fixture.extracted('writer');impl=klass()
+        impl.kv_sharing_target_layer_name=None;impl.is_kvcache_nvfp4=False;impl.cache_dtype='auto'
+        impl.num_kv_heads=8;impl.head_size=256;impl.window_left=1023
+        calls=[];namespace['torch']=NS(ops=NS(_C_cache_ops=NS(reshape_and_cache_flash=lambda *args:calls.append(args))))
+        name,parent,attn,_=p.layers[13];attn.impl=impl;p.layers[13]=(name,parent,attn,impl)
+        with patch('megartx.prefill_storage_native.require_source'),patch('megartx.prefill_storage_native.require_method_source'):
+            p.install_storage_hooks()
+        p.storage_ready=True;impl.kv_sharing_target_layer_name='foreign-sharing-target'
+        with self.assertRaisesRegex(RuntimeError,'sharing/dispatch'):
+            h.write(13,*h.values(13,k_word=0,v_word=0))
+        self.assertEqual(calls,[]);self.assertTrue(p.failed);self.assertNotIn(13,p.writer_seen)
+
+    def test_mismatch_retains_one_bounded_role_provenance_record(self):
+        h=self.harness(all_layers=True,real_control=True)
+        for layer in range(30): h.write(layer)
+        h.p.layers[13][2].kv_cache.array[2,3,7,61]^=0x8000
+        with self.assertRaisesRegex(ValueError,'Stored processed') as caught: h.finish()
+        records=[value for name,value in h.p.evidence.records if name=='storage-failure.json']
+        self.assertEqual(len(records),1);record=records[0]
+        self.assertEqual((record['phase'],record['layer'],record['absolute_position'],record['slot']),('post',13,23,39))
+        self.assertEqual(record['expected_k_sha256'],h.p.control.expected[13][23][0].hex())
+        self.assertNotEqual(record['expected_k_sha256'],record['observed_k_sha256'])
+        self.assertEqual(record['expected_v_sha256'],record['observed_v_sha256'])
+        self.assertIsNone(record['first_differing_word_index']);self.assertIsNone(record['expected_word'])
+        self.assertTrue(any('Storage failure provenance' in note for note in caught.exception.__notes__))
+        import json
+        self.assertLessEqual(len(json.dumps(record).encode()),4096)
+
+    def test_failed_mismatch_diagnostic_io_preserves_primary_error_and_poison(self):
+        h=self.harness(all_layers=True,real_control=True)
+        for layer in range(30): h.write(layer)
+        h.p.layers[13][2].kv_cache.array[2,3,7,61]^=0x8000
+        original=h.p.evidence.write
+        def write(name,*args,**kwargs):
+            if name=='storage-failure.json': raise OSError('secondary disk failure')
+            return original(name,*args,**kwargs)
+        h.p.evidence.write=write
+        with self.assertRaisesRegex(ValueError,'Stored processed') as caught: h.finish()
+        self.assertTrue(h.p.failed)
+        self.assertTrue(any('failure-record write failed' in note for note in caught.exception.__notes__))
 
 
 class SourceBoundMethodFixture:

@@ -37,6 +37,7 @@ CONTROL_SPEC = {
     'transferred_bytes_per_context': 4024934400,
     'transfer_limit_bytes_per_context': 4 << 30,
     'max_metadata_bytes': 2 << 20, 'max_evidence_bytes': 8 << 20,
+    'failure_evidence_reserve_bytes': 4096,
     'kernel_page_tokens': 16,
     'sample_positions': [15, 16, 1023, 1024, 2047, 2048],
     'sample_combined_kv_rows': 180, 'sample_kv_bytes': 1351680,
@@ -51,6 +52,7 @@ EXTRA_SOURCES = (
     'src/megartx/prefill_storage_plan.py',
     'src/megartx/prefill_storage.py',
     'src/megartx/prefill_storage_native.py',
+    'src/megartx/prefill_storage_process.py',
     'scripts/prefill_storage_client.py',
     'numerical_reference/prefill_native_control.py',
     CATALOG_SOURCE,
@@ -58,6 +60,8 @@ EXTRA_SOURCES = (
 )
 SOURCES = (*legacy.SOURCES, *EXTRA_SOURCES)
 CHECKER_SOURCE = 'numerical_reference/prefill_native_control.py'
+FAILURE_FILE = 'storage-failure.json'
+FAILURE_RESERVE_BYTES = 4096
 TELEMETRY_FIELDS = ['memory.used', 'memory.free', 'utilization.gpu', 'power.draw',
                     'temperature.gpu', 'clocks.sm', 'clocks.mem', 'pstate']
 TELEMETRY_HEADER = {'schema': 'megartx-prefill-storage-telemetry-v1',
@@ -249,6 +253,8 @@ class CompactEvidence:
             info = path.lstat()
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
                 raise ValueError('Evidence symlink, hardlink, or nonregular entry refused')
+            if path.name == FAILURE_FILE and info.st_size > FAILURE_RESERVE_BYTES:
+                raise ValueError('Storage failure evidence exceeds its reserved extent')
             if path.name in RAW_FILES and info.st_size != RAW_FILES[path.name]:
                 raise ValueError('Raw evidence file extent changed')
             total += info.st_size
@@ -261,6 +267,8 @@ class CompactEvidence:
         self._name(name, raw)
         if type(data) is not bytes or not data:
             raise ValueError('Nonempty exact evidence bytes required')
+        if name == FAILURE_FILE and (append or raw or len(data) > FAILURE_RESERVE_BYTES):
+            raise ValueError('Exactly one bounded storage failure record is admitted')
         if raw and (append or len(data) != RAW_FILES[name]):
             raise ValueError('Raw BF16 evidence requires the exact selected row byte extent')
         # O_NOFOLLOW protects the lock before opening, rather than noticing a
@@ -271,7 +279,12 @@ class CompactEvidence:
             total, metadata = self._sizes()
             if initial_data and not (self.directory / name).exists():
                 data = initial_data + data
-            if total + len(data) > self.limit or metadata + (0 if raw else len(data)) > self.metadata_limit:
+            failure_exists = (self.directory / FAILURE_FILE).exists()
+            if name == 'storage.json' and failure_exists:
+                raise ValueError('Storage failure evidence forbids successful publication')
+            reserved = FAILURE_RESERVE_BYTES if name != FAILURE_FILE and not failure_exists else 0
+            if (total + len(data) + reserved > self.limit
+                    or metadata + (0 if raw else len(data)) + reserved > self.metadata_limit):
                 raise ValueError('Storage evidence overflow rejected before write')
             flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | (os.O_APPEND if append else os.O_EXCL)
             fd = os.open(self.directory / name, flags, 0o600)
@@ -383,7 +396,8 @@ def validate_control(plan, value, output_ids_sha256=None):
              **CONTROL_COUNTS, **QUALIFICATIONS}
     if type(value) is not dict or any(not _exact(value.get(key), expected) for key, expected in fixed.items()):
         raise ValueError('Complete exact storage/frontier control proof required')
-    for key in ('raw_samples_sha256', 'frame_records_sha256', 'head_records_sha256'):
+    for key in ('raw_samples_sha256', 'frame_records_sha256', 'head_records_sha256',
+                'sample_records_sha256', 'sample_hashes_sha256'):
         if not _sha(value.get(key)):
             raise ValueError('Storage all-row/head/sample root is absent: ' + key)
     frontier = value.get('frontier')
@@ -408,7 +422,7 @@ def validate_control(plan, value, output_ids_sha256=None):
     expected_domains = {'pre': 1550868480, 'processed': 461598720, 'post': 2012467200,
                         'raw_heads': 1048576, 'head_index': 2104,
                         'selected_hidden': 2962432, 'head_finite_scalar': 261,
-                        'writer_slot_metadata': 552720}
+                        'writer_slot_metadata': 552720, 'inherited_metadata_upper_bound': 41811968}
     if (type(transfer) is not dict
             or set(transfer) != {'limit_bytes', 'transferred_bytes', 'copy_calls', 'domains'}
             or not _exact(transfer.get('limit_bytes'), 4 << 30)
@@ -416,7 +430,7 @@ def validate_control(plan, value, output_ids_sha256=None):
             or not 4024934400 <= transfer['transferred_bytes'] <= 4 << 30
             or type(transfer.get('copy_calls')) is not int or transfer['copy_calls'] <= 0
             or type(domains) is not dict
-            or set(domains) != set(expected_domains) | {'manager_table_metadata', 'inherited_metadata_upper_bound'}
+            or set(domains) != set(expected_domains) | {'manager_table_metadata'}
             or any(not _exact(domains.get(k), v) for k, v in expected_domains.items())
             or any(type(v) is not int or v <= 0 for v in domains.values())
             or sum(domains.values()) != transfer['transferred_bytes']):
@@ -436,6 +450,11 @@ def validate_control(plan, value, output_ids_sha256=None):
             or any(type(b) is not int or type(k) is not int or type(r) is not int
                    or k != 16 or r < 1 or b != k*r for b, k, r in zip(sizes, kernels, ratios))):
         raise ValueError('Actual manager/kernel subdivision geometry differs')
+    # Each group is reconciled before and after all263frames; both persistent
+    # and gathered tables are copied. Counts cannot undercut required pages or
+    # exceed capacity144. Exact source-derived lower/upper bounds per group.
+    if not 566016 * len(sizes) <= domains['manager_table_metadata'] <= 585984 * len(sizes):
+        raise ValueError('Actual manager table transfer allowance is outside source-derived bounds')
     return value
 
 
@@ -472,6 +491,8 @@ def _validate_transcripts(plan, directory, control, samples):
             raise ValueError('Compact storage frame identity/order differs')
         if not _sha(frame.get('input_ids_sha256')):
             raise ValueError('Compact storage frame input identity absent')
+        if sequence < 8 and frame['input_ids_sha256'] != digest(plan['tokens'][start:end]):
+            raise ValueError('Prompt frame input digest differs from frozen private prompt')
         expected_head = {'sequence': sequence, 'logit_position': end - 1,
                          'predicts_position': end, 'expected_sampler_discard': sequence < 7}
         if (any(not _exact(head.get(k), v) for k, v in expected_head.items())
@@ -510,6 +531,24 @@ def _validate_transcripts(plan, directory, control, samples):
             raise ValueError('Later continuation must remain metadata-only')
     if frames[8]['storage_roots'] != control['storage_roots']:
         raise ValueError('Storage final checked roots differ from completed capture')
+    emissions = _records(directory, 'samples.jsonl', 256)
+    if control['sample_records_sha256'] != file_sha(Path(directory) / 'samples.jsonl'):
+        raise ValueError('Scalar sample transcript root changed')
+    sample_hashes = []
+    for index, event in enumerate(emissions):
+        expected = {'output_index': index, 'head_sequence': index + 7,
+                    'head_phase': 'final_prompt' if index == 0 else 'decode',
+                    'cached_length': 2048 + index, 'pending_anchor_position': 2048 + index,
+                    'anchor_kv_written': False}
+        if (set(event) != set(expected) | {'sample_sha256'}
+                or any(not _exact(event.get(k), v) for k, v in expected.items())
+                or not _sha(event.get('sample_sha256'))):
+            raise ValueError('Exact ordered native output/head/uncached-anchor sample bindings required')
+        sample_hashes.append(event['sample_sha256'])
+        if index < 255 and event['sample_sha256'] != frames[8 + index]['input_ids_sha256']:
+            raise ValueError('Consumed decode input differs from preceding native sample')
+    if digest(sample_hashes) != control['sample_hashes_sha256']:
+        raise ValueError('Ordered native sample scalar digest root changed')
     return frames, heads
 
 
@@ -556,6 +595,8 @@ def publish_storage(evidence, plan, ownership):
     sampled repeatability, independent arithmetic, quality, or performance.
     """
     directory = evidence.directory
+    if (directory / FAILURE_FILE).exists():
+        raise ValueError('Storage failure evidence forbids successful publication')
     evidence.sizes()
     names = ('observer.json', 'client.json', 'loaded.json', 'geometry.json',
              'client-stream.json', 'control.json', 'storage-client.json')
@@ -569,6 +610,7 @@ def publish_storage(evidence, plan, ownership):
     expected_mode = {'schema': 'megartx-prefill-storage-client-v1', 'purpose': PURPOSE,
                      'plan_sha256': plan['plan_sha256'], 'status': 'complete',
                      'control_sha256': digest(control), 'output_ids_sha256': client['output_ids_sha256'],
+                     'sample_hashes_sha256': control['sample_hashes_sha256'],
                      'storage_capture_end': 2049, 'metadata_only_decode_inputs': 254,
                      'numerical_qualified': False, 'performance_qualified': False}
     if not _exact(mode, expected_mode):

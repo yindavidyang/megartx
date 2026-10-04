@@ -27,18 +27,34 @@ def validate_observation(plan, stream, observer, evidence=None):
                'comparison_sha256': digest(comparison),
                'checks': [check for check in comparison['checks'] if not check['ok']],
                'numerical_qualified': False, 'performance_qualified': False}
+    mismatch = LedgerMismatch(compact) if comparison['failed_fields'] else None
     if evidence is not None:
-        evidence.write('client-ledger-check.json', compact)
-    if comparison['failed_fields']:
-        raise LedgerMismatch(compact)
+        try:
+            evidence.write('client-ledger-check.json', compact)
+        except BaseException as error:
+            if mismatch is None:
+                raise
+            if hasattr(mismatch, 'add_note'):
+                mismatch.add_note('Client ledger diagnostics could not be saved: ' + type(error).__name__)
+            raise mismatch from error
+    if mismatch is not None:
+        raise mismatch
     return client
 
 
-def storage_client_receipt(plan, control, client):
+def storage_client_receipt(plan, control, client, stream):
     validate_control(plan, control, client['output_ids_sha256'])
+    if (not isinstance(stream, StreamLedger) or stream.plan is not plan
+            or stream.done is not True or len(stream.tokens) != 256
+            or digest(stream.tokens) != client['output_ids_sha256']):
+        raise ValueError('Actual complete storage client token stream required')
+    sample_hashes_sha256 = digest([digest([token]) for token in stream.tokens])
+    if sample_hashes_sha256 != control['sample_hashes_sha256']:
+        raise ValueError('Native/client ordered scalar sample hash root mismatch')
     return {'schema': 'megartx-prefill-storage-client-v1',
             'purpose': PURPOSE, 'plan_sha256': plan['plan_sha256'], 'status': 'complete',
             'control_sha256': digest(control), 'output_ids_sha256': client['output_ids_sha256'],
+            'sample_hashes_sha256': sample_hashes_sha256,
             'storage_capture_end': 2049, 'metadata_only_decode_inputs': 254,
             'numerical_qualified': False, 'performance_qualified': False}
 
@@ -80,7 +96,7 @@ def run(plan, directory, deadline):
         observer = _read_json(Path(directory) / 'observer.json', 65536)
         client = validate_observation(plan, stream, observer, evidence)
         control = _read_json(Path(directory) / 'control.json', 65536)
-        mode = storage_client_receipt(plan, control, client)
+        mode = storage_client_receipt(plan, control, client, stream)
         evidence.write('client.json', client)
         evidence.write('storage-client.json', mode)
     finally:
