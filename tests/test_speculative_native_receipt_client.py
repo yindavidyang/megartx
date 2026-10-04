@@ -486,6 +486,7 @@ class SourceAndOperationalControls(unittest.TestCase):
         from megartx.speculative_native_plan import OWNED_FILES
         plan_schema = read_json(ROOT / "schemas/speculative-native-receipt-client-plan.schema.json", 256 << 10)
         self.assertEqual(set(plan_schema["properties"]["source_sha256"]["required"]), set(OWNED_FILES))
+        self.assertIn("scripts/run_scale_validation.py", OWNED_FILES)
         self.assertEqual(plan_schema["properties"]["limits"]["const"], LIMITS)
         self.assertIs(plan_schema["properties"]["gpu_authorized"]["const"], False)
         self.assertIs(plan_schema["additionalProperties"], False)
@@ -499,6 +500,45 @@ class SourceAndOperationalControls(unittest.TestCase):
         primary, cleanup = TimeoutError("fixture primary"), OSError("fixture cleanup")
         self.assertIs(module.retain_primary(primary, cleanup, "evidence"), primary)
         self.assertIs(module.retain_primary(None, cleanup, "evidence"), cleanup)
+
+    def test_torch_distribution_and_runtime_source_are_distinct(self):
+        from megartx import speculative_native_plan as plan
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "torch").mkdir()
+            path = root / "torch/version.py"
+            path.write_text("__version__ = '2.13.0+cu130'\ncuda: str = '13.0'\ngit_version = 'fixture'\n")
+            with patch.object(plan, "hash_file", return_value=plan.TORCH_VERSION_SOURCE_SHA256):
+                result = plan.torch_version_source(root)
+                self.assertEqual(result["__version__"], "2.13.0+cu130")
+                path.write_text("__version__ = '2.13.0'\ncuda = '13.0'\n")
+                with self.assertRaisesRegex(ProbeError, "runtime/CUDA"):
+                    plan.torch_version_source(root)
+
+    def test_torch_version_source_hash_required_before_literal_parse(self):
+        from megartx import speculative_native_plan as plan
+        with patch.object(plan, "hash_file", return_value="0" * 64):
+            with self.assertRaisesRegex(ProbeError, "version source differs"):
+                plan.torch_version_source(Path("fixture-missing-root"))
+
+    def test_metadata_preflight_rejects_duplicate_or_wrong_distribution(self):
+        from megartx import speculative_native_plan as plan
+        from megartx import speculative_native_probe as probe
+        from megartx.speculative_native_receipt import TORCH_MEMORY_SOURCE_SHA256
+        hashes = {**CLIENT_SOURCES, **FFI_SOURCES, "torch/cuda/memory.py": TORCH_MEMORY_SOURCE_SHA256}
+        def file_hash(path, cap):
+            return next(value for name, value in hashes.items() if str(path).endswith(name))
+        dist = [NS(metadata={"Name": name}, version=version) for name, version in
+                (("vllm", "0.30.0"), ("torch", "2.13.0"), ("flashinfer-python", "0.6.18.post1"))]
+        with patch.object(probe, "inspect_sources", return_value={}), patch.object(plan, "hash_file", side_effect=file_hash), \
+                patch.object(plan, "torch_version_source", return_value={"__version__": "2.13.0+cu130", "cuda": "13.0"}), \
+                patch("importlib.metadata.distributions", return_value=dist):
+            report = plan.installed_preflight(Path("fixture-site"))
+            self.assertEqual(report["distribution_versions"]["torch"], "2.13.0")
+            self.assertEqual(report["torch_runtime_version_source"]["__version__"], "2.13.0+cu130")
+            dist.append(NS(metadata={"Name": "torch"}, version="2.13.0"))
+            with self.assertRaisesRegex(ProbeError, "metadata differs"):
+                plan.installed_preflight(Path("fixture-site"))
 
 
 def private_fixture():

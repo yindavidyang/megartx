@@ -3,6 +3,7 @@
 Reading this module never imports Torch/vLLM or queries devices. A frozen plan
 is a proposal, not GPU permission or a scratch-fit certificate.
 """
+import ast
 import hashlib
 import json
 import math
@@ -24,7 +25,9 @@ COLLECTOR_GUARD = {
     "review_status": "independent_CPU_review_clear_parent_scope_accepted_GPU_closed",
     "independent_review_reference": "task-5/review-bounded-summary.json; exact b9f8 correction",
     "parent_scope_acceptance_reference": "parent-thread:01a0f166-1f28-7799-9a66-c30c5c758028; prospective monitored native counter query; no hard heap bound or GPU authorization"}
-PREFLIGHT_BLOCKERS = ["shared_plugin_registration_and_evidence_hook_not_integrated"]
+PREFLIGHT_BLOCKERS = ["shared_plugin_registration_and_evidence_hook_not_integrated",
+                      "collector_distribution_runtime_version_contract_pending_committed_correction"]
+TORCH_VERSION_SOURCE_SHA256 = "d7662da37d4b8b037c81e7ae20381a43893b379facf17988a6d4f17a93265140"
 BASE = Path("/home/yyang/projects/megartx-baseline-20260930")
 PYTHON = str(BASE / ".venv/bin/python")
 SITE = BASE / ".venv/lib/python3.12/site-packages"
@@ -50,6 +53,7 @@ OWNED_FILES = (
     "src/megartx/speculative_native_evidence.py", "src/megartx/speculative_native_compare.py",
     "scripts/speculative_native_receipt_client.py", "scripts/speculative_native_receipt_preflight.py",
     "scripts/speculative_native_receipt_compare.py", "scripts/m1_owned_processes.py",
+    "scripts/run_scale_validation.py",
     "src/megartx/speculative_native_lifecycle.py", "src/megartx/speculative_native_receipt.py",
     "src/megartx/speculative_native_probe.py", "pyproject.toml",
     "docs/design/speculative-native-zero-forward-protocol.json",
@@ -222,12 +226,42 @@ def installed_preflight(root):
         result[path] = actual
     # Metadata distribution inspection reads text only, no imported packages.
     from importlib.metadata import distributions
-    versions = {d.metadata["Name"].lower().replace("_", "-"): d.version for d in distributions(path=[str(root)])}
-    for name, expected in (("vllm", "0.30.0"), ("torch", "2.13.0+cu130"), ("flashinfer-python", "0.6.18.post1")):
-        if versions.get(name) != expected:
+    observed = {}
+    for distribution in distributions(path=[str(root)]):
+        name = distribution.metadata["Name"].lower().replace("_", "-")
+        if name in ("vllm", "torch", "flashinfer-python"):
+            observed.setdefault(name, []).append(distribution.version)
+    versions = {}
+    for name, expected in (("vllm", "0.30.0"), ("torch", "2.13.0"), ("flashinfer-python", "0.6.18.post1")):
+        if observed.get(name) != [expected]:
             raise ProbeError("Installed package metadata differs: " + name)
-    return {"source_sha256": result, "packages": {k: versions[k] for k in ("vllm", "torch", "flashinfer-python")},
+        versions[name] = expected
+    runtime = torch_version_source(root)
+    result["torch/version.py"] = TORCH_VERSION_SOURCE_SHA256
+    return {"source_sha256": result, "distribution_versions": versions, "torch_runtime_version_source": runtime,
             "runtime_imports": False, "device_queries": False}
+
+
+def torch_version_source(root):
+    """Read/parse literals; never import or execute Torch version source."""
+    path = Path(root) / "torch/version.py"
+    if hash_file(path, 64 << 10) != TORCH_VERSION_SOURCE_SHA256:
+        raise ProbeError("Installed Torch runtime version source differs")
+    result = {}
+    for node in ast.parse(path.read_bytes()).body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            name = node.targets[0].id
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            name = node.target.id
+        else:
+            continue
+        if name in ("__version__", "cuda", "git_version"):
+            if name in result:
+                raise ProbeError("Duplicate Torch version-source assignment")
+            result[name] = ast.literal_eval(node.value)
+    if result.get("__version__") != "2.13.0+cu130" or result.get("cuda") != "13.0":
+        raise ProbeError("Pinned Torch runtime/CUDA version source differs")
+    return result
 
 
 def checkpoint_preflight(manifest_path, model=MODEL):

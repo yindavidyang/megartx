@@ -2,7 +2,7 @@
   "schema": "megartx-native-receipt-client-cpu-validation-v1",
   "reviewed_lifecycle_base": "95f31095f94d254b79c6620a046ccdffce712941",
   "collector_correction_review": "independent_CPU_clear_parent_native_query_scope_accepted_GPU_closed",
-  "focused_cpu_tests": 55,
+  "focused_cpu_tests": 58,
   "full_cpu_skipped": 1,
   "independent_reference_tests": 513,
   "installed_client_source_observations": {
@@ -31,6 +31,14 @@
   "collector_native_counter_query_preallocation_bound_bytes": null,
   "collector_counter_coverage": "selected_device_aggregate_counters_only_no_segment_or_block_coverage",
   "precomposition_full_cpu_tests": 394,
-  "full_cpu_tests": 409,
-  "collector_review_evidence_reference": "task-5/review-bounded-summary.json; parent-relayed exact b9f8 source clearance"
+  "full_cpu_tests": 412,
+  "collector_review_evidence_reference": "task-5/review-bounded-summary.json; parent-relayed exact b9f8 source clearance",
+  "installed_full_source_inspection_count": 28,
+  "installed_full_source_inspection_matches": true,
+  "torch_distribution_version": "2.13.0",
+  "torch_runtime_version_source": "2.13.0+cu130",
+  "torch_cuda_version_source": "13.0",
+  "torch_version_source_sha256": "d7662da37d4b8b037c81e7ae20381a43893b379facf17988a6d4f17a93265140",
+  "collector_version_distinction_dependency": "owner committed correction pending; historical runtime pin unchanged",
+  "shared_launcher_source_binding": "scripts/run_scale_validation.py explicit committed SHA in client plan; no shared edit"
 }

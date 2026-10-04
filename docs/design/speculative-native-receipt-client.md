@@ -51,6 +51,12 @@ megartx.speculative_native_lifecycle.NativeDiagnosticWorkerExtension
 The launcher uses the dedicated client script with its owned supervisor; it does
 not start an HTTP server or a prefill client. Shared launcher integration should
 delegate the native branch to this script, avoiding a second model lifecycle.
+Both `vllm_scale_plugin.py` and `scripts/run_scale_validation.py` are explicitly
+hashed in the plan's `source_sha256` contract. This branch pins their existing
+committed bytes and leaves shared integration blocked. The final shared-owner
+integration must be committed before re-freezing; no uncommitted launcher pin is
+accepted. The dedicated supervisor and child independently validate admission
+instead of trusting a shared CLI flag, and the caller's source is bound as well.
 
 ## Actual installed API and lifecycle
 
@@ -205,8 +211,14 @@ The child applies an 8 MiB kernel per-file bound to startup evidence before
 imports. A 64 MiB run evidence disk reserve is separate from these RAM/GPU limits
 and is not an allocation-coverage claim.
 
-The shared registration/evidence-hook integration is the remaining frozen source
-blocker in this branch. The composed exact
+The shared registration/evidence-hook integration and a committed collector
+distribution/runtime-version distinction are the remaining frozen source
+blockers in this branch. Read-only installed metadata reports Torch distribution
+`2.13.0`; the pinned `torch/version.py` reports runtime `2.13.0+cu130` and CUDA
+`13.0`. The new preflight checks both domains independently without importing
+Torch. The original collector metadata check expects the runtime tag in
+distribution metadata and therefore remains blocked pending its owner's
+committed correction; the historical runtime pin is unchanged. The composed exact
 correction removes global snapshot materialization, bounds targeted Python
 records before copies, streams canonical hashing, and reports segment/block
 snapshot coverage as unavailable. Its selected-device native Torch counter query

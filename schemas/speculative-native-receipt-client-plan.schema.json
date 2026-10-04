@@ -51,6 +51,7 @@
         "scripts/speculative_native_receipt_preflight.py",
         "scripts/speculative_native_receipt_compare.py",
         "scripts/m1_owned_processes.py",
+        "scripts/run_scale_validation.py",
         "src/megartx/speculative_native_lifecycle.py",
         "src/megartx/speculative_native_receipt.py",
         "src/megartx/speculative_native_probe.py",
@@ -95,6 +96,10 @@
           "pattern": "^[0-9a-f]{64}$"
         },
         "scripts/m1_owned_processes.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scripts/run_scale_validation.py": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         },
@@ -294,7 +299,8 @@
     },
     "preflight_blockers": {
       "const": [
-        "shared_plugin_registration_and_evidence_hook_not_integrated"
+        "shared_plugin_registration_and_evidence_hook_not_integrated",
+        "collector_distribution_runtime_version_contract_pending_committed_correction"
       ]
     },
     "plan_sha256": {
