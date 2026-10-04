@@ -389,11 +389,30 @@ class M1PreparationTests(unittest.TestCase):
             "numerical_reference/test_m1_preparation_reference.py"})
         self.assertEqual(set(diagnostic["added_source_hashes"]), {"scripts/m1_decode_profile.py",
             "tests/test_m1_profile_admission.py", "docs/m1-profile-only-admission.md"})
+        native_path = root / "docs/prefill/native-numerical-lineage.json"
+        native = json.loads(native_path.read_text())
+        self.assertEqual(native["base"], "cf656d6632b9f1b08019a527a9269a9ed0fb0a26")
+        self.assertEqual(native["parent_ledger_sha256"], hashlib.sha256(
+            (root / "docs/evidence/m1-profile-admission-source-pins.json").read_bytes()).hexdigest())
+        native_changes = {entry["path"]: entry for entry in native["superseded_sources"]}
+        self.assertEqual(set(native_changes), {"src/megartx/vllm_scale_plugin.py", "scripts/run_scale_validation.py",
+            "tests/test_m1_launcher_resources.py", "numerical_reference/test_m1_preparation_reference.py",
+            "src/megartx/prefill_plan.py", "src/megartx/prefill_launch.py", "tests/test_prefill_plan.py",
+            "tests/test_prefill_launch.py", "tests/test_prefill_runner.py"})
+        for flag in ("gpu_execution_verified", "numerical_qualified", "performance_qualified"):
+            self.assertIs(native[flag], False)
+        for path, expected in native["preserved_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(), expected, path)
+        def native_current(path, previous):
+            if path in native_changes:
+                self.assertEqual(native_changes[path]["prior_sha256"], previous, path)
+                return native_changes[path]["current_sha256"]
+            return previous
         def diagnostic_current(path, previous):
             if path in diagnostic_changes:
                 self.assertEqual(diagnostic_changes[path]["prior_sha256"], previous, path)
-                return diagnostic_changes[path]["current_sha256"]
-            return previous
+                previous = diagnostic_changes[path]["current_sha256"]
+            return native_current(path, previous)
         header_path = "kernels/m1_installed_preparation.cuh"
         header = (root / header_path).read_text()
         self.assertEqual(header.count("\nstruct PreparationDecision {"), 1, header_path)
@@ -465,9 +484,27 @@ class M1PreparationTests(unittest.TestCase):
         for path, expected in lean["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), diagnostic_current(path, expected), path)
         for path, record in diagnostic_changes.items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), record["current_sha256"], path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), native_current(path, record["current_sha256"]), path)
         for path, expected in diagnostic["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+        for path, record in native_changes.items():
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(), record["current_sha256"], path)
+
+    def test_native_overlay_preserves_exact_prior_and_current_lineage(self):
+        root = Path(__file__).resolve().parents[1]
+        path = root / "docs/prefill/native-numerical-lineage.json"
+        read_text = Path.read_text
+        for field in ("prior_sha256", "current_sha256"):
+            def changed_text(candidate, *args, **kwargs):
+                text = read_text(candidate, *args, **kwargs)
+                if candidate == path:
+                    value = json.loads(text)
+                    entry = next(r for r in value["superseded_sources"] if r["path"] == "scripts/run_scale_validation.py")
+                    entry[field] = "0"*64
+                    return json.dumps(value)
+                return text
+            with self.subTest(field=field), patch.object(Path, "read_text", changed_text), self.assertRaisesRegex(AssertionError, "scripts/run_scale_validation.py"):
+                self.test_committed_source_pins_match_exact_base_evidence()
 
     def test_stale_combined_source_or_ledger_hash_is_rejected(self):
         root = Path(__file__).resolve().parents[1]
