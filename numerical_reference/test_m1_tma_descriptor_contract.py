@@ -15,8 +15,27 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def aa36_bridge_source(source):
+    """Undo exactly the scoped map borrow, preserving the full aa36 contract."""
+    if source.count("  std::map<std::string,std::pair<size_t,size_t>> const& regions;\n") != 1:
+        raise AssertionError("exactly one borrowed regions member required")
+    changes = (
+        ("  // Borrow the fresh runMoe stack map; ClearInvocation clears before it dies.\n"
+         "  std::map<std::string,std::pair<size_t,size_t>> const& regions;\n",
+         "  std::map<std::string,std::pair<size_t,size_t>> regions;\n"),
+        ("  auto const regions=getWorkspaceDeviceBufferSizes(rows,hidden,inter,experts,topk,activation,\n",
+         "  auto regions=getWorkspaceDeviceBufferSizes(rows,hidden,inter,experts,topk,activation,\n"),
+    )
+    for current, prior in changes:
+        if source.count(current) != 1:
+            raise AssertionError("exactly one scoped-region source change required")
+        source = source.replace(current, prior)
+    return source
+
+
 def parent_bridge_source(source):
     """Undo only this descriptor delta; retain the older exact-delta guard."""
+    source = aa36_bridge_source(source)
     for name in ("INPUT", "OUTPUT"):
         pattern = (r"  // BEGIN M1 SOURCE-BOUND TMA " + name +
                    r" CONTRACT\n.*?  // END M1 SOURCE-BOUND TMA " + name + r" CONTRACT\n")
@@ -113,6 +132,28 @@ class TmaDescriptorContractTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(parent_bridge_source(source).encode()).hexdigest(), expected)
         changed = source.replace('rows!=1 || hidden!=2816', 'rows!=2 || hidden!=2816')
         self.assertNotEqual(hashlib.sha256(parent_bridge_source(changed).encode()).hexdigest(), expected)
+
+    def test_scoped_region_delta_normalizes_to_exact_aa36(self):
+        source = (ROOT / "probes/m1_live_bridge.cu").read_text()
+        expected = "b28a3373546893ea2b1b9ca78c702a1449ceb48d0909a0b756a4b24158719a43"
+        self.assertEqual(hashlib.sha256(aa36_bridge_source(source).encode()).hexdigest(), expected)
+        for before, after in (("const& regions;", "& regions;"),
+                              ("auto const regions=", "static auto const regions=")):
+            with self.subTest(change=before), self.assertRaises(AssertionError):
+                aa36_bridge_source(source.replace(before, after))
+        for line in ("  std::map<std::string,std::pair<size_t,size_t>> const& regions;\n",
+                     "  auto const regions=getWorkspaceDeviceBufferSizes(rows,hidden,inter,experts,topk,activation,\n"):
+            with self.subTest(duplicate=line), self.assertRaises(AssertionError):
+                aa36_bridge_source(source.replace(line, line + line))
+        for before, after in (("rows!=1 || hidden!=2816", "rows!=2 || hidden!=2816"),
+                              ("require(!invocation,", "require(true,"),
+                              ("~ClearInvocation(){invocation=nullptr;}", "~ClearInvocation(){}"),
+                              ("stream==lease.stream", "true"),
+                              ("ids==lease.views[2].pointer", "true")):
+            with self.subTest(unrelated_change=before):
+                changed = source.replace(before, after)
+                self.assertNotEqual(changed, source)
+                self.assertNotEqual(hashlib.sha256(aa36_bridge_source(changed).encode()).hexdigest(), expected)
 
 
 if __name__ == "__main__":

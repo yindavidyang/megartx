@@ -448,11 +448,35 @@ class M1PreparationTests(unittest.TestCase):
             self.assertIs(descriptor[field],False)
         for path, expected in descriptor["preserved_historical_ledgers"].items():
             self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(),expected,path)
+        borrow_path = root / "docs/evidence/m1-invocation-regions-source-pins.json"
+        borrow = json.loads(borrow_path.read_text())
+        self.assertEqual(borrow["schema"], "megartx-m1-invocation-regions-source-pins-v1")
+        self.assertEqual(borrow["parent_head"], "aa36de98af05fff7e1e3862fe35ec30e2418f8db")
+        self.assertEqual(borrow["parent_tree"], "2b9165ad156503850f0ee81a38288ae180dc0ab2")
+        self.assertEqual(borrow["parent_ledger_sha256"], hashlib.sha256(descriptor_path.read_bytes()).hexdigest())
+        for field in ("native_build_verified", "gpu_execution_verified", "quality_qualified", "graphs_qualified", "performance_qualified"):
+            self.assertIs(borrow[field], False)
+        self.assertEqual(set(borrow["preserved_historical_ledgers"]),
+                         set(descriptor["preserved_historical_ledgers"]) | {"docs/evidence/m1-tma-descriptor-source-pins.json"})
+        for path, expected in borrow["preserved_historical_ledgers"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+        borrow_changes = {r["path"]: r for r in borrow["superseded_sources"]}
+        self.assertEqual(len(borrow_changes), len(borrow["superseded_sources"]))
+        self.assertEqual(set(borrow_changes), {"probes/m1_live_bridge.cu",
+            "numerical_reference/test_m1_preparation_reference.py", "numerical_reference/test_m1_tma_descriptor_contract.py"})
+        self.assertEqual(set(borrow["added_source_hashes"]), {"probes/m1_invocation_regions_flow_test.cpp",
+            "numerical_reference/test_m1_invocation_regions.py", "docs/m1-invocation-regions.md",
+            "docs/evidence/m1-invocation-regions-cpu-proof.json"})
+        def borrow_current(path, previous):
+            if path in borrow_changes:
+                self.assertEqual(borrow_changes[path]["prior_sha256"], previous, path)
+                return borrow_changes[path]["current_sha256"]
+            return previous
         def descriptor_current(path, previous):
             if path in descriptor_changes:
                 self.assertEqual(descriptor_changes[path]["prior_sha256"],previous,path)
-                return descriptor_changes[path]["current_sha256"]
-            return previous
+                previous = descriptor_changes[path]["current_sha256"]
+            return borrow_current(path, previous)
         def clock_resource_current(path, previous):
             if path in clock_resource_changes:
                 self.assertEqual(clock_resource_changes[path]["prior_sha256"],previous,path)
@@ -564,9 +588,39 @@ class M1PreparationTests(unittest.TestCase):
         for path, record in clock_resource_changes.items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),descriptor_current(path,record["current_sha256"]),path)
         for path, record in descriptor_changes.items():
-            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(),record["current_sha256"],path)
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(),borrow_current(path,record["current_sha256"]),path)
         for path, expected in descriptor["added_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(),borrow_current(path,expected),path)
+        for path, record in borrow_changes.items():
+            self.assertEqual(set(record), {"path", "prior_sha256", "current_sha256"})
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(),record["current_sha256"],path)
+        for path, expected in borrow["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(),expected,path)
+
+    def test_scoped_region_overlay_rejects_history_drift_and_scope_expansion(self):
+        root = Path(__file__).resolve().parents[1]
+        ledger = root / "docs/evidence/m1-invocation-regions-source-pins.json"
+        read_text = Path.read_text
+        for mutation in ("prior_sha256", "current_sha256", "parent_ledger_sha256", "parent_head", "parent_tree",
+                         "unknown_source", "removed_source", "duplicate_source", "historical_ledger", "gpu_execution_verified"):
+            def changed_text(path, *args, **kwargs):
+                data = read_text(path, *args, **kwargs)
+                if path == ledger:
+                    value = json.loads(data)
+                    if mutation in ("prior_sha256", "current_sha256"):
+                        next(r for r in value["superseded_sources"] if r["path"] == "probes/m1_live_bridge.cu")[mutation] = "0" * 64
+                    elif mutation in ("parent_ledger_sha256", "parent_head", "parent_tree"):
+                        value[mutation] = "0" * len(value[mutation])
+                    elif mutation == "unknown_source": value["added_source_hashes"]["unknown.cuh"] = "0" * 64
+                    elif mutation == "removed_source": value["superseded_sources"].pop()
+                    elif mutation == "duplicate_source": value["superseded_sources"].append(value["superseded_sources"][0])
+                    elif mutation == "historical_ledger":
+                        value["preserved_historical_ledgers"]["docs/evidence/m1-tma-descriptor-source-pins.json"] = "0" * 64
+                    else: value[mutation] = True
+                    return json.dumps(value)
+                return data
+            with self.subTest(mutation=mutation), patch.object(Path, "read_text", changed_text), self.assertRaises(AssertionError):
+                self.test_committed_source_pins_match_exact_base_evidence()
 
     def test_descriptor_overlay_rejects_mixed_source_history_and_unknown_files(self):
         root=Path(__file__).resolve().parents[1]

@@ -55,7 +55,8 @@ struct Lease {
 thread_local Lease lease;
 struct Invocation {
   mx::InstalledPreparationCall call;
-  std::map<std::string,std::pair<size_t,size_t>> regions;
+  // Borrow the fresh runMoe stack map; ClearInvocation clears before it dies.
+  std::map<std::string,std::pair<size_t,size_t>> const& regions;
 };
 thread_local Invocation* invocation=nullptr;
 // Untimed attribution only. Each pair is accumulated host nanoseconds/count.
@@ -358,7 +359,7 @@ template<> __attribute__((visibility("default"))) void Runner::runMoe(void const
       128*4,128u*2816*44,128*4};
   for(int i=0;i<15;++i)if(bytes[i])require(contains(lease.views[i],lease.views[i].pointer,bytes[i]),
       "actual operand exceeds retained subview extent");
-  auto regions=getWorkspaceDeviceBufferSizes(rows,hidden,inter,experts,topk,activation,
+  auto const regions=getWorkspaceDeviceBufferSizes(rows,hidden,inter,experts,topk,activation,
       false,false,false,false,false);
   auto ptr=[&](char const* name,size_t bytes) {
     auto r=regions.at(name);
