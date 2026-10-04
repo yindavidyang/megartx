@@ -10,14 +10,14 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from megartx.m1_eager_benchmark import (CONTEXTS, DRIVER_SOURCES, OUTPUTS, SCHEMA,
-                                      PROFILE_DRIVER_SOURCES, PROFILE_SCHEMA, PROFILE_RULE, validate_plan)
+                                      PROFILE_DRIVER_SOURCES, PROFILE_SCHEMA, PROFILE_RULE, WARMED_SCHEMA, WARMED_RULE, validate_plan)
 from megartx.m1_execution import CONTROLLER_SOURCES
 from megartx.m1_normal_plan import REVISION, digest
 
 
 def make_plan(prompts, source_head, controller_hashes, driver_hashes, trials=6, warmups=2, seed=9471,
-              metadata_help_timing=False, decode_profile=False):
-    if type(decode_profile) is not bool:
+              metadata_help_timing=False, decode_profile=False, warmed_timing=False):
+    if type(decode_profile) is not bool or type(warmed_timing) is not bool or decode_profile and warmed_timing:
         raise RuntimeError("decode profile intent must be explicit boolean")
     rng = random.Random(seed)
     schedule = []
@@ -34,7 +34,7 @@ def make_plan(prompts, source_head, controller_hashes, driver_hashes, trials=6, 
             for lane in (first, "stock" if first == "fused" else "fused"):
                 schedule.append({"id": f"{phase}-{case}-{i}-{lane}", "phase": phase,
                                  "case": case, "trial": i, "seed": seed + i, "lane": lane})
-    plan = {"schema": PROFILE_SCHEMA if decode_profile else SCHEMA,
+    plan = {"schema": PROFILE_SCHEMA if decode_profile else WARMED_SCHEMA if warmed_timing else SCHEMA,
             "checkpoint_revision": REVISION, "source_head": source_head,
             "controller_source_hashes": controller_hashes, "driver_source_hashes": driver_hashes,
             "outputs": OUTPUTS, "prefill_chunk": 256, "warmups": warmups, "trials": trials,
@@ -43,6 +43,8 @@ def make_plan(prompts, source_head, controller_hashes, driver_hashes, trials=6, 
             "schedule": schedule, "metadata_help_timing": metadata_help_timing}
     if decode_profile:
         plan["diagnostic_admission"] = PROFILE_RULE
+    if warmed_timing:
+        plan["timing_admission"] = WARMED_RULE
     plan["plan_sha256"] = digest(plan)
     return validate_plan(plan)
 
@@ -70,7 +72,10 @@ def main():
     parser.add_argument("--seed", type=int, default=9471)
     parser.add_argument("--m1-timing-metadata-help", action="store_true")
     parser.add_argument("--m1-decode-profile", action="store_true")
+    parser.add_argument("--m1-warmed-timing", action="store_true")
     args = parser.parse_args()
+    if args.m1_decode_profile and args.m1_warmed_timing:
+        parser.error("warmed timing and diagnostic profile are distinct policies")
     if subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip():
         raise RuntimeError("freeze and commit source before preparing a GPU plan")
     from transformers import AutoTokenizer
@@ -79,9 +84,9 @@ def main():
     plan = make_plan({n: exact_prompt(tokenizer, n) for n in CONTEXTS},
         subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         {n: sha(ROOT / "src/megartx" / n) for n in CONTROLLER_SOURCES},
-        {n: sha(ROOT / n) for n in (PROFILE_DRIVER_SOURCES if args.m1_decode_profile else DRIVER_SOURCES)},
+        {n: sha(ROOT / n) for n in (PROFILE_DRIVER_SOURCES if args.m1_decode_profile or args.m1_warmed_timing else DRIVER_SOURCES)},
         args.trials, args.warmups, args.seed,
-        args.m1_timing_metadata_help, args.m1_decode_profile)
+        args.m1_timing_metadata_help, args.m1_decode_profile, args.m1_warmed_timing)
     with args.output.open("x") as stream:
         json.dump(plan, stream, indent=2)
     print(json.dumps({"plan_sha256": plan["plan_sha256"], "source_head": plan["source_head"],

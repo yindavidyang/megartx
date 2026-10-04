@@ -4,6 +4,7 @@ Dynamic token/position copies, native guards and stream handoffs stay on the
 measured path. Counters stay in memory until a separate, untimed drain request.
 """
 import json
+import math
 import os
 from pathlib import Path
 
@@ -12,8 +13,15 @@ from .m1_normal_plan import REVISION, digest
 SCHEMA = "megartx-m1-eager-benchmark-v1"
 PROFILE_SCHEMA = "megartx-m1-decode-profile-plan-v1"
 PROFILE_RULE = "compiler_accounted_operation_diagnostic_v1"
+WARMED_SCHEMA = "megartx-m1-warmed-eager-benchmark-v1"
+WARMED_RULE = "sampled_compiler_quiescence_after_all_warmups_v1"
+WARMED_BOUNDARY_SCHEMA = "megartx-m1-warmed-boundaries-v1"
+WARMED_SUMMARY_SCHEMA = "megartx-m1-warmed-eager-summary-v1"
 CONTEXTS = (2048, 8192)
 OUTPUTS = 256
+RESOURCE_FIELDS = ("memory.used", "memory.free", "utilization.gpu", "power.draw", "temperature.gpu",
+                   "clocks.sm", "clocks.mem", "pstate")
+WARMED_MAX_RESOURCE_GAP_NS = 1_000_000_000
 DRIVER_SOURCES = ("scripts/m1_eager_benchmark_client.py", "scripts/prepare_m1_eager_benchmark.py",
                   "scripts/run_scale_validation.py", "scripts/m1_owned_processes.py",
                   "scripts/m1_private_aot.py", "scripts/check_m1_private_aot.py",
@@ -28,9 +36,12 @@ def validate_plan(plan, source_hashes=None):
                 "outputs", "prefill_chunk", "warmups", "trials", "seed", "cases",
                 "schedule", "plan_sha256", "metadata_help_timing"}
     diagnostic = plan.get("schema") == PROFILE_SCHEMA
+    warmed = plan.get("schema") == WARMED_SCHEMA
+    if warmed:
+        required.add("timing_admission")
     if diagnostic:
         required.add("diagnostic_admission")
-    if (set(plan) != required or plan["schema"] not in (SCHEMA, PROFILE_SCHEMA)
+    if (set(plan) != required or plan["schema"] not in (SCHEMA, PROFILE_SCHEMA, WARMED_SCHEMA)
             or plan["checkpoint_revision"] != REVISION or type(plan["outputs"]) is not int
             or plan["outputs"] != OUTPUTS or type(plan["prefill_chunk"]) is not int
             or plan["prefill_chunk"] != 256 or type(plan["metadata_help_timing"]) is not bool):
@@ -43,6 +54,8 @@ def validate_plan(plan, source_hashes=None):
                        or plan["trials"] != 1 or plan["warmups"] != 1
                        or plan["metadata_help_timing"] is not True):
         raise RuntimeError("decode diagnostic admission rule/budget differs")
+    if warmed and plan["timing_admission"] != WARMED_RULE:
+        raise RuntimeError("warmed timing admission policy differs")
     hashes = plan["controller_source_hashes"]
     def sha(value, length=64):
         return isinstance(value, str) and len(value) == length and all(c in "0123456789abcdef" for c in value)
@@ -51,7 +64,7 @@ def validate_plan(plan, source_hashes=None):
             or (source_hashes is not None and hashes != source_hashes)):
         raise RuntimeError("eager benchmark source identity differs")
     drivers = plan["driver_source_hashes"]
-    expected_drivers = PROFILE_DRIVER_SOURCES if diagnostic else DRIVER_SOURCES
+    expected_drivers = PROFILE_DRIVER_SOURCES if diagnostic or warmed else DRIVER_SOURCES
     if not isinstance(drivers, dict) or set(drivers) != set(expected_drivers) or not all(sha(h) for h in drivers.values()):
         raise RuntimeError("eager benchmark driver identity differs")
     cases = plan["cases"]
@@ -109,6 +122,125 @@ def require_profile_intent(plan, enabled):
         raise RuntimeError("decode profile intent differs from the source-bound plan")
 
 
+
+
+def validate_resource_sample(row):
+    """Finite scalar evidence for the existing whole-run headroom guard."""
+    values = row.get("values")
+    start, end = row.get("sample_started_ns"), row.get("monotonic_ns")
+    if (row.get("fields") != list(RESOURCE_FIELDS) or not isinstance(values, list)
+            or len(values) != len(RESOURCE_FIELDS) or type(row.get("exit")) is not int or row["exit"] != 0
+            or type(start) is not int or type(end) is not int or not 0 < start <= end
+            or type(row.get("host_available_kib")) is not int or row["host_available_kib"] < 8 * 1024 * 1024
+            or any(type(v) not in (str, int, float) for v in values[:7])
+            or values[-1] not in tuple("P" + str(i) for i in range(16))):
+        raise RuntimeError("eager resource telemetry incomplete or unavailable")
+    try:
+        numbers = [float(v) for v in values[:7]]
+    except (TypeError, ValueError, OverflowError) as error:
+        raise RuntimeError("eager resource telemetry scalar invalid") from error
+    if any(not math.isfinite(v) or v < 0 for v in numbers) or numbers[2] > 100:
+        raise RuntimeError("eager resource telemetry scalar nonfinite or negative")
+    if numbers[1] < 2048:
+        raise RuntimeError("GPU free memory fell below the 2 GiB headroom guard")
+    return numbers
+
+
+def validate_warmed_telemetry(rows, boundaries, lifecycle):
+    if not isinstance(rows, list) or not rows:
+        raise RuntimeError("warmed resource telemetry missing")
+    numbers = [validate_resource_sample(row) for row in rows]
+    if (any(b["sample_started_ns"] < a["monotonic_ns"] for a,b in zip(rows, rows[1:]))
+            or rows[0]["sample_started_ns"] >= lifecycle["server_ready_ns"]
+            or rows[-1]["sample_started_ns"] <= lifecycle["client_returned_ns"]):
+        raise RuntimeError("warmed resource telemetry lifecycle coverage uncertain")
+    start, end = boundaries["measurement_start_ns"], boundaries["measurement_end_ns"]
+    before = [i for i,r in enumerate(rows) if r["monotonic_ns"] < start]
+    after = [i for i,r in enumerate(rows) if r["sample_started_ns"] > end]
+    if not before or not after:
+        raise RuntimeError("warmed resource telemetry measurement coverage missing")
+    cover = rows[before[-1]:after[0]+1]
+    if (any(r["monotonic_ns"] - r["sample_started_ns"] > WARMED_MAX_RESOURCE_GAP_NS for r in cover)
+            or any(b["monotonic_ns"] - a["sample_started_ns"] > WARMED_MAX_RESOURCE_GAP_NS
+                   for a,b in zip(cover,cover[1:]))):
+        raise RuntimeError("warmed resource telemetry measurement coverage gap uncertain")
+    return {"samples": len(rows), "finite_complete_samples": True,
+            "first_sample_started_ns": rows[0]["sample_started_ns"], "last_sample_closed_ns": rows[-1]["monotonic_ns"],
+            "measurement_max_sample_gap_ns": WARMED_MAX_RESOURCE_GAP_NS,
+            "sampled_peak_memory_used_mib": max(n[0] for n in numbers),
+            "sampled_minimum_memory_free_mib": min(n[1] for n in numbers),
+            "sampled_minimum_host_available_kib": min(r["host_available_kib"] for r in rows)}
+
+
+def require_warmed_intent(plan, enabled):
+    validate_plan(plan)
+    if type(enabled) is not bool or (plan["schema"] == WARMED_SCHEMA) != enabled:
+        raise RuntimeError("warmed timing opt-in differs from the source-bound plan")
+
+
+def warmed_boundaries(plan, records, warmups_completed_ns):
+    """Bind the entire measured window, including gaps, to actual HTTP calls.
+
+    Constructed after completion, never a replacement clock around a marker or
+    POST wrapper. A completed warmup includes response close and validation.
+    """
+    require_warmed_intent(plan, True)
+    if len(records) != len(plan["schedule"]):
+        raise RuntimeError("warmed boundary request count differs")
+    previous = 0
+    warmups, measurements = [], []
+    for row, record in zip(plan["schedule"], records):
+        start, end = (record.get(k) for k in ("request_start_monotonic_ns", "request_end_monotonic_ns"))
+        if (any(record.get(k) != v for k, v in row.items())
+                or type(start) is not int or type(end) is not int or not 0 <= previous < start < end):
+            raise RuntimeError("warmed boundary request identity/order/time differs")
+        previous = end
+        times = record.get("token_elapsed_ns", [])
+        if (len(record.get("token_ids", [])) != OUTPUTS or len(times) != OUTPUTS
+                or any(type(t) is not int or t <= 0 or t >= end - start for t in times)
+                or times != sorted(times) or record.get("finish_reason") != "length"
+                or record.get("usage") != {"prompt_tokens": int(row["case"]), "completion_tokens": OUTPUTS,
+                    **({"total_tokens": int(row["case"]) + OUTPUTS} if "total_tokens" in record.get("usage", {}) else {})}):
+            raise RuntimeError("warmed boundary completed output evidence differs")
+        for key, expected in (("response_ms", (end-start)/1e6), ("ttft_ms", times[0]/1e6),
+                              ("last_token_ms", times[-1]/1e6),
+                              ("amortized_itl_ms", (times[-1]-times[0])/(OUTPUTS-1)/1e6)):
+            value = record.get(key)
+            if type(value) not in (int, float) or not math.isfinite(value) or value != expected:
+                raise RuntimeError("warmed boundary timing values differ")
+        done = record.get("done_ms")
+        if type(done) not in (int, float) or not math.isfinite(done) or not times[-1]/1e6 <= done <= (end-start)/1e6:
+            raise RuntimeError("warmed boundary DONE evidence differs")
+        (warmups if row["phase"] == "warmup" else measurements).append(record)
+    if (type(warmups_completed_ns) is not int or len(warmups) != 4 * plan["warmups"]
+            or not warmups[-1]["request_end_monotonic_ns"] <= warmups_completed_ns
+                < measurements[0]["request_start_monotonic_ns"]):
+        raise RuntimeError("warmed boundary warmups incomplete or reordered")
+    result = {"schema": WARMED_BOUNDARY_SCHEMA, "timing_admission": WARMED_RULE,
+              "plan_sha256": plan["plan_sha256"], "clock": "monotonic_ns",
+              "requests_sha256": digest(records), "completed_warmup_ids": [r["id"] for r in warmups],
+              "completed_warmups_sha256": digest(warmups), "warmups_completed_ns": warmups_completed_ns,
+              "measurement_start_ns": measurements[0]["request_start_monotonic_ns"],
+              "measurement_end_ns": measurements[-1]["request_end_monotonic_ns"],
+              "measurement_ids": [r["id"] for r in measurements]}
+    return {**result, "boundary_sha256": digest(result)}
+
+
+def validate_warmed_boundaries(plan, records, evidence, lifecycle):
+    expected = warmed_boundaries(plan, records, evidence.get("warmups_completed_ns"))
+    if evidence != expected:
+        raise RuntimeError("warmed boundary evidence differs")
+    keys = ("server_ready_ns", "client_launch_ns", "client_returned_ns")
+    if (set(lifecycle) != {*keys, "schema", "plan_sha256", "timing_admission"}
+            or lifecycle["schema"] != "megartx-m1-warmed-launch-boundaries-v1"
+            or lifecycle["plan_sha256"] != plan["plan_sha256"] or lifecycle["timing_admission"] != WARMED_RULE
+            or any(type(lifecycle[k]) is not int for k in keys)
+            or not 0 < lifecycle[keys[0]] < lifecycle[keys[1]] < records[0]["request_start_monotonic_ns"]
+                < evidence["measurement_end_ns"] < lifecycle[keys[2]]):
+        raise RuntimeError("warmed launcher boundary evidence missing or reordered")
+    return expected
+
+
 def marker(plan, row):
     return {"schema": plan["schema"], "plan_sha256": plan["plan_sha256"], "id": row["id"]}
 
@@ -161,6 +293,8 @@ class EagerBenchmark:
                       "observer_off": True, "quality_qualified": False, "graphs_qualified": False}
             if self.plan["schema"] == PROFILE_SCHEMA:
                 report["diagnostic_admission"] = PROFILE_RULE
+            if self.plan["schema"] == WARMED_SCHEMA:
+                report["timing_admission"] = WARMED_RULE
             with (self.directory / "dispatch.json").open("x") as stream:
                 json.dump(report, stream, indent=2)
             self.completed_transcripts.clear()

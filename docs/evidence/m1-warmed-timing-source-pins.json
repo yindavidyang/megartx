@@ -1,0 +1,67 @@
+{
+  "schema": "megartx-m1-warmed-timing-source-pins-v1",
+  "parent_head": "ca6c385562aff30e91e8bb6a7f4228c9d766c30d",
+  "parent_ledger_sha256": "ccd75f81c2476c3434f1c500af3a1fbdf37cd6bccf0f1132e86f9739944a191d",
+  "scope": "Prospective user-approved warmed request timing; strict lifetime and untimed diagnostic policies remain distinct; no prior failed-run admission or historical ledger rewrite.",
+  "status": "cpu_candidate_pending_exact_commit_independent_review",
+  "timing_admission": "sampled_compiler_quiescence_after_all_warmups_v1",
+  "superseded_sources": [
+    {
+      "path": "scripts/m1_eager_benchmark_client.py",
+      "prior_sha256": "4485ffef9ee31c768a321d125eec7878c3138fbd88c9eace8c53949709b2c2b1",
+      "current_sha256": "ce13d6e7152547308b6605c01b659193ef8005244001139be1521bae7fbfb3f3"
+    },
+    {
+      "path": "scripts/m1_owned_processes.py",
+      "prior_sha256": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
+      "current_sha256": "91280dc1f788a24ea0c51d725b49c1b048cafbdfc7b4f169962172b3ef2ca010"
+    },
+    {
+      "path": "scripts/prepare_m1_eager_benchmark.py",
+      "prior_sha256": "6800d24940719d10469afcb7407e5f5b35a4e842580e77a2fbfd4723b6fd5e9f",
+      "current_sha256": "870d0886e704b23ebcf198a8f643f5635125ded2b1d2472e25749c950b4f16e5"
+    },
+    {
+      "path": "scripts/run_scale_validation.py",
+      "prior_sha256": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8",
+      "current_sha256": "941741954d68a20a7841b476b1df874ca8e6ba341a2ef6e6a6f4f5eddc3b8b8f"
+    },
+    {
+      "path": "src/megartx/m1_eager_benchmark.py",
+      "prior_sha256": "d695c66cf1d8ebefd2a750ca684b79afa600129fa65297be4d5c4326cee2ea47",
+      "current_sha256": "611c969fbfe0ab96aca8f89d4657d98b78bc3e67d43ad6cedc50f5b3eb0683e8"
+    },
+    {
+      "path": "tests/test_m1_launcher_resources.py",
+      "prior_sha256": "eb42025f4df25001a912ddc389beebc9e2f6ea64d0225da2c875e12875ac86e2",
+      "current_sha256": "408b985328ec8dc087339fe352aecd610886a2e4144a8770527bc2d2838e094e"
+    },
+    {
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "prior_sha256": "0f3dd6d69cec7356f3fb2d9858a9dd1bff0a40b15ce53b7d82c3da518f6f3650",
+      "current_sha256": "ec4953ba521e99b5dd4b7de5a959706a3184cf5827f284510d6768e8ac2d625f"
+    }
+  ],
+  "added_source_hashes": {
+    "tests/test_m1_warmed_timing.py": "efca35f0521d238df4f536a8915ecc8a50139ddb97bf05564c9148dc8aa69925",
+    "docs/m1-warmed-timing-policy.md": "b7aab7f070a5487df144e73fdce851edbea4b86b0da2d1798bfecf470c647bf5"
+  },
+  "preserved_historical_ledgers": {
+    "docs/evidence/m1-capture-free-source-pins.json": "c9686c933a7e6ad0bccd6df46518e4feba27159f0173e9d61bdacb26e5ee9f1f",
+    "docs/evidence/m1-decode-attribution-source-pins.json": "92fa45c6498597ace5baf275a22ce2d75a5429146723bf813b8961e652fc1da6",
+    "docs/evidence/m1-eager-benchmark-source-pins.json": "45d224fbadfa80eb90c091d3d5525a775f69627506a08287b049eaff066b5b33",
+    "docs/evidence/m1-lean-source-pins.json": "469d7877c33957d29af29ee82b40f8f7f424528f673043d4b6814bf7da2e27dd",
+    "docs/evidence/m1-live-source-pins.json": "015426cd18349c3f5be6a437a3bef8256e1b9697a836ecd4f18410f5042bb7b7",
+    "docs/evidence/m1-normal-source-pins.json": "6b077a415eda036207e1127246b175f4af049813d46f87c8b4e9ff12a154640a",
+    "docs/evidence/m1-preparation-source-pins.json": "f58129400843beed7eb0b3ccf8580fe6aa97209d97c4bd734465d20e074e2d70",
+    "docs/evidence/m1-process-lifecycle-source-pins.json": "942106acc72152e84f78429c31ad4dd5bf2525dea8df20ba46f4623aa2793ba0",
+    "docs/evidence/m1-profile-admission-source-pins.json": "4e7ac0e132d0e6d5f3181d2d9e81a2b84914b0a54cadbd2818d5623d7b14c74c",
+    "docs/evidence/m1-reconciliation-source-pins.json": "c90bfeb6ff2351a03c98ab83221844b95b0e0875fa5e1a4e89887074c5b60624",
+    "docs/evidence/m1-sf-layout-source-pins.json": "ccd75f81c2476c3434f1c500af3a1fbdf37cd6bccf0f1132e86f9739944a191d"
+  },
+  "native_build_verified": false,
+  "gpu_execution_verified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false
+}
