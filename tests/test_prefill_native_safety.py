@@ -119,7 +119,7 @@ class FrameReview(unittest.TestCase):
 
 class Provider:
     def __init__(self,runner,*unused):
-        self.access=NS(model=runner.model,builders={id(runner.builder):1})
+        self.access=NS(_runner=runner,model=runner.model,builders={id(runner.builder):(runner.builder,0,())})
         self.failed=False;self.log=[];self.scratch=NS(scope=lambda phase:nullcontext())
     def prepare_inputs(self,result): self.log.append('prepare')
     def prepare_attn(self,*args):self.log.append('attention')
@@ -143,6 +143,7 @@ def hook_fixture():
         def __init__(self,vllm_config):
             self.model,self.builder,self.vllm_config=Model(),Builder(),vllm_config
         def initialize_kv_cache(self,*a,**kw): return 'initialized'
+        def get_model(self): return self.model
         def execute_model(self,*a,**kw):return object()
         def prepare_inputs(self,*a,**kw):
             if getattr(self,'error',None): raise self.error

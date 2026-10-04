@@ -5,6 +5,7 @@ admits a native runner, tensor observation, fit, or numerical comparison.
 """
 import ast
 import copy
+from contextlib import contextmanager
 import inspect
 import hashlib
 import json
@@ -13,6 +14,7 @@ from pathlib import Path
 import sys
 import tempfile
 import textwrap
+import time
 from types import ModuleType, SimpleNamespace as NS
 import unittest
 from unittest.mock import patch
@@ -20,7 +22,7 @@ from unittest.mock import patch
 from megartx.prefill_diagnostic_plan import INSTALLED, RUNNER_POLICY
 from megartx.prefill_runner_binding import HOOKS, require_default_selection, validate_binding
 from megartx.prefill_native import NativeProvider, install_native_observer
-from test_prefill_native_safety import Tensor, TORCH, frame_fixture, hook_fixture
+from test_prefill_native_safety import Tensor, TORCH, Provider, frame_fixture, hook_fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'scripts'))
@@ -148,11 +150,140 @@ class DispatchGate(unittest.TestCase):
     def test_actual_live_hook_guard_rejects_lost_binding(self):
         provider = NativeProvider.__new__(NativeProvider)
         provider.access = NS(_runner=NS(vllm_config=NS(use_v2_model_runner=True, is_mm_encoder_only=False)))
-        provider.hook_checks = {key: lambda: True for key in HOOKS}
+        provider.failed = False
+        provider.abort = lambda: None
+        provider.hook_checks = {key: lambda p: True for key in HOOKS}
         with patch.dict(os.environ, {}, clear=True):
             provider.require_hooks()
-            provider.hook_checks['model_forward'] = lambda: False
+            provider.hook_checks['model_forward'] = lambda p: False
             with self.assertRaisesRegex(RuntimeError, 'hook binding changed'): provider.require_hooks()
+
+
+class BoundHookIdentityTests(unittest.TestCase):
+    @contextmanager
+    def fixture(self, before_cache=None, records=None):
+        # Actual installer/guards; substituted model and cache boundaries only.
+        modules, runner_cls, model_cls = hook_fixture()
+        effects = []
+        model_cls.forward = lambda self, *args: effects.append('model-work')
+        runner_cls.execute_model = lambda self, output: self.model.forward([], [])
+        records = [] if records is None else records
+        class BoundaryProvider(Provider):
+            require_hooks = NativeProvider.require_hooks
+            active = NativeProvider.active
+            def __init__(self, runner, plan, directory, torch, checks):
+                super().__init__(runner)
+                self.plan, self.directory, self.hook_checks = plan, Path(directory), checks
+                self.adapter_sources = {}
+                self.deadline = time.time() + 30
+                self.started, self.completed, self.startup_admitted = False, False, False
+                records.append(self)
+                self.require_hooks()
+                self.startup_admitted = True
+        with tempfile.TemporaryDirectory() as directory:
+            plan = {'plan_sha256': 'a'*64}
+            env = {'MEGARTX_PREFILL_NATIVE_PLAN': 'synthetic-cpu-plan',
+                   'MEGARTX_PREFILL_NATIVE_DIR': directory, 'MEGARTX_SCALE_MODE': 'native'}
+            with patch.dict(sys.modules, modules), patch.dict(os.environ, env, clear=True), \
+                 patch('megartx.prefill_native.load_plan', return_value=plan), \
+                 patch('megartx.prefill_native.NativeProvider', BoundaryProvider), \
+                 patch('megartx.prefill_native.verify_adapter_sources', return_value={}), \
+                 patch('megartx.prefill_runner_binding.verify_installed_files'):
+                install_native_observer(TORCH, model_cls)
+                runner = runner_cls(NS(use_v2_model_runner=True, is_mm_encoder_only=False))
+                if before_cache is not None:
+                    before_cache(runner)
+                runner.initialize_kv_cache()
+                Path(directory, 'request.json').write_text(json.dumps({
+                    'schema': 'megartx-prefill-native-request-v1', 'plan_sha256': plan['plan_sha256']}))
+                yield runner, records[0], effects
+
+    def test_ordinary_bound_callbacks_admit_actual_begin_and_finish(self):
+        with self.fixture() as (runner, provider, effects):
+            provider.require_hooks()
+            runner.execute_model(NS(total_num_scheduled_tokens=256))
+            self.assertEqual(effects, ['model-work'])
+            self.assertEqual(provider.log, ['begin', 'finish'])
+            self.assertFalse(provider.failed)
+
+    def test_each_instance_callback_shadow_poisoned_before_work(self):
+        names = ('__init__', 'initialize_kv_cache', 'execute_model', 'prepare_inputs', 'prepare_attn',
+                 'sample', 'forward', 'compute_logits', 'build')
+        for name in names:
+            with self.subTest(name=name), self.fixture() as (runner, provider, effects):
+                owner = runner.model if name in ('forward', 'compute_logits') else runner.builder if name == 'build' else runner
+                setattr(owner, name, lambda *args: effects.append('bypass'))
+                with self.assertRaisesRegex(RuntimeError, 'hook binding changed'):
+                    provider.require_hooks()
+                self.assertTrue(provider.failed)
+                self.assertIn('abort', provider.log)
+                self.assertEqual(effects, [])
+                with self.assertRaisesRegex(RuntimeError, 'Poisoned'):
+                    provider.require_hooks()
+
+    def test_active_forward_and_builder_shadows_rejected_by_execute_guard(self):
+        for name in ('forward', 'build'):
+            with self.subTest(name=name), self.fixture() as (runner, provider, effects):
+                owner = runner.model if name == 'forward' else runner.builder
+                setattr(owner, name, lambda *args: effects.append('unobserved-work'))
+                with self.assertRaisesRegex(RuntimeError, 'hook binding changed'):
+                    runner.execute_model(NS(total_num_scheduled_tokens=256))
+                self.assertTrue(provider.failed)
+                self.assertNotIn('begin', provider.log)
+                self.assertEqual(effects, [])
+                with self.assertRaisesRegex(RuntimeError, 'Poisoned'):
+                    runner.execute_model(NS(total_num_scheduled_tokens=256))
+
+    def test_callback_shadow_before_provider_creation_rejects_startup(self):
+        records = []
+        with self.assertRaisesRegex(RuntimeError, 'hook binding changed'):
+            with self.fixture(lambda runner: setattr(runner.model, 'forward', lambda *args: None), records):
+                self.fail('A shadowed callback cannot publish startup admission')
+        self.assertEqual(len(records), 1)
+        self.assertTrue(records[0].failed)
+        self.assertFalse(records[0].startup_admitted)
+
+    def test_bound_method_of_wrong_model_owner_is_rejected(self):
+        with self.fixture() as (runner, provider, effects):
+            runner.model.forward = type(runner.model)().forward
+            with self.assertRaisesRegex(RuntimeError, 'hook binding changed'):
+                provider.require_hooks()
+            self.assertTrue(provider.failed)
+            self.assertEqual(effects, [])
+
+    def test_replaced_loaded_model_or_absent_owned_builders_is_rejected(self):
+        for mutation in ('model', 'builders'):
+            with self.subTest(mutation=mutation), self.fixture() as (runner, provider, effects):
+                if mutation == 'model':
+                    runner.model = type(runner.model)()
+                else:
+                    provider.access.builders.clear()
+                with self.assertRaisesRegex(RuntimeError, 'hook binding changed'):
+                    provider.require_hooks()
+                self.assertTrue(provider.failed)
+                self.assertEqual(effects, [])
+
+    def test_class_callback_replacement_remains_rejected(self):
+        with self.fixture() as (runner, provider, effects):
+            type(runner.model).forward = lambda *args: effects.append('class-bypass')
+            with self.assertRaisesRegex(RuntimeError, 'hook binding changed'):
+                provider.require_hooks()
+            self.assertTrue(provider.failed)
+            self.assertEqual(effects, [])
+
+    def test_guard_interrupt_preserves_primary_when_abort_fails(self):
+        with self.fixture() as (runner, provider, effects):
+            primary = KeyboardInterrupt('hook guard interrupt')
+            def interrupted(provider): raise primary
+            def failed_abort(): raise OSError('abort failure')
+            provider.hook_checks['model_forward'] = interrupted
+            provider.abort = failed_abort
+            with self.assertRaises(KeyboardInterrupt) as caught:
+                provider.require_hooks()
+            self.assertIs(caught.exception, primary)
+            self.assertTrue(provider.failed)
+            self.assertTrue(any('abort failure' in note for note in getattr(primary, '__notes__', [])))
+            self.assertEqual(effects, [])
 
 
 class V2Objects(unittest.TestCase):

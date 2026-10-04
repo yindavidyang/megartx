@@ -91,6 +91,16 @@ wrapper checks provider presence and live hook identities before delegating to
 the unchanged ordinary runner. Zero-token scheduler housekeeping is delegated
 unchanged. The model callback independently rejects an unbound active model.
 
+Independent review F5 found that class-only callback checks missed instance
+replacements. Admission now checks the actual Python bound method's owner and
+function identity for every runner hook, the loaded model's forward/head and
+every retained owned metadata builder. Class checks remain in force; the runner
+must still return the original loaded model and the owned builder set cannot be
+empty. These checks run during provider creation and every active admission.
+Any rejection or interruption poisons and aborts the provider while preserving
+the primary error, including when abort fails. CPU replacements are rejection
+controls only; the corrected guard still requires independent final review.
+
 V2's per-step actual `InputBatch` supplies request/state-row identity, original
 I32 token and I64 position tensor objects, unpadded query lengths and final-row
 logits indices. The historical I64 helper stays byte-identical; the provider-only

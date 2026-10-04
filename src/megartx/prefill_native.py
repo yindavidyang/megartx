@@ -14,6 +14,7 @@ from pathlib import Path
 import struct
 import sys
 import time
+from types import MethodType
 
 from .controlled_kv_capture import gather_writer_rows
 from .loaded_engine_access import LoadedEngineAccess
@@ -239,9 +240,21 @@ class NativeProvider(PrefillKVObserver):
 
     def require_hooks(self):
         from .prefill_runner_binding import HOOKS, require_default_selection
-        require_default_selection(self.access._runner.vllm_config)
-        if set(self.hook_checks) != set(HOOKS) or not all(check() for check in self.hook_checks.values()):
-            raise RuntimeError('Actual V2 native observer hook binding changed')
+        try:
+            if self.failed:
+                raise RuntimeError('Poisoned native provider cannot be reused')
+            require_default_selection(self.access._runner.vllm_config)
+            if set(self.hook_checks) != set(HOOKS) or not all(
+                    check(self) is True for check in self.hook_checks.values()):
+                raise RuntimeError('Actual V2 native observer hook binding changed')
+        except BaseException as primary:
+            self.failed = True
+            try:
+                self.abort()
+            except BaseException as error:
+                if hasattr(primary, 'add_note'):
+                    primary.add_note('Native provider abort failed: ' + repr(error))
+            raise
 
     def read_frame(self, positions, tokens):
         """V2 dtype binding; all original owner/metadata/cache checks retained."""
@@ -667,16 +680,34 @@ def install_native_observer(torch, model_cls):
             poison(provider, error)
             raise
 
+    def bound(owner, name, expected):
+        callback = getattr(owner, name, None)
+        return (type(callback) is MethodType and callback.__self__ is owner
+                and callback.__func__ is expected)
+
+    def owned_model(provider):
+        return provider.access._runner.get_model() is provider.access.model
+
     hook_checks = {
-        'runner_constructor': lambda: GPUModelRunner.__init__ is constructed,
-        'initialize_kv_cache': lambda: GPUModelRunner.initialize_kv_cache is initialized,
-        'execute_model': lambda: GPUModelRunner.execute_model is executed,
-        'prepare_inputs': lambda: GPUModelRunner.prepare_inputs is prepared,
-        'prepare_attn': lambda: GPUModelRunner.prepare_attn is attention,
-        'sample': lambda: GPUModelRunner.sample is sampled,
-        'metadata_build': lambda: FlashInferMetadataBuilder.build is built,
-        'model_forward': lambda: model_cls.forward is forward,
-        'compute_logits': lambda: model_cls.compute_logits is head}
+        'runner_constructor': lambda p: GPUModelRunner.__init__ is constructed
+            and bound(p.access._runner, '__init__', constructed),
+        'initialize_kv_cache': lambda p: GPUModelRunner.initialize_kv_cache is initialized
+            and bound(p.access._runner, 'initialize_kv_cache', initialized),
+        'execute_model': lambda p: GPUModelRunner.execute_model is executed
+            and bound(p.access._runner, 'execute_model', executed),
+        'prepare_inputs': lambda p: GPUModelRunner.prepare_inputs is prepared
+            and bound(p.access._runner, 'prepare_inputs', prepared),
+        'prepare_attn': lambda p: GPUModelRunner.prepare_attn is attention
+            and bound(p.access._runner, 'prepare_attn', attention),
+        'sample': lambda p: GPUModelRunner.sample is sampled
+            and bound(p.access._runner, 'sample', sampled),
+        'metadata_build': lambda p: FlashInferMetadataBuilder.build is built
+            and bool(p.access.builders) and all(id(record[0]) == key
+                and bound(record[0], 'build', built) for key, record in p.access.builders.items()),
+        'model_forward': lambda p: model_cls.forward is forward and owned_model(p)
+            and bound(p.access.model, 'forward', forward),
+        'compute_logits': lambda p: model_cls.compute_logits is head and owned_model(p)
+            and bound(p.access.model, 'compute_logits', head)}
     GPUModelRunner.__init__ = constructed
     RejectedRunner.__init__ = rejected
     GPUModelRunner.initialize_kv_cache = initialized
