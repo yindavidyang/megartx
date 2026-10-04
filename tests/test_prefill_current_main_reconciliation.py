@@ -17,18 +17,21 @@ class CurrentMainReconciliationTests(unittest.TestCase):
         catalog = storage.validate_source_catalog(ROOT, hashes)
         self.assertEqual(catalog['parent_ledgers'], storage.PARENT_LEDGERS)
         self.assertEqual(catalog['executing_helpers'], storage.EXECUTING_HELPERS)
-        self.assertEqual(catalog['runtime_source_hashes'], {
-            path: value for path, value in hashes.items() if path != storage.CATALOG_SOURCE})
+        composition = storage.map_borrow.load_catalog(ROOT)
+        terminal = lambda path, digest: storage.map_borrow.terminal_sha(composition, path, digest)
+        self.assertEqual({path: terminal(path, digest) for path, digest in catalog['runtime_source_hashes'].items()}, {
+            path: value for path, value in hashes.items()
+            if path not in (storage.CATALOG_SOURCE, storage.map_borrow.CATALOG_SOURCE, storage.map_borrow.HELPER_SOURCE)})
         self.assertEqual(set(catalog['previous_source_hashes']), set(catalog['changed_source_hashes']))
         for path, value in catalog['changed_source_hashes'].items():
-            self.assertEqual(storage.file_sha(ROOT/path), value, path)
+            self.assertEqual(storage.file_sha(ROOT/path), terminal(path, value), path)
             self.assertNotEqual(value, catalog['previous_source_hashes'][path], path)
         paths = [record['path'] for record in catalog['superseded_sources']]
         self.assertEqual(paths, sorted(set(paths)))
         for record in catalog['superseded_sources']:
             self.assertEqual(set(record), {'path', 'main_parent_sha256',
                                           'prefill_parent_sha256', 'current_sha256'})
-            self.assertEqual(storage.file_sha(ROOT/record['path']), record['current_sha256'])
+            self.assertEqual(storage.file_sha(ROOT/record['path']), terminal(record['path'], record['current_sha256']))
         self.assertTrue(set(storage.EXECUTING_HELPERS) <= set(storage.SOURCES))
 
     def test_wrong_missing_or_mixed_parent_catalog_rejected(self):
@@ -95,7 +98,7 @@ class CurrentMainReconciliationTests(unittest.TestCase):
                     wrong = storage.file_sha(root/target)
                     catalog['runtime_source_hashes'][target] = wrong
                     catalog_path.write_text(json.dumps(catalog))
-                    with self.assertRaisesRegex(ValueError, 'ownership helper'):
+                    with self.assertRaisesRegex(ValueError, 'source drift|ownership helper'):
                         storage.validate_source_catalog(root, {**hashes, target:wrong})
                     (root/target).write_bytes(original)
                     catalog['runtime_source_hashes'][target] = prior

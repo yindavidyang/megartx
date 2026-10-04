@@ -29,6 +29,15 @@ def source_fixture(root):
         path.parent.mkdir(parents=True, exist_ok=True)
         original = ROOT / name
         path.write_bytes(original.read_bytes() if original.is_file() else b'# synthetic CPU source\n')
+    composition = storage.map_borrow.load_catalog(ROOT)
+    for record in composition['superseded_sources']:
+        target = root/record['path']
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT/record['path']).read_bytes())
+    for name in [*composition['parent_ledgers'], *composition['preserved_borrow_sources']]:
+        target = root/name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT/name).read_bytes())
     catalog = json.loads((ROOT/storage.CATALOG_SOURCE).read_text())
     equivalence = catalog['default_fit_equivalence']
     for name in [*catalog['unchanged_historical_catalogs'], *catalog['parent_ledgers'],
@@ -37,13 +46,8 @@ def source_fixture(root):
         target = root/name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((ROOT/name).read_bytes())
-    # This temporary synthetic source fixture follows current test inputs; it
-    # does not amend or admit the real reviewed repository source catalog.
-    catalog['runtime_source_hashes'] = {name: storage.file_sha(root/name)
-        for name in storage.SOURCES if name != storage.CATALOG_SOURCE}
-    eq = catalog['default_fit_equivalence']
-    eq['test_sha256'] = storage.file_sha(root/eq['test_path'])
-    (root/storage.CATALOG_SOURCE).write_text(json.dumps(catalog))
+    # Copy the immutable catalogs exactly; the terminal overlay admits current
+    # proof and validator bytes without refreshing any historical hash.
     return storage.freeze_plan(list(range(2048)), '3' * 40, root, {
         'config_sha256': CONFIG_SHA256, 'index_sha256': 'a' * 64,
         'shard_stats': {'synthetic.safetensors': {'size': 1, 'mtime_ns': 1}},

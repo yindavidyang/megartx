@@ -324,6 +324,20 @@ class M1PreparationTests(unittest.TestCase):
             for field in ("main_parent_sha256", "prefill_parent_sha256"):
                 if record[field] is not None:
                     self.assertRegex(record[field], r"^[0-9a-f]{64}$", path)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("map_borrow_lineage",
+            root / "src/megartx/m1_map_borrow_lineage.py")
+        lineage = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(lineage)
+        try:
+            terminal_catalog = lineage.load_catalog(root)
+        except ValueError as error:
+            self.fail(str(error))
+        def terminal(path, previous):
+            try:
+                return lineage.terminal_sha(terminal_catalog, path, previous)
+            except ValueError as error:
+                self.fail(str(error))
         terminal_changes = current_changes
         def current_composition(path, parent_field, previous):
             if path in terminal_changes:
@@ -345,8 +359,8 @@ class M1PreparationTests(unittest.TestCase):
                                          record["main_parent_sha256"], path)
                     else:
                         self.assertEqual(record["current_sha256"], record["main_parent_sha256"], path)
-                return record["current_sha256"]
-            return previous
+                return terminal(path, record["current_sha256"])
+            return terminal(path, previous)
 
         historical = root / "docs/evidence/m1-preparation-source-pins.json"
         pins = json.loads(historical.read_text())
