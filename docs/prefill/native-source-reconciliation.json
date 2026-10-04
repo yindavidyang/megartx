@@ -1,8 +1,10 @@
 {
   "base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
+  "bound_callback_correction_sha256": "3ae3a1880fac72a745c71df98e22a710232db7db10f4fb019dd418f902edca3a",
   "cpu_review_pending": true,
   "fit_qualified": false,
   "gpu_executed": false,
+  "main_reconciliation_commit": "cca7410205222dc25993124a8e9302aba309bca2",
   "numerical_qualified": false,
   "performance_qualified": false,
   "previous_runtime_commit": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
@@ -48,7 +50,8 @@
     "preserve run-wide allocated/reserved peaks across global counter resets",
     "missing-plan admission before HTTP runtime import; python -S regression",
     "bound actual4,977,046byte checkpoint index as CPU input below8MiB; independent host domain",
-    "active default V2 bindings, owned live pre-POST receipt, scheduled-forward hook guard, historical I64 helper unchanged"
+    "active default V2 bindings, owned live pre-POST receipt, scheduled-forward hook guard, historical I64 helper unchanged",
+    "F5 actual bound runner/model/builder callbacks and direct guard poisoning; class checks retained"
   ],
   "runner_policy": {
     "resolved_v2": true,
@@ -57,9 +60,9 @@
     "selection_override_injected": false,
     "selector_env": null
   },
-  "runner_selection_sha256": "500905124e669d059671d749e7799e9cde8f70ee8b1d498d1433aada65fc833d",
-  "runtime_commit": "1e5f33b7631afd72a20218d8dd874a42f0f283f9",
-  "runtime_tree": "9360e2c1c56b8321457fc3195adbd1caa483fcb7",
+  "runner_selection_sha256": "8a6b1e8cf451afd55256e460431a40b17f3d373eea53b0f677108e2550e83af8",
+  "runtime_commit": "83d06cc0d04093fb29070cc81fc447ae0bf4feeb",
+  "runtime_tree": "d0cf7b583b24d702598b41d9a032d4d8f245bc9d",
   "schema": "megartx-prefill-native-source-reconciliation-v1",
   "scope": "exact_cpu_source_compatibility_only",
   "unchanged": [

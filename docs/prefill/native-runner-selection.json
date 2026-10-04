@@ -8,6 +8,7 @@
     "actual sample result and sampled/rejected tensor identities"
   ],
   "baseline_equivalence_claimed": false,
+  "bound_callback_correction_sha256": "3ae3a1880fac72a745c71df98e22a710232db7db10f4fb019dd418f902edca3a",
   "dspark_exposure": "legacy native collector targets V1; independently reviewed client must reject resolved V2 before make_client until its runner path is reviewed",
   "explicit_v1_override_admitted": false,
   "fit_qualified": false,
@@ -20,7 +21,8 @@
     "execute_model admission before scheduled forwards",
     "active model callback presence",
     "hook identity on active frames",
-    "zero-token housekeeping unchanged"
+    "zero-token housekeeping unchanged",
+    "actual bound owner/function identity and poison on rejection"
   ],
   "installed_v2_sources": {
     "vllm.config.vllm": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
@@ -63,7 +65,7 @@
     "source_head": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
     "status": "failed_observer_runner_binding"
   },
-  "runtime_commit": "1e5f33b7631afd72a20218d8dd874a42f0f283f9",
+  "runtime_commit": "83d06cc0d04093fb29070cc81fc447ae0bf4feeb",
   "schema": "megartx-prefill-native-runner-source-v1",
   "selection_decision": "bind_actual_default_v2_to_preserve_accepted_decode_baseline",
   "selection_sources": {
