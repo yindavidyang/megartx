@@ -1,0 +1,57 @@
+{
+  "schema": "megartx-m1-sf-layout-cpu-proof-v1",
+  "stages": [
+    {
+      "k": 2816,
+      "carrier_bytes": 22528,
+      "physical_coordinates": 22528,
+      "padding_coordinates": 22352,
+      "active_expert_prefix_cases": 968,
+      "inactive_rows": 0,
+      "inactive_cosize": 0,
+      "offsets_sha256": "4d89e95d3465756894840fbc06164695af36d72b79c05c4c6dde16b66e86ae38"
+    },
+    {
+      "k": 704,
+      "carrier_bytes": 5632,
+      "physical_coordinates": 5632,
+      "padding_coordinates": 5588,
+      "active_expert_prefix_cases": 968,
+      "inactive_rows": 0,
+      "inactive_cosize": 0,
+      "offsets_sha256": "6b8296089a4ebea398c16f9cf347c77dc6959990dd072e78a0192b8e2dda3356"
+    }
+  ],
+  "active_expert_prefix_cases": 1936,
+  "initial_proof_coordinates": 28160,
+  "source_coordinates_avoided_per_preparation": 225280,
+  "source_coordinates_avoided_per_120_call_lane": 27033600,
+  "dynamic_leaf_drift_controls": 20,
+  "stage_drift_controls": 6,
+  "cuda_calls": 0,
+  "extra_device_allocation_bytes": 0,
+  "native_bridge_compiled": false,
+  "gpu_execution_verified": false,
+  "performance_qualified": false,
+  "graphs_qualified": false,
+  "source_hashes": {
+    "kernels/m1_sf_layout_contract.hpp": "015e2570ade16b93763a3bbf79b4e5f51e7d39096376eebcf6d2e8cce15d77b0",
+    "probes/m1_sf_layout_host_test.cpp": "ad4b2a98275d7b93e7ee48788e15744db57c9248da665fdf7669648da6024f33",
+    "numerical_reference/m1_sf_layout_proof.py": "d2a5384de60d33d57cb742a5397bb7c5b1b7e7b27568c6db5b20b26b2d52342d"
+  },
+  "installed_source_pins": {
+    "cutlass/detail/sm100_blockscaled_layout.hpp": "598e054bef21edf94b1fd6bb1447cfa9cfcf5a5907ab370128102448dbb6d530",
+    "cute/layout.hpp": "7ecaab029ea5a065a029f44c7e44142860f70bcb2fad53eb0d27ad460a68aa46",
+    "cute/container/tuple.hpp": "fa6842d0d8665811b940e8cdaeadd9c480654e9f1e6368ece60a1658ff458546"
+  },
+  "host_binary_sha256": "90db71234ce7691e952416542df429e6cf0175fd6f8c9319eafbffd5834dd9d6",
+  "host_output_sha256": "1a9a5edb217e0375477c0f940f5cf59189c730c8b0de439efed7a9f5a574899f",
+  "host_compiler": {
+    "identity": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+    "returncode": 0,
+    "compiler_seconds": 0.9557795419823378,
+    "child_maxrss_bytes_macos": 240844800,
+    "rss_scope": "OS child max RSS; not a sampled aggregate/transient peak",
+    "cuda_compiler_invoked": false
+  }
+}

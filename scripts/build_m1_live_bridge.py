@@ -16,6 +16,10 @@ from run_m1_installed_probe import sha, installed_flags, available, gpu, rss
 # Source-bound scheduler, physical SF TMA domain and exact typed FFI lane.
 LIVE_CONSUMER_PINS = {'data/cutlass/include/cutlass/gemm/kernel/sm90_gemm_array_tma_warpspecialized_cooperative.hpp': 'e01bcc4eb6ae05ecbee7251514519c3d7b8e9b37ae4e955f58f7c85591e2df9e', 'data/cutlass/include/cutlass/gemm/kernel/sm90_tile_scheduler_group.hpp': '8dd4fcdd5706e6c8c6111e71791c113e34f137c106eb5c514685069dc6ebac44', 'data/cutlass/include/cutlass/gemm/kernel/tile_scheduler.hpp': 'acc90548b9e2b19f944764ced57e1459d5c2ed7e118d6a1af476add26c3d5e73', 'data/cutlass/include/cutlass/gemm/kernel/tile_scheduler_params.h': 'ef48a12e8920183e88259d0b685279c2232fc2fb12c4fb4db7e8d0fbfdc019e9', 'data/cutlass/include/cutlass/gemm/collective/builders/sm120_blockscaled_mma_builder.inl': 'c81e6473efc15a07ac5707febd2a8db69edd2949afd2af64fb87cfb020632989', 'data/cutlass/include/cutlass/gemm/collective/sm120_blockscaled_mma_array_tma.hpp': '66fcea9bab8db40e22201d4a78f2de9777c616c15d800716d8446172fbcd9824', 'data/csrc/fused_moe/cutlass_backend/flashinfer_cutlass_fused_moe_binding.cu': '9588117b6f8d6431dd19935bdffd428f56b8de938f3f4335cf9b6f96d6ef80a5', 'data/csrc/fused_moe/cutlass_backend/cutlass_fused_moe_instantiation.cu': '2aa95ebe6fb2f4f45c09fba824df18d18fbe95f9950ac6e37507f4432a077a9d'}
 CUPTI_PACKAGE_VERSION = "13.0.85"
+LIVE_CONSUMER_PINS.update({
+    "data/cutlass/include/cute/layout.hpp": "7ecaab029ea5a065a029f44c7e44142860f70bcb2fad53eb0d27ad460a68aa46",
+    "data/cutlass/include/cute/container/tuple.hpp": "fa6842d0d8665811b940e8cdaeadd9c480654e9f1e6368ece60a1658ff458546",
+})
 CUPTI_LIBRARY_SHA256 = "e2f9ed861fe27c492b8bb52b5e3220ef5120f3edcda36312e96b7fd8a186be3e"
 
 
@@ -60,6 +64,7 @@ def build(args):
     (work / "temporary").mkdir()
     sources = ("probes/m1_live_bridge.cu", "probes/m1_installed_bridge.cuh",
                "kernels/m1_installed_preparation.cuh", "kernels/m1_maps_expand.cuh",
+               "kernels/m1_sf_layout_contract.hpp",
                "scripts/build_m1_live_bridge.py", "scripts/check_m1_live_bridge.py",
                "scripts/check_m1_live_bindings.py",
                "src/megartx/m1_live.py", "src/megartx/vllm_scale_plugin.py",
