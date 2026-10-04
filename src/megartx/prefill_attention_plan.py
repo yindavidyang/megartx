@@ -6,8 +6,10 @@ here select bytes already on CPU and never charge an existing transfer again.
 """
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import stat
 import struct
 
 BASE_HEAD = '6493affbcf0827f8702e736636bb4f2549d07305'
@@ -51,6 +53,28 @@ def integer(value, low, high):
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':'),
                                      allow_nan=False).encode()).hexdigest()
+
+
+def _source_hash(path):
+    path=Path(path)
+    if path.is_symlink() or any(p.is_symlink() for p in path.absolute().parents):
+        raise ValueError('Symlink CPU source path refused')
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        before=os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink!=1 or before.st_size>1<<20:
+            raise ValueError('Bounded regular CPU source file required')
+        chunks=[];remaining=(1<<20)+1
+        while remaining:
+            chunk=os.read(fd,min(65536,remaining))
+            if not chunk:break
+            chunks.append(chunk);remaining-=len(chunk)
+        raw=b''.join(chunks);after=os.fstat(fd)
+        identity=lambda s:(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns,s.st_nlink)
+        if len(raw)>1<<20 or len(raw)!=before.st_size or identity(before)!=identity(after):
+            raise ValueError('CPU source changed or overflowed while reading')
+        return hashlib.sha256(raw).hexdigest()
+    finally:os.close(fd)
 
 
 def coordinates(layer):
@@ -113,9 +137,7 @@ def make_plan(native_plan_sha256, prompt_sha256, source_head, root):
     sources = {}
     for relative in SOURCE_FILES:
         path = root / relative
-        if path.is_symlink() or not path.is_file():
-            raise ValueError('Regular CPU source file required')
-        sources[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+        sources[relative] = _source_hash(path)
     value = {'schema': SCHEMA, 'purpose': PURPOSE, 'base_head': BASE_HEAD, 'base_tree': BASE_TREE,
              'source_head': source_head, 'source_hashes': sources,
              'native_plan_sha256': native_plan_sha256, 'prompt_sha256': prompt_sha256,
@@ -147,7 +169,7 @@ def validate_plan(value, root=None):
         sha(expected)
         if root is not None:
             path = Path(root) / relative
-            if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            if _source_hash(path) != expected:
                 raise ValueError('Executing CPU source file changed: '+relative)
     return value
 

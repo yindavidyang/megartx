@@ -18,6 +18,22 @@ CAPTURE_SCHEMA = 'megartx-prefill-attention-capture-v1'
 BACKEND_SHA = '8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f'
 WRAPPER_SHA = {'fa2':'2ad12a8387b3f6bff192e5945769b68d90cfcab00b9eb2a8a524af8dd71a29de',
                'xqa':'d82d107a644596a9349780b839b34e690c50169ea4cea3d0ee02b78e9dc88c1a'}
+ENTRYPOINTS = {
+    'paged_prefill':('fa2',WRAPPER_SHA['fa2']),
+    'paged_decode':('fa2',WRAPPER_SHA['xqa']),
+    'xqa_decode':('xqa',WRAPPER_SHA['xqa']),
+}
+MAX_DIRECTORY_ENTRIES = 256
+
+
+def _names(directory_fd):
+    names=set()
+    with os.scandir(directory_fd) as entries:
+        for entry in entries:
+            if len(names)>=MAX_DIRECTORY_ENTRIES:
+                raise ValueError('Evidence directory entry limit exceeded')
+            names.add(entry.name)
+    return names
 
 
 def semantic_contract(layer):
@@ -79,7 +95,7 @@ def _pairs(pairs):
 
 
 def _read_regular(directory_fd,name,limit,exact=None):
-    fd=os.open(name,os.O_RDONLY|os.O_NOFOLLOW,dir_fd=directory_fd)
+    fd=os.open(name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=directory_fd)
     try:
         before=os.fstat(fd)
         if (not stat.S_ISREG(before.st_mode) or before.st_nlink!=1 or before.st_size>limit
@@ -114,7 +130,7 @@ def read_capture(directory, specification, *, expected_request_sha256,
         raise ValueError('Symlink evidence path refused')
     fd=os.open(directory,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
     try:
-        layouts=plan.raw_layouts();names=set(os.listdir(fd))
+        layouts=plan.raw_layouts();names=_names(fd)
         if {n for n in names if n.endswith('.bf16')} != set(layouts):
             raise ValueError('Exactly eight raw files required; previous raw samples forbidden')
         if CAPTURE_FILE not in names or names & {'storage-failure.json','attention-failure.json','INVALIDATED.json'}:
@@ -186,18 +202,19 @@ def read_capture(directory, specification, *, expected_request_sha256,
             if any(record[k]!=v for k,v in record_roots(arrays,layer,start,end).items()):
                 raise ValueError('Actual query/output/cache root differs from retained bytes')
             dispatch=record['dispatch']
-            if (type(dispatch) is not dict or set(dispatch)!={'provider','backend_source_sha256',
+            if (type(dispatch) is not dict or set(dispatch)!={'provider','entrypoint','backend_source_sha256',
                     'wrapper_source_sha256','split_plan_sha256','kernel_binary_sha256','kernel_profile_sha256',
-                    'native_rounding_contract'} or dispatch['provider'] not in WRAPPER_SHA
+                    'native_rounding_contract'} or dispatch['entrypoint'] not in ENTRYPOINTS
+                    or (dispatch['provider'],dispatch['wrapper_source_sha256']) != ENTRYPOINTS[dispatch['entrypoint']]
                     or dispatch['backend_source_sha256']!=BACKEND_SHA
-                    or dispatch['wrapper_source_sha256']!=WRAPPER_SHA[dispatch['provider']]
                     or dispatch['native_rounding_contract'] is not None
-                    or (dispatch['provider']=='xqa' and end-start!=1)):
+                    or (end-start==256 and dispatch['entrypoint']!='paged_prefill')
+                    or (end-start==1 and dispatch['entrypoint']=='paged_prefill')):
                 raise ValueError('Unreviewed resolved dispatch/source/rounding claim')
             plan.sha(dispatch['split_plan_sha256'])
             for key in ('kernel_binary_sha256','kernel_profile_sha256'):
                 if dispatch[key] is not None:plan.sha(dispatch[key])
-        if set(os.listdir(fd))!=names:
+        if _names(fd)!=names:
             raise ValueError('Evidence directory changed while reading')
         for name,before in snapshots.items():
             info=os.stat(name,dir_fd=fd,follow_symlinks=False)

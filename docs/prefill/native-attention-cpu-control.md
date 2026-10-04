@@ -49,6 +49,11 @@ selected call records, independent raw root reconstruction, frame alignment,
 semantic parameters and resolved wrapper-source choices. It rejects old raw
 sample files, missing/truncated files, links, special files, stale or reordered
 calls, root mismatches, unknown/auto dispatch and numerical-acceptance claims.
+Directory enumeration is incremental and limited to 256 entries, including
+empty/temporary entries. Source reads are limited to 1 MiB per file. Evidence
+and source opens use NOFOLLOW and NONBLOCK before regular/single-link fstat
+checks, so a FIFO substitution cannot hang before type validation. Source and
+evidence paths reject symlink ancestors.
 The largest raw file is the global K file at 4,196,352 bytes, above 4 MiB.
 
 The reader structurally binds caller-supplied native observations; hashes do
@@ -107,6 +112,14 @@ does not establish the actual dispatched lane. The old local <=33-key
 conditional interval therefore cannot simply be enlarged. Future acceptance
 needs actual dispatch, split/merge/cast behavior and a separately reviewed
 native rounding/FTZ contract fixed before examining numerical outputs.
+
+The packet names actual entrypoints independently of backend labels:
+`paged_prefill` is the BF16 FA2 BatchPrefill wrapper in prefill.py;
+`paged_decode` is the FA2 BatchDecode wrapper in decode.py;
+`xqa_decode` is the XQA decode.py entry. An M1 FA2 backend therefore does not
+silently inherit the prefill.py source identity. Unknown or phase-incompatible
+entrypoints fail structurally; native integration must verify actual callable
+owners and sources before emitting these values.
 
 ## One shared resource ledger
 

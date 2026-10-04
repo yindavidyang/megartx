@@ -31,7 +31,8 @@ def fixture(directory):
                 'frame_identity_sha256':v.frame_identity(spec['native_plan_sha256'],REQUEST,start,end,inputs),
                 'operator_binding_sha256':'e'*64,'cache_mapping_sha256':'f'*64,
                 'semantics':v.semantic_contract(layer),**v.record_roots(arrays,layer,start,end),
-                'dispatch':{'provider':provider,'backend_source_sha256':v.BACKEND_SHA,
+                'dispatch':{'provider':provider,'entrypoint':'xqa_decode' if start==2048 else 'paged_prefill',
+                    'backend_source_sha256':v.BACKEND_SHA,
                     'wrapper_source_sha256':v.WRAPPER_SHA[provider],'split_plan_sha256':'1'*64,
                     'kernel_binary_sha256':None,'kernel_profile_sha256':None,'native_rounding_contract':None}})
     capture={'schema':v.CAPTURE_SCHEMA,'plan_sha256':spec['plan_sha256'],
@@ -149,6 +150,38 @@ class AttentionPacketTests(unittest.TestCase):
                             ('native_rounding_contract','passes'),('kernel_binary_sha256','short')):
             c=copy.deepcopy(self.capture);c['records'][0]['dispatch'][field]=value;save(self.directory,c)
             with self.subTest(field=field),self.assertRaises(ValueError):read(self.directory,self.spec)
+
+    def test_fa2_decode_binds_decode_entrypoint_not_prefill_wrapper(self):
+        c=copy.deepcopy(self.capture)
+        for record in c['records'][-2:]:
+            record['dispatch'].update(provider='fa2',entrypoint='paged_decode',wrapper_source_sha256=v.WRAPPER_SHA['xqa'])
+        save(self.directory,c);read(self.directory,self.spec)
+        c['records'][-1]['dispatch']['wrapper_source_sha256']=v.WRAPPER_SHA['fa2']
+        save(self.directory,c)
+        with self.assertRaises(ValueError):read(self.directory,self.spec)
+
+    def test_empty_metadata_files_cannot_exhaust_unbounded_directory_memory(self):
+        for i in range(v.MAX_DIRECTORY_ENTRIES):
+            (self.directory/f'empty-{i}.json').touch()
+        with self.assertRaisesRegex(ValueError,'entry limit'):read(self.directory,self.spec)
+
+    def test_fifo_open_is_nonblocking_in_evidence_and_source_readers(self):
+        code="""
+import os,tempfile
+from pathlib import Path
+from megartx import prefill_attention_validation as v,prefill_attention_plan as p
+with tempfile.TemporaryDirectory() as d:
+    path=Path(d)/'fifo';os.mkfifo(path);fd=os.open(d,os.O_RDONLY|os.O_DIRECTORY)
+    try:
+        for fn in (lambda:v._read_regular(fd,'fifo',32),lambda:p._source_hash(path)):
+            try:fn()
+            except ValueError:pass
+            else:raise AssertionError('FIFO was accepted')
+    finally:os.close(fd)
+"""
+        result=subprocess.run([sys.executable,'-c',code],cwd=ROOT,
+            env={**os.environ,'PYTHONPATH':str(ROOT/'src')},capture_output=True,text=True,timeout=3)
+        self.assertEqual(result.returncode,0,result.stderr)
 
     def test_rehashed_payload_cannot_escape_operator_root(self):
         for role in ('k','v','q','o'):
