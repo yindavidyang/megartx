@@ -8,6 +8,7 @@ import ctypes
 import hashlib
 import inspect
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -21,12 +22,136 @@ FFI_SOURCES = {
     "tvm_ffi/utils/_build_optional_torch_c_dlpack.py": "00642488be9a3bdc9560f14fa5d5b73172e096e89b09ffc35a7f18225feae9ce",
     "tvm_ffi/cython/tvm_ffi_python_helpers.h": "a11be0560a2cc4b75845ab63fc7cb67f0dd890b8d89c32b58d7efb408172089f"}
 
+TORCH_MEMORY_SOURCE_SHA256 = "7dc1d9d2a00b571977e6ecc6997d7ccfa4f13b620c11faf1f3f82317c548ec99"
+RECEIPT_LIMITS = {"serialized_bytes": 8 << 20, "depth": 16, "values": 131072,
+    "container_items": 8192, "string_chars": 4096, "integer_bits": 256,
+    "cache_layers": 30, "cache_groups": 30, "cache_placements": 30,
+    "owned_page_records": 3900, "attention_builders": 30,
+    "workspace_records": 512, "workspace_objects": 256, "owner_fields": 256,
+    "workspace_container_items": 256, "tensor_dimensions": 64,
+    "private_pool_records_after_query": 64, "process_maps_bytes": 1 << 20}
+
+
+def receipt_preflight(receipt):
+    """Count canonical bytes with bounded scalar encoding before hashing.
+
+    The serialized evidence cap does not claim an 8 MiB Python heap bound.
+    Ordinary primitives only: no custom serializer or scalar conversion.
+    """
+    total, values, active = 0, 0, set()
+    def charge(size):
+        nonlocal total
+        total += size
+        if total > RECEIPT_LIMITS["serialized_bytes"]:
+            raise ProbeError("Private receipt exceeds 8 MiB serialized metadata bound")
+    def walk(value, depth=0):
+        nonlocal values
+        values += 1
+        if values > RECEIPT_LIMITS["values"] or depth > RECEIPT_LIMITS["depth"]:
+            raise ProbeError("Receipt value/depth acquisition limit exceeded")
+        kind = type(value)
+        if kind in (dict, list, tuple):
+            if len(value) > RECEIPT_LIMITS["container_items"] or id(value) in active:
+                raise ProbeError("Receipt container limit or cycle")
+            active.add(id(value))
+            charge(2)
+            for index, item in enumerate(value):
+                if index:
+                    charge(1)
+                if kind is dict:
+                    if type(item) is not str:
+                        raise ProbeError("Receipt dictionary key must be a plain string")
+                    walk(item, depth + 1)
+                    charge(1)
+                    walk(value[item], depth + 1)
+                else:
+                    walk(item, depth + 1)
+            active.remove(id(value))
+            return
+        if (kind not in (str, int, float, bool, type(None))
+                or kind is str and len(value) > RECEIPT_LIMITS["string_chars"]
+                or kind is int and value.bit_length() > RECEIPT_LIMITS["integer_bits"]
+                or kind is float and not math.isfinite(value)):
+            raise ProbeError("Unsupported or oversized receipt scalar")
+        # Each bounded token is ASCII, so its character count is its byte count.
+        charge(len(json.dumps(value, ensure_ascii=True, allow_nan=False, separators=(",", ":"))))
+    walk(receipt)
+    return total
+
 
 def receipt_digest(receipt):
-    encoded = json.dumps(receipt, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
-    if len(encoded) > 8 << 20:
-        raise ProbeError("Private receipt exceeds 8 MiB host metadata bound")
-    return hashlib.sha256(encoded).hexdigest()
+    expected_bytes = receipt_preflight(receipt)
+    hasher, emitted = hashlib.sha256(), 0
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
+    for chunk in encoder.iterencode(receipt):
+        emitted += len(chunk)
+        if emitted > RECEIPT_LIMITS["serialized_bytes"]:
+            raise ProbeError("Private receipt exceeds 8 MiB serialized metadata bound")
+        hasher.update(chunk.encode("ascii"))
+    if emitted != expected_bytes:
+        raise ProbeError("Receipt changed during canonical serialization")
+    return hasher.hexdigest()
+
+
+def _sequence(value, limit, label):
+    if not isinstance(value, (list, tuple)) or len(value) > limit:
+        raise ProbeError(label + " acquisition limit exceeded or unsupported container")
+    return value
+
+
+def _mapping(value, label):
+    if type(value) is not dict or len(value) > RECEIPT_LIMITS["owner_fields"]:
+        raise ProbeError(label + " field acquisition limit exceeded")
+    return value
+
+
+def _text(value):
+    if type(value) is not str or len(value) > RECEIPT_LIMITS["string_chars"]:
+        raise ProbeError("Owner label/string acquisition limit exceeded")
+    return value
+
+
+def _owner_key(value, torch, depth=0):
+    if depth > 4:
+        raise ProbeError("Workspace key depth limit exceeded")
+    if type(value) is str:
+        return _text(value)
+    if type(value) is int and value.bit_length() <= RECEIPT_LIMITS["integer_bits"]:
+        return str(value)
+    if type(value) is tuple:
+        _sequence(value, 8, "Workspace key")
+        return _text("(" + ",".join(_owner_key(part, torch, depth + 1) for part in value) + ")")
+    if isinstance(value, getattr(torch, "device", ())):
+        return _text(str(value))
+    raise ProbeError("Unsupported workspace key; arbitrary string conversion refused")
+
+
+def _owner_limits(runner, ticket):
+    """Reject excessive owner/page topology before inspecting tensor storage."""
+    groups = _sequence(runner.kv_cache_config.kv_cache_groups, RECEIPT_LIMITS["cache_groups"], "Cache groups")
+    pages = _sequence(ticket["groups"], RECEIPT_LIMITS["cache_groups"], "Ticket groups")
+    sizes = _sequence(ticket["block_sizes"], RECEIPT_LIMITS["cache_groups"], "Ticket sizes")
+    if not groups or len(groups) != len(pages) or len(groups) != len(sizes):
+        raise ProbeError("Core/worker cache group identity differs")
+    _sequence(runner.kv_cache_config.kv_cache_tensors, RECEIPT_LIMITS["cache_placements"], "Cache placements")
+    for placement in runner.kv_cache_config.kv_cache_tensors:
+        _sequence(placement.layers, RECEIPT_LIMITS["cache_layers"], "Placement layers")
+    layers = owned = 0
+    for group, reserved, size in zip(groups, pages, sizes):
+        names = _sequence(group.layer_names, RECEIPT_LIMITS["cache_layers"], "Cache layers")
+        if type(size) is not int or size not in (16, 32, 64):
+            raise ProbeError("Unreviewed actual manager block size")
+        _sequence(reserved, 130, "Reserved pages")
+        if len(reserved) != (P + 4 + size - 1) // size + 1:
+            raise ProbeError("Reserved page count differs from actual lease")
+        layers += len(names)
+        owned += len(names) * len(reserved)
+    if layers != RECEIPT_LIMITS["cache_layers"] or owned > RECEIPT_LIMITS["owned_page_records"]:
+        raise ProbeError("Cache owner/page acquisition limit exceeded")
+    attention = _sequence(runner.attn_groups, RECEIPT_LIMITS["cache_groups"], "Attention groups")
+    count = sum(len(_sequence(group, RECEIPT_LIMITS["attention_builders"], "Attention builders")) for group in attention)
+    if count > RECEIPT_LIMITS["attention_builders"]:
+        raise ProbeError("Attention builder acquisition limit exceeded")
 
 
 def page_bytes(*, shape, strides, element_bytes, storage_offset_bytes, page,
@@ -96,54 +221,71 @@ def fit_decision(allocation, *, allocated, reserved, gpu_free, host_free,
 
 
 def _tensor_record(tensor, owner):
+    _text(owner)
+    shape = _sequence(tensor.shape, RECEIPT_LIMITS["tensor_dimensions"], "Tensor shape")
+    strides = _sequence(tensor.stride(), RECEIPT_LIMITS["tensor_dimensions"], "Tensor strides")
     raw = tensor.untyped_storage()
     return {"owner": owner, "device": str(tensor.device), "dtype": str(tensor.dtype),
         "storage_ptr": raw.data_ptr(), "storage_bytes": raw.nbytes(),
         "storage_offset_bytes": tensor.storage_offset() * tensor.element_size(),
-        "shape": list(tensor.shape), "strides": list(tensor.stride())}
+        "shape": list(shape), "strides": list(strides)}
 
 
 def existing_workspaces(runner, torch):
     """Read fields of existing builders/wrappers; never initialize a missing owner."""
     records, missing, visited = [], [], set()
+    def add_tensor(tensor, label):
+        if len(records) >= RECEIPT_LIMITS["workspace_records"]:
+            raise ProbeError("Workspace record acquisition limit exceeded")
+        records.append(_tensor_record(tensor, _text(label)))
     def scan(owner, label, depth=0):
+        _text(label)
         if owner is None:
+            if len(missing) >= RECEIPT_LIMITS["workspace_records"]:
+                raise ProbeError("Missing-owner record acquisition limit exceeded")
             missing.append(label)
             return
         if id(owner) in visited or depth > 3:
             return
+        if len(visited) >= RECEIPT_LIMITS["workspace_objects"]:
+            raise ProbeError("Workspace object acquisition limit exceeded")
         visited.add(id(owner))
-        for name, value in vars(owner).items():
+        for name, value in _mapping(vars(owner), label).items():
+            _text(name)
             if isinstance(value, torch.Tensor):
-                records.append(_tensor_record(value, label + "." + name))
+                add_tensor(value, label + "." + name)
             elif (value is not None and hasattr(value, "__dict__") and
                     type(value).__module__.startswith(("flashinfer", "vllm.v1.attention.backends"))):
                 scan(value, label + "." + name, depth + 1)
-    for gid, groups in enumerate(runner.attn_groups):
+    groups_all = _sequence(runner.attn_groups, RECEIPT_LIMITS["cache_groups"], "Attention groups")
+    if sum(len(_sequence(g, RECEIPT_LIMITS["attention_builders"], "Attention builders")) for g in groups_all) > RECEIPT_LIMITS["attention_builders"]:
+        raise ProbeError("Attention builder acquisition limit exceeded")
+    for gid, groups in enumerate(groups_all):
         for aid, group in enumerate(groups):
             builder = group.get_metadata_builder()
             label = f"attention.{gid}.{aid}"
             scan(builder, label)
             for name in ("_prefill_wrapper", "_decode_wrapper", "_noncausal_prefill_wrapper", "_cascade_wrapper"):
                 scan(vars(builder).get(name), label + "." + name)
-            for key, wrapper in vars(builder).get("_decode_wrappers_cudagraph", {}).items():
-                scan(wrapper, label + "._decode_wrappers_cudagraph." + str(key))
+            for key, wrapper in _mapping(vars(builder).get("_decode_wrappers_cudagraph", {}), "Decode wrappers").items():
+                scan(wrapper, label + "._decode_wrappers_cudagraph." + _owner_key(key, torch))
     for module_name, field in (("vllm.v1.attention.backends.flashinfer", "trtllm_workspace_buffer"),
                                ("flashinfer.utils", "_cache_buf")):
         module = sys.modules.get(module_name)
         value = vars(module).get(field) if module else None
         if isinstance(value, torch.Tensor):
-            records.append(_tensor_record(value, module_name + "." + field))
+            add_tensor(value, module_name + "." + field)
         elif isinstance(value, dict):
-            for key, tensor in value.items():
+            for key, tensor in _mapping(value, "Existing buffer cache").items():
                 if isinstance(tensor, torch.Tensor):
-                    records.append(_tensor_record(tensor, module_name + "." + field + "." + str(key)))
+                    add_tensor(tensor, module_name + "." + field + "." + _owner_key(key, torch))
     module = sys.modules.get("vllm.v1.worker.workspace")
     manager = vars(module).get("_manager") if module else None
     if manager:
-        for index, tensor in enumerate(vars(manager).get("_current_workspaces", ())):
+        fields = _mapping(vars(manager), "Workspace manager")
+        for index, tensor in enumerate(_sequence(fields.get("_current_workspaces", ()), RECEIPT_LIMITS["workspace_container_items"], "Managed workspaces")):
             if tensor is not None:
-                records.append(_tensor_record(tensor, f"vllm.workspace.{index}"))
+                add_tensor(tensor, f"vllm.workspace.{index}")
     unique = {(r["device"], r["storage_ptr"]): r["storage_bytes"] for r in records}
     return {"owners": records, "deduplicated_storage_bytes": sum(unique.values()),
         "deduplicated_GPU_storage_bytes": sum(size for (device, _), size in unique.items() if device.startswith("cuda")),
@@ -151,6 +293,55 @@ def existing_workspaces(runner, torch):
         "missing_lazy_owners": missing, "workspace_manager_locked": vars(manager).get("_locked") if manager else None,
         "required_size_M1_M2_M256_bytes": None,
         "required_size_status": "unqueried_device_JIT_or_new_allocation_is_outside_zero_forward_phase"}
+
+
+def allocator_counters(torch, device):
+    """One selected-device query; no snapshot or flattening of private pools.
+
+    Native _cuda_memoryStats constructs its result BEFORE the pool-count guard.
+    Fresh eager ownership and host readings constrain context, not that native
+    acquisition's peak. Its pre-allocation bound is explicitly unavailable.
+    """
+    host_before = _host_free()
+    if host_before < HOST_FREE:
+        raise ProbeError("Host free below 8 GiB before allocator counter acquisition")
+    if torch.cuda.get_allocator_backend() != "native":
+        raise ProbeError("Aggregate allocator counters require the native backend")
+    stats = _mapping(torch.cuda.memory_stats_as_nested_dict(device), "Allocator statistics")
+    host_after = _host_free()
+    if host_after < HOST_FREE:
+        raise ProbeError("Host free below 8 GiB after allocator counter acquisition")
+    pools = stats.get("reserved_bytes_by_private_pools")
+    if pools is not None and (type(pools) is not dict or len(pools) > RECEIPT_LIMITS["private_pool_records_after_query"]):
+        raise ProbeError("Private-pool record limit exceeded after native counter acquisition")
+    def counter(name, field):
+        metric = _mapping(stats.get(name), "Aggregate allocator metric")
+        all_pools = _mapping(metric.get("all"), "Aggregate allocator all pools")
+        return _integer(all_pools.get(field))  # missing values are never substituted with zero
+    allocated, reserved = counter("allocated_bytes", "current"), counter("reserved_bytes", "current")
+    if reserved < allocated:
+        raise ProbeError("Allocator counters inconsistent")
+    return {"backend": "native", "allocated_bytes": allocated, "reserved_bytes": reserved,
+        "cached_slack_bytes": reserved - allocated,
+        "allocated_peak_bytes": counter("allocated_bytes", "peak"),
+        "reserved_peak_bytes": counter("reserved_bytes", "peak"),
+        "snapshot_segments": None, "snapshot_sha256": None,
+        "snapshot_status": "not_collected_unbounded_global_snapshot",
+        "coverage": "selected_device_aggregate_counters_only_no_segment_or_block_coverage",
+        "acquisition": {"query": "memory_stats_as_nested_dict", "queries": 1,
+            "device": _text(str(device)), "private_pool_records_observed": len(pools) if pools is not None else None,
+            "private_pool_count_status": "observed_after_native_query" if pools is not None else "field_absent_unavailable",
+            "native_query_preallocation_bound_bytes": None,
+            "native_query_bound_status": "not_exposed_by_pinned_Torch_no_peak_host_bound_claim",
+            "host_free_before_bytes": host_before, "host_free_after_bytes": host_after}}
+
+
+def _process_maps():
+    with Path("/proc/self/maps").open("rb") as stream:
+        encoded = stream.read(RECEIPT_LIMITS["process_maps_bytes"] + 1)
+    if len(encoded) > RECEIPT_LIMITS["process_maps_bytes"]:
+        raise ProbeError("Process mapping acquisition limit exceeded")
+    return encoded.decode("utf-8").splitlines()
 
 
 def ffi_allocator_identity(torch, site_root):
@@ -173,7 +364,7 @@ def ffi_allocator_identity(torch, site_root):
         _fields_ = [("major", ctypes.c_uint32), ("minor", ctypes.c_uint32),
                     ("previous", ctypes.c_void_p), ("allocator", ctypes.c_void_p)]
     maps = []
-    for line in Path("/proc/self/maps").read_text().splitlines():
+    for line in _process_maps():
         fields = line.split(maxsplit=5)
         start, end = (int(x, 16) for x in fields[0].split("-"))
         maps.append((start, end, fields[1], fields[5] if len(fields) == 6 else None))
@@ -204,6 +395,8 @@ def collect_receipt(runner, ticket, admission):
     _class_source(runner, "vllm.v1.worker.gpu_model_runner", "GPUModelRunner")
     site_root = Path(inspect.getsourcefile(type(runner))).resolve().parents[3]
     sources = inspect_sources(site_root)
+    if digest(site_root / "torch/cuda/memory.py") != TORCH_MEMORY_SOURCE_SHA256:
+        raise ProbeError("Installed allocator counter source differs")
     import importlib.metadata
     for package, version in (("vllm", "0.30.0"), ("flashinfer-python", "0.6.18.post1"), ("torch", "2.13.0+cu130")):
         if importlib.metadata.version(package) != version:
@@ -219,6 +412,9 @@ def collect_receipt(runner, ticket, admission):
             or os.environ.get("VLLM_PLUGINS") != "megartx_scale_adapter"
             or any(os.environ.get(key) for key in forbidden)):
         raise ProbeError("Original corrected lane/M1-off receipt environment differs")
+    if _host_free() < HOST_FREE:
+        raise ProbeError("Host free below 8 GiB before targeted receipt acquisition")
+    _owner_limits(runner, ticket)
     model = runner.get_model()
     _class_source(model, "vllm.model_executor.models.gemma4_mm", "Gemma4ForConditionalGeneration")
     if digest(Path(runner.model_config.model) / "config.json") != CONFIG_HASH:
@@ -231,7 +427,8 @@ def collect_receipt(runner, ticket, admission):
         proof._scale_binding()  # reads existing startup proof; does not install writers or prepare
     closure = inspect.getclosurevars(type(model).forward).nonlocals
     startup = closure["integration_report"]
-    fixtures = startup["forced_fixtures"]
+    fixtures = _sequence(startup["forced_fixtures"], 6, "Existing forced fixtures")
+    integration_layers = _sequence(closure["integration_layers"], RECEIPT_LIMITS["cache_layers"], "Startup dispatch layers")
     processor, head = model.language_model.logits_processor, model.language_model.lm_head
     if (processor.head_dtype not in (None, torch.bfloat16, torch.float32)
             or processor.soft_cap != 30.0 or head.weight.dtype != torch.bfloat16):
@@ -251,6 +448,7 @@ def collect_receipt(runner, ticket, admission):
             if builder.page_size != size:
                 raise ProbeError("Builder page differs")
         for name in group.layer_names:
+            _text(name)
             spec = group.kv_cache_spec
             if hasattr(spec, "kv_cache_specs"):
                 spec = spec.kv_cache_specs[name]
@@ -286,9 +484,8 @@ def collect_receipt(runner, ticket, admission):
     allocation = allocation_lower_bound(charges, metadata,
         head_element_bytes=2 if head_dtype == torch.bfloat16 else 4, reject=False)
     torch.cuda.synchronize(runner.device)
-    allocated, reserved = torch.cuda.memory_allocated(runner.device), torch.cuda.memory_reserved(runner.device)
-    stats = torch.cuda.memory_stats(runner.device)
-    snapshot = torch.cuda.memory_snapshot()
+    allocator = allocator_counters(torch, runner.device)
+    allocated, reserved = allocator["allocated_bytes"], allocator["reserved_bytes"]
     gpu_free, gpu_total = torch.cuda.mem_get_info(runner.device)
     receipt = {"schema": "megartx-native-zero-forward-receipt-v1", "purpose": ticket["purpose"],
         "lease_nonce": ticket["nonce"], "worker_pid": os.getpid(), "worker_start": _process_start(os.getpid()),
@@ -297,20 +494,19 @@ def collect_receipt(runner, ticket, admission):
         "diagnostic_target_forwards": 0, "existing_startup_target_forwards": proof.startup_forwards,
         "existing_forced_expert_fixture_pairs": len(fixtures),
         "existing_forced_correction_rows": sum(f["forced_correction_rows"] for f in fixtures),
-        "startup_dispatch_ledger": [x._megartx["dispatch_calls"] for x in closure["integration_layers"]],
+        "startup_dispatch_ledger": [x._megartx["dispatch_calls"] for x in integration_layers],
         "original_native_head_dtype": str(head_dtype), "layers": layers,
         "workspaces": existing_workspaces(runner, torch), "ffi_allocator": ffi_allocator_identity(torch, site_root),
-        "allocation_lower_bound": allocation, "allocator": {"backend": torch.cuda.get_allocator_backend(),
-            "allocated_bytes": allocated, "reserved_bytes": reserved, "cached_slack_bytes": reserved - allocated,
-            "allocated_peak_bytes": stats.get("allocated_bytes.all.peak"),
-            "reserved_peak_bytes": stats.get("reserved_bytes.all.peak"), "snapshot_segments": len(snapshot),
-            "snapshot_sha256": receipt_digest(snapshot)},
+        "allocation_lower_bound": allocation, "allocator": allocator,
+        "allocator_counter_source_sha256": TORCH_MEMORY_SOURCE_SHA256,
+        "metadata_acquisition_limits": dict(RECEIPT_LIMITS),
         "gpu_free_bytes": gpu_free, "gpu_total_bytes": gpu_total, "host_free_bytes": _host_free(),
         "external_gpu_workspace_bound_bytes": None,
         "baseline_policy": "model_cache_existing_startup_workspaces_separate_from_incremental_verifier",
         "drained": True}
     receipt["decision"] = fit_decision(allocation, allocated=allocated, reserved=reserved,
         gpu_free=gpu_free, host_free=receipt["host_free_bytes"])
+    receipt_preflight(receipt)  # reject before returning a full worker RPC payload
     return receipt
 
 

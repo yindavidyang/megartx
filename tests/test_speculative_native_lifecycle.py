@@ -4,6 +4,9 @@ import queue
 import ctypes
 import ast
 import hashlib
+import io
+import json
+from contextlib import nullcontext
 import tempfile
 import types
 from pathlib import Path
@@ -114,6 +117,18 @@ class LeaseControls(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "collection failed"):
             self.take_receipt()
         self.assertEqual(len(self.core.frees), 1)
+    def test_oversized_receipt_error_keeps_confirmed_drain_cleanup(self):
+        original = self.core.rpc
+        def fault(method, **kwargs):
+            result = original(method, **kwargs)
+            if method == "megartx_native_receipt":
+                result[0]["oversized_metadata"] = "x" * (receipt.RECEIPT_LIMITS["string_chars"] + 1)
+            return result
+        self.core.model_executor.collective_rpc = fault
+        with self.assertRaisesRegex(ProbeError, "oversized receipt scalar"):
+            lifecycle.owned_receipt(self.core, {"deadline_monotonic": 1e20})
+        self.assertEqual(len(self.core.frees), 1)
+        self.assertTrue(self.core.paused)
     def test_wrong_process_and_unfinished_pause_before_reservation(self):
         self.core._megartx_native_state["identity"] = (os.getpid(), "old_start")
         with self.assertRaisesRegex(ProbeError, "Wrong process"):
@@ -342,7 +357,7 @@ class EngineCoreProc(EngineCore):
         address = ctypes.addressof(prefix)
         maps = f"{address:x}-{address + ctypes.sizeof(prefix):x} rw-p 00000000 00:00 0"
         with patch.object(receipt, "digest", side_effect=lambda path: receipt.FFI_SOURCES[str(path).split("/site/")[-1]]), \
-                patch.object(receipt.Path, "read_text", return_value=maps):
+                patch.object(receipt.Path, "open", return_value=io.BytesIO(maps.encode())):
             from pathlib import Path
             result = receipt.ffi_allocator_identity(NS(Tensor=tensor_type), Path("/site"))
         self.assertEqual(result["managed_allocator_callback"], 1)
@@ -399,6 +414,220 @@ class EngineCoreProc(EngineCore):
         private = {k: 1 for k in keys}
         private.update(prompt=[7], layers=[{"storage_ptr": 123}], snapshot=[1], ffi_allocator={"pointer": 2})
         self.assertEqual(set(receipt.sanitized_receipt(private)), set(keys))
+
+
+class BoundedReceiptControls(unittest.TestCase):
+    """CPU primitives and fault fixtures; never native owners or GPU evidence."""
+    def test_canonical_digest_matches_prior_encoding_with_unicode_and_tuples(self):
+        value = {"z": (None, True, False, -0.0, 1.25, 2 ** 128),
+            "a": {"unicode": "\u00e9\U0001f642\ud800", "escaped": "\n\t\"\\", "empty": []}}
+        encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+        self.assertEqual(receipt.receipt_preflight(value), len(encoded))
+        self.assertEqual(receipt.receipt_digest(value), hashlib.sha256(encoded).hexdigest())
+        self.assertEqual(receipt.receipt_digest(dict(reversed(list(value.items())))), receipt.receipt_digest(value))
+
+    def test_protocol_declares_actual_limits_and_unknown_counter_acquisition_bound(self):
+        protocol = json.loads((Path(__file__).resolve().parents[1] / "docs/design/speculative-native-zero-forward-protocol.json").read_text())
+        self.assertEqual(protocol["metadata_acquisition_limits"], receipt.RECEIPT_LIMITS)
+        self.assertEqual(protocol["bounds"]["receipt_host_metadata_bytes"], receipt.RECEIPT_LIMITS["serialized_bytes"])
+        self.assertIsNone(protocol["allocator_counter_scope"]["native_query_preallocation_bound_bytes"])
+        self.assertEqual(protocol["allocator_counter_scope"]["installed_torch_cuda_memory_source_sha256"], receipt.TORCH_MEMORY_SOURCE_SHA256)
+        self.assertFalse(protocol["gpu_authorized"])
+
+    def test_malformed_deep_and_oversized_scalars_fail_before_hash_encoding(self):
+        cycle = []
+        cycle.append(cycle)
+        deep = 1
+        for _ in range(receipt.RECEIPT_LIMITS["depth"] + 1):
+            deep = [deep]
+        invalid = [cycle, deep, {1: "nonstring_key"}, object(), float("nan"), float("inf"),
+            1 << receipt.RECEIPT_LIMITS["integer_bits"], "x" * (receipt.RECEIPT_LIMITS["string_chars"] + 1),
+            [None] * (receipt.RECEIPT_LIMITS["container_items"] + 1)]
+        with patch.object(json.JSONEncoder, "iterencode", side_effect=AssertionError("hashing began before rejection")):
+            for value in invalid:
+                with self.subTest(kind=type(value).__name__), self.assertRaises(ProbeError):
+                    receipt.receipt_digest(value)
+
+    def test_real_8MiB_serialized_limit_checked_before_hashing(self):
+        # A reused small scalar expands via JSON escaping beyond the real cap;
+        # this is no giant input string or global allocator snapshot.
+        value = ["\0" * 4096] * 342
+        with patch.object(json.JSONEncoder, "iterencode", side_effect=AssertionError("oversized data encoded")):
+            with self.assertRaisesRegex(ProbeError, "8 MiB serialized"):
+                receipt.receipt_digest(value)
+
+    def test_value_budget_and_exact_serialized_boundary(self):
+        with patch.dict(receipt.RECEIPT_LIMITS, {"values": 8}):
+            with self.assertRaisesRegex(ProbeError, "value/depth"):
+                receipt.receipt_digest([[0, 0, 0], [0, 0, 0]])
+        with patch.dict(receipt.RECEIPT_LIMITS, {"serialized_bytes": 5}):
+            self.assertEqual(receipt.receipt_digest([1, 2]), hashlib.sha256(b"[1,2]").hexdigest())
+            with self.assertRaisesRegex(ProbeError, "serialized"):
+                receipt.receipt_digest([1, 22])
+
+    def test_workspace_field_limit_precedes_tensor_inspection(self):
+        class Tensor:
+            def untyped_storage(self):
+                raise AssertionError("storage inspected before owner limit")
+        builder = NS(**{str(i): Tensor() for i in range(receipt.RECEIPT_LIMITS["owner_fields"] + 1)})
+        runner = NS(attn_groups=[[NS(get_metadata_builder=lambda: builder)]])
+        with self.assertRaisesRegex(ProbeError, "field acquisition limit"):
+            receipt.existing_workspaces(runner, NS(Tensor=Tensor))
+
+    def test_workspace_record_and_tensor_dimension_limits_precede_storage_read(self):
+        class Tensor:
+            shape = (1,) * (receipt.RECEIPT_LIMITS["tensor_dimensions"] + 1)
+            def stride(self):
+                raise AssertionError("strides inspected before shape limit")
+            def untyped_storage(self):
+                raise AssertionError("storage inspected before shape limit")
+        with self.assertRaisesRegex(ProbeError, "Tensor shape acquisition"):
+            receipt._tensor_record(Tensor(), "CPU_fixture")
+        builder = NS(a=Tensor())
+        runner = NS(attn_groups=[[NS(get_metadata_builder=lambda: builder)]])
+        with patch.dict(receipt.RECEIPT_LIMITS, {"workspace_records": 0}):
+            with self.assertRaisesRegex(ProbeError, "Workspace record acquisition"):
+                receipt.existing_workspaces(runner, NS(Tensor=Tensor))
+
+    def test_owner_topology_limit_precedes_tensor_and_builder_access(self):
+        group = NS(layer_names=["CPU_fixture"] * 31)
+        config = NS(kv_cache_groups=[group], kv_cache_tensors=[])
+        with self.assertRaisesRegex(ProbeError, "Cache layers acquisition"):
+            receipt._owner_limits(NS(kv_cache_config=config), {"groups": [[1] * 130], "block_sizes": [16]})
+
+    def test_process_maps_read_is_bounded_before_decoding(self):
+        stream = io.BytesIO(b"x" * (receipt.RECEIPT_LIMITS["process_maps_bytes"] + 1))
+        with patch.object(receipt.Path, "open", return_value=stream):
+            with self.assertRaisesRegex(ProbeError, "mapping acquisition limit"):
+                receipt._process_maps()
+
+    def counters(self, pools=None):
+        stats = {"allocated_bytes": {"all": {"current": 100, "peak": 150}},
+            "reserved_bytes": {"all": {"current": 180, "peak": 220}}}
+        if pools is not None:
+            stats["reserved_bytes_by_private_pools"] = pools
+        calls = []
+        def query(device):
+            calls.append(device)
+            return stats
+        def forbidden(*args, **kwargs):
+            self.fail("snapshot, flattening or repeated scalar getter invoked")
+        torch = NS(cuda=NS(get_allocator_backend=lambda: "native", memory_stats_as_nested_dict=query,
+            memory_snapshot=forbidden, memory_stats=forbidden, memory_allocated=forbidden, memory_reserved=forbidden))
+        return torch, stats, calls
+
+    def test_one_nested_counter_query_without_snapshot_or_false_coverage(self):
+        torch, _, calls = self.counters({(0, 1): {"not_traversed": object()}})
+        with patch.object(receipt, "_host_free", side_effect=[HOST_FREE + 1024, HOST_FREE]):
+            result = receipt.allocator_counters(torch, "CPU_counter_fixture")
+        self.assertEqual(calls, ["CPU_counter_fixture"])
+        self.assertEqual((result["allocated_bytes"], result["reserved_bytes"], result["cached_slack_bytes"]), (100, 180, 80))
+        self.assertEqual((result["allocated_peak_bytes"], result["reserved_peak_bytes"]), (150, 220))
+        self.assertIsNone(result["snapshot_segments"])
+        self.assertIsNone(result["snapshot_sha256"])
+        self.assertEqual(result["snapshot_status"], "not_collected_unbounded_global_snapshot")
+        self.assertEqual(result["acquisition"]["private_pool_records_observed"], 1)
+        self.assertIsNone(result["acquisition"]["native_query_preallocation_bound_bytes"])
+
+    def test_host_reserve_precedes_counter_acquisition_and_is_checked_after(self):
+        torch, _, calls = self.counters()
+        with patch.object(receipt, "_host_free", return_value=HOST_FREE - 1):
+            with self.assertRaisesRegex(ProbeError, "before allocator"):
+                receipt.allocator_counters(torch, "CPU_counter_fixture")
+        self.assertEqual(calls, [])
+        with patch.object(receipt, "_host_free", side_effect=[HOST_FREE, HOST_FREE - 1]):
+            with self.assertRaisesRegex(ProbeError, "after allocator"):
+                receipt.allocator_counters(torch, "CPU_counter_fixture")
+        self.assertEqual(len(calls), 1)
+
+    def test_private_pool_guard_is_honestly_post_query_not_preallocation_bound(self):
+        torch, _, calls = self.counters({(0, i): {} for i in range(65)})
+        with patch.object(receipt, "_host_free", return_value=HOST_FREE):
+            with self.assertRaisesRegex(ProbeError, "after native counter acquisition"):
+                receipt.allocator_counters(torch, "CPU_counter_fixture")
+        self.assertEqual(len(calls), 1)
+
+    def test_missing_counter_and_private_pool_coverage_are_not_zero(self):
+        torch, stats, _ = self.counters()
+        with patch.object(receipt, "_host_free", return_value=HOST_FREE):
+            result = receipt.allocator_counters(torch, "CPU_counter_fixture")
+            self.assertIsNone(result["acquisition"]["private_pool_records_observed"])
+            del stats["allocated_bytes"]["all"]["current"]
+            with self.assertRaisesRegex(ProbeError, "Invalid integer"):
+                receipt.allocator_counters(torch, "CPU_counter_fixture")
+
+    def test_collector_fixture_preserves_false_fit_and_never_requests_snapshot(self):
+        # Every native/source/version guard is explicitly mocked. This checks
+        # orchestration only, not actual EngineCore/model/CUDA admission.
+        torch, _, calls = self.counters({})
+        class Tensor:
+            shape, device, dtype = (256, 2, 16, 1), "cuda:0", "torch.bfloat16"
+            def __init__(self, pointer):
+                self.pointer = pointer
+            def stride(self):
+                return (32, 16, 1, 1)
+            def untyped_storage(self):
+                return NS(data_ptr=lambda: self.pointer, nbytes=lambda: 16384)
+            def storage_offset(self):
+                return 0
+            def element_size(self):
+                return 2
+        torch.Tensor, torch.bfloat16, torch.float32 = Tensor, "torch.bfloat16", "torch.float32"
+        torch.is_inference_mode_enabled = lambda: True
+        torch.cuda.synchronize = lambda _: None
+        torch.cuda.mem_get_info = lambda _: (GPU_FREE, GPU_FREE * 2)
+        names = [f"CPU_fixture_layer_{i}" for i in range(30)]
+        placements = [NS(layers=[name], size=16384, offset=0, layer_stride=16384,
+            block_stride=64, host_resident=False) for name in names]
+        context = {name: NS(kv_cache=Tensor(1000 + i), impl=NS()) for i, name in enumerate(names)}
+        spec = NS(block_size=16, page_size_bytes=64)
+        integration_report = {"forced_fixtures": [{"forced_correction_rows": 16} for _ in range(6)]}
+        integration_layers = [NS(_megartx={"dispatch_calls": 1}) for _ in range(30)]
+        class Model:
+            def forward(self):
+                raise AssertionError((integration_report, integration_layers, "model forward invoked"))
+        model = Model()
+        model.language_model = NS(logits_processor=NS(head_dtype=None, soft_cap=30.0),
+            lm_head=NS(weight=NS(dtype=torch.bfloat16)))
+        runner = NS(input_batch=NS(num_reqs=0), model_config=NS(enforce_eager=True, model="/CPU_fixture"),
+            parallel_config=NS(world_size=1), cache_config=NS(cache_dtype="bfloat16"),
+            kv_cache_config=NS(kv_cache_groups=[NS(layer_names=names, kv_cache_spec=spec)], kv_cache_tensors=placements),
+            attn_groups=[[NS(get_metadata_builder=lambda: NS(page_size=16))]], _kernel_block_sizes=[16],
+            compilation_config=NS(static_forward_context=context), get_model=lambda: model,
+            device="CPU_counter_fixture", vllm_config=NS())
+        ticket = {"groups": [list(range(1, 131))], "block_sizes": [16], "purpose": lifecycle.PURPOSE, "nonce": "CPU_fixture"}
+        packages = {"vllm": "0.30.0", "flashinfer-python": "0.6.18.post1", "torch": "2.13.0+cu130"}
+        def source(path):
+            return receipt.TORCH_MEMORY_SOURCE_SHA256 if str(path).endswith("torch/cuda/memory.py") else receipt.CONFIG_HASH
+        def startup(proof):
+            proof.startup_forwards = 1
+        fake_context = NS(set_forward_context=lambda *a, **k: nullcontext())
+        with patch.object(receipt.sys, "version_info", (3, 12, 3)), patch.object(receipt, "_class_source"), \
+                patch.object(receipt.inspect, "getsourcefile", return_value="/site/vllm/v1/worker/gpu_model_runner.py"), \
+                patch.object(receipt, "inspect_sources", return_value={"CPU_fixture_only": "CPU_fixture"}), \
+                patch.object(receipt, "digest", side_effect=source), \
+                patch("importlib.metadata.version", side_effect=packages.__getitem__), \
+                patch.object(receipt, "_host_free", return_value=HOST_FREE), \
+                patch.object(receipt, "_process_start", return_value="CPU_fixture"), \
+                patch.object(receipt, "ffi_allocator_identity", return_value={"argument_exchange_coverage_verified": False}), \
+                patch("megartx.speculative_native_probe.OwnedNativeProbe._scale_binding", startup), \
+                patch.dict(sys.modules, {"torch": torch, "vllm": types.ModuleType("vllm"), "vllm.forward_context": fake_context}), \
+                patch.dict(os.environ, {"MEGARTX_SCALE_MODE": "native", "VLLM_PLUGINS": "megartx_scale_adapter"}, clear=True):
+            result = receipt.collect_receipt(runner, ticket, {"adapter_source_sha256": {"CPU_fixture_only": "CPU_fixture"}})
+        self.assertEqual(calls, ["CPU_counter_fixture"])
+        self.assertEqual(len(result["layers"]), 30)
+        self.assertEqual(sum(len(layer["owned_pages"]) for layer in result["layers"]), 3900)
+        self.assertEqual(result["diagnostic_target_forwards"], 0)
+        self.assertFalse(result["decision"]["admitted"])
+        self.assertIsNone(result["external_gpu_workspace_bound_bytes"])
+        self.assertIsNone(result["allocator"]["snapshot_segments"])
+        self.assertIsNone(result["allocator"]["acquisition"]["native_query_preallocation_bound_bytes"])
+        self.assertIn("FFI_argument_exchange_allocator_coverage_unverified", result["decision"]["blockers"])
+        self.assertIn("external_CUDA_allocation_bound_unresolved", result["decision"]["blockers"])
+        self.assertIn("M1_M2_M256_original_lane_temporary_bound_unresolved", result["decision"]["blockers"])
+        self.assertLess(receipt.receipt_preflight(result), 8 << 20)
+        encoded = json.dumps(result, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+        self.assertEqual(receipt.receipt_digest(result), hashlib.sha256(encoded).hexdigest())
 
 
 if __name__ == "__main__":
