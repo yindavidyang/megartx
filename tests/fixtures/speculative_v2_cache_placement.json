@@ -1,0 +1,12 @@
+{
+  "class": "KVCacheTensor",
+  "extracted_source_sha256": "05133c4ec391c1ea135230cdf739d2580721c6e92cf7c8e86e0483d730caccf1",
+  "first_line": 1360,
+  "last_line": 1382,
+  "path": "vllm/v1/kv_cache_interface.py",
+  "qualification": "CPU class extraction only; no installed runtime import or GPU execution",
+  "schema": "megartx-native-v2-public-class-extraction-v1",
+  "source": "@dataclass\nclass KVCacheTensor:\n    \"\"\"\n    A class for specifying how the workers should initialize the KV cache.\n\n    Placement of a set of same-shaped layers in the KV cache allocation.\n    Layer ``layers[l]``'s page for block ``b`` starts at\n    ``offset + l * layer_stride + b * block_stride`` bytes into the backing\n    allocation of ``size`` bytes. Layer-outermost layouts give each layer a\n    contiguous region (``layer_stride = page * num_blocks``,\n    ``block_stride = page``); block-outermost layouts make each block a\n    block of all layers' pages (``layer_stride = page``, ``block_stride`` =\n    the packed block). Tensors whose address ranges overlap\n    alias the same bytes: cache groups overlay each other, which is sound\n    because a block ID is owned by one group at a time.\n    \"\"\"\n\n    size: int  # total size of the backing allocation in bytes\n    layers: list[str]  # layer names in L order\n    layer_stride: int\n    block_stride: int\n    offset: int = 0  # byte offset of layers[0]'s block 0\n    host_resident: bool = False\n",
+  "source_sha256": "1cf202f1a44d5bc5c3832b70b41507687ecceea3784e67a4f003bc0210d6eecb",
+  "source_url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/kv_cache_interface.py"
+}
