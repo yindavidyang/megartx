@@ -23,6 +23,8 @@ UTILITIES = ("megartx_owned_native_v2_receipt", "megartx_owned_native_v2_probe",
 
 def check_receipt_admission(admission):
     project = Path(__file__).resolve().parents[2]
+    from .speculative_native_v2_plan import check_client_admission
+    check_client_admission(admission, project)
     plan = freeze(project)
     required = {"phase": "zero_forward_v2_receipt", "independent_review_clear": True,
         "parent_source_protocol_accepted": True, "owned_lifecycle_verified": True,

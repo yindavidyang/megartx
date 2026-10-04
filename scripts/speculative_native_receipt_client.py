@@ -88,12 +88,16 @@ def child_entry(args):
     plan = validate_plan(read_json(args.plan, LIMITS["plan_bytes"]), PROJECT)
     packet = read_json(args.private_directory / "native-client-admission.private.json", LIMITS["plan_bytes"])
     validate_authorization(packet.get("authorization"), plan)  # child cannot bypass source blockers
-    if packet.get("purpose") != PURPOSE or packet.get("plan_sha256") != plan["plan_sha256"]:
+    if packet.get("purpose") != plan["purpose"] or packet.get("plan_sha256") != plan["plan_sha256"]:
         raise ProbeError("Child admission source/purpose differs")
-    installed_preflight(SITE)  # repeated stable source read before runtime imports
-    expected_env = environment(PROJECT, args.private_directory)
+    installed_preflight(SITE, runner_lane=plan.get("runner_lane", "v1-legacy"))  # repeated stable source read before runtime imports
+    expected_env = environment(PROJECT, args.private_directory, runner_lane=plan.get("runner_lane", "v1-legacy"))
     if any(os.environ.get(k) != v for k, v in expected_env.items()):
         raise ProbeError("Owned child environment differs")
+    if plan.get("runner_lane") == "v2":
+        from megartx.speculative_native_v2_plan import FORBIDDEN_ENV
+        if any(key in os.environ for key in FORBIDDEN_ENV):
+            raise ProbeError("Conflicting V1/override environment in V2 owned child")
     with socket.socket(fileno=args.control_fd) as control:
         control.settimeout(10)
         stream = control.makefile("rwb", buffering=0)
@@ -117,14 +121,14 @@ def child_entry(args):
         async def run_async():
             nonlocal session
             client = make_actual_client(plan)  # inside live loop for AsyncMPClient
-            session = ReceiptSession(client, deadline=deadline, resources=gate)
+            session = ReceiptSession(client, deadline=deadline, resources=gate, runner_lane=plan.get("runner_lane", "v1-legacy"))
             return await session.run_async(admission)
         try:
             if plan["client_mode"] == "async":
                 result = asyncio.run(run_async())
             else:
                 client = make_actual_client(plan)
-                session = ReceiptSession(client, deadline=deadline, resources=gate)
+                session = ReceiptSession(client, deadline=deadline, resources=gate, runner_lane=plan.get("runner_lane", "v1-legacy"))
                 result = session.run_sync(admission)
             with PrivateEvidence(args.private_directory) as evidence:
                 evidence.write("native-receipt.scalars.json", result, cap=64 << 10)
@@ -145,7 +149,7 @@ def supervise(args):
     validate_authorization(auth, plan)  # BEFORE queries, runtime imports or acquisition
     if sys.version_info[:3] != (3, 12, 3) or Path(sys.executable).resolve() != Path(plan["python"]).resolve():
         raise ProbeError("Pinned Python/environment required")
-    installed = installed_preflight(SITE)
+    installed = installed_preflight(SITE, runner_lane=plan.get("runner_lane", "v1-legacy"))
     checkpoint = checkpoint_preflight(args.checkpoint_manifest)
     if gpu_processes():
         raise ProbeError("Existing GPU work blocks sole-owner startup")
@@ -161,7 +165,7 @@ def supervise(args):
     admission.update(private_receipt_directory=str(args.private_directory.resolve()),
         client_evidence_source_sha256=plan["source_sha256"]["src/megartx/speculative_native_evidence.py"])
     with PrivateEvidence(args.private_directory) as evidence:
-        evidence.write("native-client-admission.private.json", {"purpose": PURPOSE, "plan_sha256": plan["plan_sha256"],
+        evidence.write("native-client-admission.private.json", {"purpose": plan["purpose"], "plan_sha256": plan["plan_sha256"],
             "authorization": auth, "deadline_monotonic": deadline, "admission": admission}, cap=LIMITS["plan_bytes"])
         evidence.write("native-source-preflight.private.json", {"installed": installed, "checkpoint": checkpoint,
             "headroom": reserves}, cap=LIMITS["plan_bytes"])
@@ -238,7 +242,7 @@ def supervise(args):
         argv = [plan["python"], str(Path(__file__).resolve()), "--owned-child", "--plan", str(args.plan.resolve()),
                 "--private-directory", str(args.private_directory.resolve()), "--control-fd", str(child_socket.fileno())]
         env = {k: os.environ[k] for k in ("HOME", "USER", "LOGNAME", "LANG", "LC_ALL") if k in os.environ}
-        env.update(environment(PROJECT, args.private_directory))
+        env.update(environment(PROJECT, args.private_directory, runner_lane=plan.get("runner_lane", "v1-legacy")))
         env["PATH"] = "/usr/local/cuda/bin:" + str(BASE / ".venv/bin") + ":/usr/bin:/bin"
         child = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, pass_fds=(child_socket.fileno(),), start_new_session=True)

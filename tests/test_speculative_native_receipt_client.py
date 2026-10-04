@@ -425,7 +425,7 @@ class SourceAndOperationalControls(unittest.TestCase):
 
     def test_actual_pinned_API_path_is_present_not_only_provider(self):
         source = (ROOT / "src/megartx/speculative_native_client.py").read_text()
-        for call in ("EngineArgs(**plan", "EngineCoreClient.make_client(multiprocess_mode=True", "Executor.get_class(config)", "call_utility_async", "call_utility(RECEIPT"):
+        for call in ("EngineArgs(**plan", "EngineCoreClient.make_client(multiprocess_mode=True", "Executor.get_class(config)", "call_utility_async", "call_utility(self.receipt_utility"):
             self.assertIn(call, source)
         self.assertEqual(len(CLIENT_SOURCES), 3)
 

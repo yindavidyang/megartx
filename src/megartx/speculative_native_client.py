@@ -4,6 +4,7 @@ The frontend transport can be async while EngineCore scheduling stays sync.
 Fixtures test ordering only; the runtime path always creates EngineCoreClient.
 """
 import asyncio
+import copy
 from concurrent.futures import Future
 from enum import Enum
 import inspect
@@ -30,13 +31,18 @@ class State(Enum):
     CLOSED = "closed"
 
 
-def validate_summary(value):
+def validate_summary(value, *, runner_lane="v1-legacy"):
     from .speculative_native_compare import validate_scalar_receipt
-    return validate_scalar_receipt(value)
+    return validate_scalar_receipt(value, runner_lane=runner_lane)
 
 
 class ReceiptSession:
-    def __init__(self, client, *, deadline, resources):
+    def __init__(self, client, *, deadline, resources, runner_lane="v1-legacy"):
+        from .speculative_native_plan import plan_api
+        self.profile = plan_api(runner_lane=runner_lane)
+        self.runner_lane = runner_lane
+        self.receipt_utility = RECEIPT if runner_lane == "v1-legacy" else "megartx_owned_native_v2_receipt"
+        self.release_utility = RELEASE if runner_lane == "v1-legacy" else "megartx_owned_native_v2_release"
         if not callable(resources):
             raise ProbeError("Owned resource gate is required")
         if type(deadline) not in (int, float) or not math.isfinite(deadline):
@@ -57,12 +63,16 @@ class ReceiptSession:
     def _begin(self, admission):
         if self.state is not State.FRESH:
             raise ProbeError("Receipt session is single-use; uncertain state cannot be retried")
-        if (type(admission) is not dict or admission.get("phase") != "zero_forward_receipt"
-                or admission.get("client_purpose") != PURPOSE
+        if (type(admission) is not dict or admission.get("phase") != ("zero_forward_receipt" if self.runner_lane == "v1-legacy" else "zero_forward_v2_receipt")
+                or admission.get("client_purpose") != self.profile.PURPOSE
                 or not SHA.fullmatch(str(admission.get("client_plan_sha256", "")))
                 or not COMMIT.fullmatch(str(admission.get("source_head", "")))
                 or admission.get("deadline_monotonic") != self.deadline):
             raise ProbeError("Wrong-purpose or malformed source-bound client admission")
+        if self.runner_lane == "v2" and (admission.get("runner_lane") != "v2"
+                or admission.get("target_probe_authorized") is not False
+                or admission.get("drafter_authorized") is not False):
+            raise ProbeError("V2 receipt cannot grant probe or drafter authority")
         self.gate()
         self.mark(State.PAUSING)
 
@@ -73,7 +83,7 @@ class ReceiptSession:
         self.gate()
 
     def _complete_receipt(self, result):
-        validate_summary(result)
+        validate_summary(result, runner_lane=self.runner_lane)
         self.mark(State.RECEIPT)
         self.gate()
         return result
@@ -105,6 +115,7 @@ class ReceiptSession:
             raise ProbeError("Receipt session is single-use; uncertain state cannot be retried")
         primary = None
         try:
+            admission = copy.deepcopy(admission)
             self._begin(admission)
             pause = self.client.call_utility("pause_scheduler", "keep", False)
             # Actual SyncMPClient waits internally. A Future is accepted only as
@@ -115,10 +126,10 @@ class ReceiptSession:
                 raise ProbeError("Async transport passed to synchronous receipt path")
             self._complete_pause(pause)
             self.mark(State.RECEIPT_ENTERED)
-            result = self._complete_receipt(self.client.call_utility(RECEIPT, admission))
+            result = self._complete_receipt(self.client.call_utility(self.receipt_utility, admission))
             self.release_attempted = True
             self.mark(State.RELEASING)
-            self._complete_release(self.client.call_utility(RELEASE))
+            self._complete_release(self.client.call_utility(self.release_utility))
             return result
         except BaseException as error:
             primary = error
@@ -138,13 +149,14 @@ class ReceiptSession:
             timeout = max(.1, self.deadline - time.monotonic() - LIMITS["cleanup_seconds"])
             return await asyncio.wait_for(self.client.call_utility_async(name, *args), timeout)
         try:
+            admission = copy.deepcopy(admission)
             self._begin(admission)
             self._complete_pause(await utility("pause_scheduler", "keep", False))
             self.mark(State.RECEIPT_ENTERED)
-            result = self._complete_receipt(await utility(RECEIPT, admission))
+            result = self._complete_receipt(await utility(self.receipt_utility, admission))
             self.release_attempted = True
             self.mark(State.RELEASING)
-            self._complete_release(await utility(RELEASE))
+            self._complete_release(await utility(self.release_utility))
             return result
         except BaseException as error:
             primary = error
@@ -156,8 +168,18 @@ class ReceiptSession:
             self._shutdown(primary)
 
 
-def validate_actual_config(config):
+def validate_actual_config(config, *, runner_lane="v1-legacy"):
     """Observe resolved selection; never select/override another runner."""
+    from .speculative_native_plan import plan_api
+    plan_api(runner_lane=runner_lane)
+    if runner_lane == "v2":
+        from .speculative_native_v2 import require_config, RUNNER_MODULE
+        require_config(config)
+        from .speculative_native_v2_lifecycle import WORKER_EXTENSION
+        if config.parallel_config.worker_extension_cls != WORKER_EXTENSION:
+            raise ProbeError("Resolved V2 worker extension differs")
+        return {"use_v2_model_runner": True, "expected_runner_class": RUNNER_MODULE + ".GPUModelRunner",
+                "actual_loaded_runner_identity": None}
     selected = config.use_v2_model_runner
     if selected is not False:
         raise ProbeError("Resolved V2/unknown runner is outside the pinned V1 receipt; no runner override applied")
@@ -177,7 +199,7 @@ def make_actual_client(plan):
     from vllm.v1.executor.abstract import Executor
     from vllm.v1.engine.core_client import EngineCoreClient, SyncMPClient, AsyncMPClient
     config = EngineArgs(**plan["engine_kwargs"]).create_engine_config()
-    validate_actual_config(config)
+    validate_actual_config(config, runner_lane=plan.get("runner_lane", "v1-legacy"))
     client = EngineCoreClient.make_client(multiprocess_mode=True,
         asyncio_mode=plan["client_mode"] == "async", vllm_config=config,
         executor_class=Executor.get_class(config), log_stats=False, renderer=None)

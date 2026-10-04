@@ -169,7 +169,9 @@ def engine_argv():
     return result
 
 
-def environment(project, private):
+def environment(project, private, *, runner_lane="v1-legacy"):
+    if runner_lane != "v1-legacy":
+        return plan_api(runner_lane=runner_lane).environment(project, private)
     project, private = Path(project).resolve(), Path(private).resolve()
     cache = BASE / "cache"
     return {"MEGARTX_NATIVE_DIAGNOSTIC": "1", "MEGARTX_NATIVE_RECEIPT_EVIDENCE": "1",
@@ -196,7 +198,9 @@ def _git(project, *args):
     return subprocess.check_output(["git", "-C", str(project), *args], text=True).strip()
 
 
-def freeze(project, *, client_mode="async"):
+def freeze(project, *, client_mode="async", runner_lane="v1-legacy"):
+    if runner_lane != "v1-legacy":
+        return plan_api(runner_lane=runner_lane).freeze(project, client_mode=client_mode)
     project = Path(project).resolve()
     if client_mode not in ("sync", "async"):
         raise ProbeError("Client mode must be sync or async")
@@ -225,6 +229,8 @@ def freeze(project, *, client_mode="async"):
 
 
 def validate_plan(plan, project):
+    if type(plan) is dict and plan.get("schema") == "megartx-native-v2-receipt-client-plan-v1":
+        return plan_api(plan).validate_plan(plan, project)
     if not isinstance(plan, dict) or plan.get("schema") != SCHEMA or plan.get("purpose") != PURPOSE:
         raise ProbeError("Wrong plan schema or purpose")
     if set(plan) != {"schema", "purpose", "reviewed_lifecycle_commit", "source_head", "source_sha256",
@@ -238,7 +244,9 @@ def validate_plan(plan, project):
     return plan
 
 
-def installed_preflight(root):
+def installed_preflight(root, *, runner_lane="v1-legacy"):
+    if runner_lane != "v1-legacy":
+        return plan_api(runner_lane=runner_lane).installed_preflight(root)
     from .speculative_native_probe import inspect_sources
     from .speculative_native_receipt import FFI_SOURCES, TORCH_MEMORY_SOURCE_SHA256
     result = inspect_sources(root)
@@ -323,6 +331,8 @@ def checkpoint_preflight(manifest_path, model=MODEL):
 
 
 def validate_authorization(auth, plan):
+    if type(plan) is dict and plan.get("schema") == "megartx-native-v2-receipt-client-plan-v1":
+        return plan_api(plan).validate_authorization(auth, plan)
     required = {"schema": "megartx-native-receipt-authorization-v1", "purpose": PURPOSE,
                 "plan_sha256": plan["plan_sha256"], "source_head": plan["source_head"],
                 "independent_review_clear": True, "exact_head_ci_green": True,
@@ -342,6 +352,8 @@ def validate_authorization(auth, plan):
 
 
 def receipt_admission(plan, auth, checkpoint, *, deadline):
+    if type(plan) is dict and plan.get("schema") == "megartx-native-v2-receipt-client-plan-v1":
+        return plan_api(plan).receipt_admission(plan, auth, checkpoint, deadline=deadline)
     validate_authorization(auth, plan)
     if type(deadline) not in (int, float) or not math.isfinite(deadline):
         raise ProbeError("Nonfinite monotonic deadline")
@@ -357,3 +369,24 @@ def receipt_admission(plan, auth, checkpoint, *, deadline):
             "adapter_source_sha256": {p: plan["source_sha256"]["src/megartx/" + p] for p in ADAPTER_FILES},
             "deadline_monotonic": deadline, "parent_slot": auth["parent_slot"],
             "client_purpose": PURPOSE, "client_plan_sha256": plan["plan_sha256"], "source_head": plan["source_head"]}
+
+
+def plan_api(plan=None, *, runner_lane="v1-legacy"):
+    """Explicit schema dispatch; historical V1 receipts never become V2 plans."""
+    import sys
+    if plan is not None:
+        if type(plan) is not dict:
+            raise ProbeError("Exact receipt client plan required")
+        schema = plan.get("schema")
+        if schema == SCHEMA:
+            runner_lane = "v1-legacy"
+        elif schema == "megartx-native-v2-receipt-client-plan-v1":
+            runner_lane = "v2"
+        else:
+            raise ProbeError("Unknown receipt client plan schema")
+    if runner_lane == "v1-legacy":
+        return sys.modules[__name__]
+    if runner_lane == "v2":
+        from . import speculative_native_v2_plan
+        return speculative_native_v2_plan
+    raise ProbeError("Explicit v1-legacy or v2 receipt lane required")
