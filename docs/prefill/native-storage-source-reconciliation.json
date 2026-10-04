@@ -1,7 +1,7 @@
 {
   "changed_source_hashes": {
     "numerical_reference/test_m1_preparation_reference.py": "6ba64a7f0e299602983b8021f3b34d863219c2c54d60555f27e0392bbbe80623",
-    "scripts/run_scale_validation.py": "dd54d3a7994bb8e2aaabb81218fb8dcf7209be8616ddb9d943332792b3da7acf",
+    "scripts/run_scale_validation.py": "27f47525141ba511e5c4282f9717fb5fba44e4131fec3ae832143e1958b83384",
     "src/megartx/prefill_diagnostic_plan.py": "f580e159ff245d8aecb3f8462300c69820d8a9bd9eaebc29db0fe06f736f746e",
     "src/megartx/prefill_native.py": "cfd82d7dd87a94896d95c4d2e07d7ddf770e93d0db0a8e973565261301d1614b",
     "src/megartx/vllm_scale_plugin.py": "2d92e1b89a734a3e57dc4c150a712578a75fa216e7c41d33961d3eec9cbda1f5",
@@ -51,14 +51,14 @@
   },
   "purpose": "first-nine-frame-storage-frontier-control",
   "quality_qualified": false,
-  "runtime_commit": "9e9d562daab32483bce5ccef3f5edafe1a5613d3",
+  "runtime_commit": "d860524e6607eeac14bcb237efb8786529a76a79",
   "runtime_source_hashes": {
-    "docs/prefill/native-storage-control.md": "d43ecaa3d4874ea5f5bbc2ccf0f0ef1d560db114def03c912e1d01da0e0d04a7",
+    "docs/prefill/native-storage-control.md": "29719cfbd4c32a843c0d490a3eb07f55dc9748dac8782716314861566557cee2",
     "numerical_reference/prefill_native_control.py": "c9b9e375ad84cd31b6a2f09b0ae28dc33b2cd6fcf91b201d0da470dc119108e2",
     "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
     "scripts/prefill_diagnostic_client.py": "48d4914566eb708bee97fa9d5893a35b7708daa8fc1d01fb36230c226a2e39ff",
-    "scripts/prefill_storage_client.py": "ff25344c0f40ec1a8bdd5176f91a99861d47e467ac44835eb9178c3a4822f734",
-    "scripts/run_scale_validation.py": "dd54d3a7994bb8e2aaabb81218fb8dcf7209be8616ddb9d943332792b3da7acf",
+    "scripts/prefill_storage_client.py": "a12c867070c080721943fe274fca528f009bf65ee73f8898fc2170da903bc861",
+    "scripts/run_scale_validation.py": "27f47525141ba511e5c4282f9717fb5fba44e4131fec3ae832143e1958b83384",
     "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
     "src/megartx/loaded_engine_access.py": "80a3c8f0bc4383f275fdd61037de12bb4c9efa75e1050305dd66aa0cd5ace146",
     "src/megartx/m1_execution.py": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
@@ -72,13 +72,28 @@
     "src/megartx/prefill_plan.py": "90a90e5af9fada13da2fa696840373af8210157475505d0586d5926707a2d68c",
     "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
     "src/megartx/prefill_runner_binding.py": "0681c6a8697a0a161125f17fb82ecbab50bedc074b9bca646fbe0c5ced387370",
-    "src/megartx/prefill_storage.py": "52dbd6b0b8c479ee0193109bec3c0b932b5724bb6c36e4fa83228401c45ada4e",
-    "src/megartx/prefill_storage_native.py": "d24beefc5cd83f11c4c096e1287c7a63632134f0cf191fa79596f9d865fb78de",
-    "src/megartx/prefill_storage_plan.py": "a932ae86ffc260a08d5e87d0d476e435e968aec7b0f0504f2d97316e774f6778",
+    "src/megartx/prefill_storage.py": "9b8d5610565d870bde4fd682ca6e00bc391327f1f2b98c5e34dfb283c0f9eeef",
+    "src/megartx/prefill_storage_native.py": "0957372f1d0238f85f6c147a5d067ca831f677f0011191376a066580e25f058b",
+    "src/megartx/prefill_storage_plan.py": "d2709def9e441e98a855e550d5a70c764dea4ad4bd578ac80b4ae8a893776641",
+    "src/megartx/prefill_storage_process.py": "ec86507acb81b255dd231b5b7303b928a6a13a5ca8b394a8fc85de7682235164",
     "src/megartx/vllm_scale_plugin.py": "2d92e1b89a734a3e57dc4c150a712578a75fa216e7c41d33961d3eec9cbda1f5"
   },
   "schema": "megartx-prefill-storage-source-reconciliation-v1",
   "scope": "one context P2048 chunk256 BF16 capacity2304 output256; exact storage all30 through2049; metadata/token continuation; no numerical reference pair",
+  "superseded_storage_review": {
+    "repaired_findings": [
+      "selected_writer_dispatch_drift",
+      "complete_sample_evidence",
+      "exact_transfer_quotas",
+      "primary_client_mismatch",
+      "bounded_failure_provenance",
+      "preoverflow_client_console"
+    ],
+    "report_sha256": "052880718a0cf6a617a22a8e160977bacc4c2da18214842b657c13625b48d1c0",
+    "source_head": "f8ab28ca59ccebaed667a03b6d28f0c7ddaad2d5",
+    "source_tree": "cc6b6da1ec443b23cba4a9fb11fcbd0ffbeb440a",
+    "status": "request_changes"
+  },
   "unchanged_historical_catalogs": {
     "docs/prefill/README.md": "0e897c89cfb6e7aa8bb51d81e38571657738c0be6451604a7698f45210ff7647",
     "docs/prefill/cpu-validation.json": "038f6e154ae632157f3b741747fed76864157b14c919e1cbf469056f22bb640b",
