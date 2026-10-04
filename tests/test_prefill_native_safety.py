@@ -235,16 +235,16 @@ class HookReview(unittest.TestCase):
 
 class ShapeAndSourceReview(unittest.TestCase):
     def test_actual_head_rejects_shape_and_dtype(self):
-        for shape,dtype in (((1,262143),'fp32'),((1,262144),'bf16')):
+        from test_prefill_native_head import head_fixture, Tensor
+        import numpy as np
+        for shape,dtype in (((1,262143),'bf16'),((1,262144),'fp32')):
             with self.subTest(shape=shape,dtype=dtype):
-                provider=NativeProvider.__new__(NativeProvider)
-                model=object()
-                provider.started,provider.completed,provider.failed=True,False,False
-                provider.access=NS(model=model)
-                provider.frame,provider.hidden,provider.logit_seen=None,object(),False
-                provider.torch=NS(float32='fp32')
-                with self.assertRaisesRegex(RuntimeError,'head shape'):
-                    provider.head(model,NS(shape=(1,2816)),NS(shape=shape,dtype=dtype))
+                provider,model,_,_,records=head_fixture()
+                with self.assertRaisesRegex(RuntimeError,'head shape/dtype/device'):
+                    provider.head(model,provider.hidden[provider.logits_indices],Tensor(np.zeros(shape),dtype))
+                self.assertEqual(records[0][1]['logits']['shape'],list(shape))
+                self.assertEqual(records[0][1]['logits']['dtype'],dtype)
+                self.assertEqual(len(records),1)
     def test_actual_access_rejects_changed_loaded_source(self):
         from megartx.controlled_kv_capture import SOURCE_HASHES
         Runner=type('GPUModelRunner',(),{'__module__':'vllm.v1.worker.gpu.model_runner'})

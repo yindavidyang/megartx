@@ -359,7 +359,7 @@ class V2Objects(unittest.TestCase):
             provider.torch = NS(Tensor=Tensor, int32='int32', int64='int64')
             provider.access = NS(_runner=NS(device='cpu-substituted-boundary'))
             log = []
-            provider.ledger = NS(sampled=lambda *args: log.append(args), outputs=[17], end=end, complete_request=False)
+            provider.ledger = NS(sampled=lambda *args: log.append(args), outputs=[17], frames=1, end=end, complete_request=False)
             provider.evidence = NS(write=lambda *a, **kw: None)
             Output = type('SamplerOutput', (), {'__module__': 'vllm.v1.worker.gpu.sample.output'})
             def tensor(value, shape, dtype):

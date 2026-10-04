@@ -213,3 +213,61 @@ failure rules before either comparison is accepted. No default bit equality or
 numerical tolerance is assumed. The observational diagnostic cannot supply its
 own independent correctness proof. 8K,32K, profiling, optimization and timing are
 deferred behind these gates.
+
+## Additive native head observation correction
+
+The `418e1ec` attempt reached a live V2 observer, verified full-context geometry
+and disjoint owned pages across all30 writers, and completed the first256 prompt
+rows. It then failed the head guard, which combined hidden shape, logits shape,
+None and FP32 dtype checks into one error. Actual head hidden/logit shape, native
+head dtype and loaded suppression mask were not recorded. Those fields remain
+unknown. Six startup fixtures completed, resources stayed within bounds, cleanup
+completed and the sole GPU slot was released; no head, request-completion or fit
+receipt was produced. The consumed clearance cannot authorize a retry.
+
+Pinned V2 source selects one ordinary logit row per request on every step. It
+selects local row255 for each prompt chunk and local row0 for decode. Sampling
+still occurs on seven intermediate chunks; actual sampled counts then discard
+those samples. These interim heads are not the final-prompt logit receipt. The
+unique final-prompt head is absolute position2047, predicts output position2048,
+and supplies the first emitted uncached anchor. The same unchanged sample/input
+chain then covers255 decode inputs through committed length2303.
+
+The original FP32-only observation assumption was not supported by the pinned
+head path. Its model-config property resolves the generation default to the model
+dtype, BF16 for the recorded launch. The conditional wrapper can also set exactly
+its loaded suppression columns to negative infinity after softcapping. The actual
+failed-run tensors cannot be reconstructed from these source facts; source and
+CPU control-flow proof diagnose the observer contract, not the realized tensors.
+The recorded checkpoint generation config has no suppression list, but that is
+not a substitute for checking the actual loaded wrapper. In this pinned version,
+`--generation-config vllm` does not bypass the wrapper's generation-config lookup.
+
+The corrected observer binds loaded head owners, BF16 weight geometry, source
+files/origins, configured native output dtype, softcap and exact suppression mask.
+It admits BF16, or explicit FP32 only when the runner and actual processor settings
+match; nested/outer mismatched overrides are rejected. Duplicate suppression IDs
+are also outside this deliberately narrow diagnostic. No projection dtype,
+softcap, suppression, native logits or sampler arithmetic is changed.
+
+Each head invocation writes bounded actual hidden/logit/index shape, row count,
+dtype and device scalars before validation. Rejected invocations never become
+validated head receipts. Tensor/device/BF16 hidden identity and exactly one
+source-selected int64 index remain mandatory; zero/multiple head rows fail.
+Valid head records preserve the original BF16 or FP32 byte hash. Every configured
+suppression column must contain negative infinity, every other column must be
+finite, and at least one finite column is required. NaN, positive infinity,
+unexpected negative infinity and policy drift fail closed. These are processed
+model-head tensors before sampler transforms, not normalized probabilities or an
+independent correctness comparison.
+
+Validated heads are labeled `intermediate_prompt_chunk`, `final_prompt` or
+`decode`. Completion additionally requires the exact7/1/255 head counts. Emitted
+sample records identify the corresponding head sequence and phase; the existing
+actual sampler counts and streamed token-ID/usage equality remain mandatory.
+Cache ownership, actual causal positions, local/global retained-row unions,
+poisoning, cleanup and all resource bounds are unchanged. The new source-extracted
+CPU fixtures exercise the exact V2 selection/sample/count and Gemma head control
+flow using substituted tensors and external operations. Their full263-frame
+chain, malformed row/dtype/mask controls and byte tests establish no native fit,
+numerical quality, baseline equivalence, or GPU retry authority.

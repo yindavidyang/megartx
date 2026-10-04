@@ -220,6 +220,7 @@ class NativeProvider(PrefillKVObserver):
         self.scratch = GpuScratch(torch, plan['bounds']['max_observer_gpu_scratch_bytes'])
         self.frame, self.hidden, self.logits_indices = None, None, None
         self.logit_seen = False
+        self.head_counts = dict.fromkeys(('intermediate_prompt_chunk', 'final_prompt', 'decode'), 0)
         self.failed, self.started, self.completed = False, False, False
         self.deadline = float(os.environ['MEGARTX_PREFILL_NATIVE_DEADLINE'])
         self.hook_checks = hook_checks
@@ -229,6 +230,7 @@ class NativeProvider(PrefillKVObserver):
                             "identity": asdict(self.access.identity), "plan_sha256": plan['plan_sha256'],
                             "executing_adapter_sources": self.adapter_sources,
                             "mutable_lease_granted": False,
+                            "head_binding": self.access.head_binding.receipt(),
                             "memory": memory_sample(torch, 'cache_initialized', self.scratch, self.ledger)})
         from .prefill_diagnostic_plan import INSTALLED
         self.evidence.write('runner-binding.json', {
@@ -424,27 +426,66 @@ class NativeProvider(PrefillKVObserver):
             return
         if self.failed or model is not self.access.model or self.frame is not None or self.hidden is None or self.logit_seen:
             raise RuntimeError("Native head lacks a unique completed forward")
-        torch = self.torch
-        if (tuple(hidden.shape) != (1, 2816) or logits is None or tuple(logits.shape) != (1, 262144)
-                or logits.dtype != torch.float32):
-            raise RuntimeError("Actual head shape differs")
-        # Indices were captured from actual V2 prepare_inputs, not inferred from
-        # token equality. Check selected raw hidden bytes without whole-view copies.
-        indices = self.logits_indices.cpu().tolist()
+        torch, binding = self.torch, self.access.head_binding
+        phase = ('intermediate_prompt_chunk' if self.ledger.end < 2048 else
+                 'final_prompt' if self.ledger.end == 2048 else 'decode')
+        def describe(tensor):
+            if not isinstance(tensor, torch.Tensor):
+                return {'tensor': False, 'type': type(tensor).__name__}
+            shape = list(tensor.shape)
+            return {'tensor': True, 'shape': shape, 'rows': shape[0] if shape else None,
+                    'dtype': str(tensor.dtype), 'device': str(tensor.device)}
+        # Scalar diagnostics precede all geometry/dtype/row qualification. A
+        # failed callback leaves its actual observations, never a valid head.
+        observation = {'schema': 'megartx-prefill-head-invocation-v1',
+            'sequence': self.ledger.frames-1, 'phase': phase, 'cached_length': self.ledger.end,
+            'hidden': describe(hidden), 'logits': describe(logits),
+            'logits_indices': describe(self.logits_indices),
+            'expected_logits_dtype': str(binding.dtype), 'validated': False}
+        self.evidence.write('head-invocations.jsonl', observation, append=True)
+        binding.require_current()
+        if (not isinstance(hidden, torch.Tensor) or tuple(hidden.shape) != (1, 2816)
+                or hidden.dtype != torch.bfloat16 or hidden.device != self.access._runner.device
+                or not isinstance(logits, torch.Tensor) or tuple(logits.shape) != (1, 262144)
+                or logits.dtype != binding.dtype or logits.device != self.access._runner.device):
+            raise RuntimeError('Actual head shape/dtype/device differs: ' + json.dumps(observation, sort_keys=True))
+        # Every ordinary V2 request selects one row, including discarded interim
+        # chunks. Zero/multiple rows remain rejected; only its final prompt row
+        # can produce output #1. Keep the actual InputBatch index object bound.
+        indices_tensor = self.logits_indices
+        if (indices_tensor is not self.access.input_batch.logits_indices
+                or not isinstance(indices_tensor, torch.Tensor)
+                or tuple(indices_tensor.shape) != (1,) or indices_tensor.dtype != torch.int64
+                or indices_tensor.device != self.access._runner.device):
+            raise RuntimeError('Actual runner logits index tensor changed after queries')
+        indices = indices_tensor.cpu().tolist()
         if indices != [len(self.hidden)-1]:
             raise RuntimeError("Actual runner logits index changed after queries")
-        expected = self.hidden[indices[0]:indices[0]+1]  # Basic slice borrows the incumbent row.
+        expected = self.hidden[indices[0]:indices[0]+1]  # Incumbent row; no device indexing allocation.
         raw = lambda tensor: tensor.detach().cpu().contiguous().view(torch.uint8).numpy().tobytes()
         if raw(hidden) != raw(expected):
             raise RuntimeError("Actual compute_logits row differs from runner selection")
-        bits = raw(logits)  # One CPU row; no device isfinite/broadcast/index allocation.
-        if any(word & 0x7F800000 == 0x7F800000 for word, in struct.iter_unpack('<I', bits)):
-            raise RuntimeError("Nonfinite actual native logits")
-        self.evidence.write('heads.jsonl', {'sequence': self.ledger.frames-1,
+        bits = raw(logits)  # Preserve original BF16/FP32 bytes; no GPU cast.
+        size, mask, neginf, fmt = ((2, 0x7F80, 0xFF80, '<H') if binding.dtype == torch.bfloat16
+                                  else (4, 0x7F800000, 0xFF800000, '<I'))
+        if len(bits) != 262144*size:
+            raise RuntimeError('Actual native logit byte extent differs')
+        for index, (word,) in enumerate(struct.iter_unpack(fmt, bits)):
+            if index in binding.suppressed:
+                if word != neginf:
+                    raise RuntimeError('Actual native suppression slot lacks negative infinity')
+            elif word & mask == mask:
+                raise RuntimeError('Unexpected nonfinite actual native logit outside suppression mask')
+        self.evidence.write('heads.jsonl', {'sequence': self.ledger.frames-1, 'phase': phase,
             'logit_position': self.ledger.end-1, 'predicts_position': self.ledger.end,
+            'final_prompt_logit_receipt': phase == 'final_prompt',
+            'expected_sampler_discard': phase == 'intermediate_prompt_chunk',
             'row_identity': 'actual_runner_logits_indices_and_hidden_bits',
+            'selected_row_index': indices[0], 'hidden_shape': list(hidden.shape),
+            'logits_shape': list(logits.shape), **binding.receipt(),
             'logit_bits_sha256': hashlib.sha256(bits).hexdigest(),
             'source_site': 'Gemma4ForConditionalGeneration.compute_logits'}, append=True)
+        self.head_counts[phase] += 1
         self.logit_seen, self.hidden = True, None
 
     def sampled(self, result):
@@ -471,9 +512,13 @@ class NativeProvider(PrefillKVObserver):
         self.ledger.sampled(token, discarded)
         if not discarded:
             self.evidence.write('samples.jsonl', {'output_index': len(self.ledger.outputs)-1,
+                'head_sequence': self.ledger.frames-1,
+                'head_phase': 'final_prompt' if self.ledger.end == 2048 else 'decode',
                 'sample_sha256': digest([token]), 'cached_length': self.ledger.end,
                 'pending_anchor_position': self.ledger.end, 'anchor_kv_written': False}, append=True)
         if self.ledger.complete_request:
+            if self.head_counts != {'intermediate_prompt_chunk': 7, 'final_prompt': 1, 'decode': 255}:
+                raise RuntimeError('Actual native head phase counts differ')
             self.scratch.preserve_peaks()  # Includes the actual final sampler.
             self.evidence.write('observer.json', {'schema': 'megartx-prefill-native-observation-v1',
                 'status': 'request_observed', 'plan_sha256': self.plan['plan_sha256'],
@@ -482,6 +527,9 @@ class NativeProvider(PrefillKVObserver):
                 'output_ids_sha256': digest(self.ledger.outputs), 'committed_length': 2303,
                 'bootstrap_cached_length': 2048, 'bootstrap_anchor_position': 2048,
                 'bootstrap_remaining_outputs': 255,
+                'head_counts': dict(self.head_counts),
+                'final_prompt_logit_position': 2047, 'first_output_position': 2048,
+                'head_binding': self.access.head_binding.receipt(),
                 'sample_and_input_chain_verified': True, 'all30_actual_cache_writers_bound': True,
                 'observed_fit': True, 'independent_comparison_pending': True,
                 'observer_gpu_scratch': self.scratch.receipt(),

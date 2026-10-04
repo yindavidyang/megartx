@@ -11,6 +11,87 @@ from .prefill_diagnostic_plan import INSTALLED, REVISION, file_sha, checkpoint_i
 from .prefill_runner_binding import require_default_selection
 
 
+# Additional head-path modules are checked as actual loaded files below. This
+# additive vector does not rewrite the historical runner-selection catalog.
+HEAD_SOURCES = {
+    "vllm.config.model": "f4168b67cc93ce72ff2a6d4c66974223e32fd0f1fab4c05e44bd68a275e18d69",
+    "vllm.model_executor.models.gemma4_mm": "ee77a4f9884524e35219e8230a65f73eef675f2a23540cb267a25bf7029ea9b7",
+    "vllm.model_executor.layers.logits_processor": "6b0603d67b0c756253c2fdc882a3896d2e873a16e9aa2ef877aabca8d36bdb5f",
+    "vllm.model_executor.layers.vocab_parallel_embedding": "d42574ac79bd7d7847548784d2272c7c40cbd93fe6cdadb15e8c2db79d2074d7",
+    "vllm.model_executor.layers.linear": "094fdf956c35bcfcb44b924a4ff60bb1768285963e4e1ae27f3022dd7e1e852d"}
+
+
+class NativeHeadBinding:
+    """Freeze the actual native projection dtype and exact suppression mask.
+
+    The processed model head precedes sampler-specific transforms. It is not a
+    probability distribution, and its configured negative infinities are valid.
+    No casting, mutation, normalized-law comparison or extra model call occurs.
+    """
+    def __init__(self, runner, model, torch):
+        self.runner, self.model, self.torch = runner, model, torch
+        self.language = model.language_model
+        self.processor, self.head = self.language.logits_processor, self.language.lm_head
+        self.quant_method, self.weight = self.head.quant_method, self.head.weight
+        self.callbacks = tuple((owner, name, getattr(owner, name).__func__) for owner, name in (
+            (self.language, 'compute_logits'), (self.processor, 'forward'),
+            (self.processor, '_get_logits'), (self.processor, '_apply_head'),
+            (self.quant_method, 'apply')))
+        self.signature = self._read()
+        self.dtype = torch.bfloat16 if self.processor.head_dtype is None else self.processor.head_dtype
+        self.suppressed = frozenset(self.signature[-1])
+
+    def _read(self):
+        t, p, h = self.torch, self.processor, self.head
+        known = ((self.model, 'vllm.model_executor.models.gemma4_mm', 'Gemma4ForConditionalGeneration'),
+                 (self.language, 'vllm.model_executor.models.gemma4', 'Gemma4ForCausalLM'),
+                 (p, 'vllm.model_executor.layers.logits_processor', 'LogitsProcessor'),
+                 (h, 'vllm.model_executor.layers.vocab_parallel_embedding', 'ParallelLMHead'))
+        if any(type(obj).__module__ != module or type(obj).__name__ != name for obj, module, name in known):
+            raise RuntimeError('Unknown actual native head owner')
+        if ((type(self.quant_method).__module__, type(self.quant_method).__name__) not in {
+                ('vllm.model_executor.layers.vocab_parallel_embedding', 'UnquantizedEmbeddingMethod'),
+                ('vllm.model_executor.layers.linear', 'UnquantizedLinearMethod')}
+                or self.runner.vllm_config.model_config.dtype != t.bfloat16
+                or p.head_dtype not in (None, t.bfloat16, t.float32)
+                or self.runner.vllm_config.model_config.head_dtype != p.head_dtype
+                or p.soft_cap != 30.0 or p.scale != 1.0 or p.logits_as_input is not False
+                or p.vocab_size != 262144 or p.org_vocab_size != 262144
+                or h.weight.dtype != t.bfloat16 or h.weight.device != self.runner.device
+                or tuple(h.weight.shape) != (262144, 2816) or h.tp_size != 1):
+            raise RuntimeError('Actual native head dtype/configuration changed')
+        suppressed = self.model._suppress_token_ids
+        if suppressed is None:
+            suppressed = ()
+        if (type(suppressed) not in (list, tuple) or len(suppressed) >= 262144
+                or any(type(i) is not int or not 0 <= i < 262144 for i in suppressed)
+                or len(set(suppressed)) != len(suppressed)):
+            raise RuntimeError('Actual native head suppression mask is invalid')
+        return (p.head_dtype, p.soft_cap, p.scale, p.logits_as_input, p.vocab_size,
+                p.org_vocab_size, h.tp_size, tuple(suppressed))
+
+    def require_current(self):
+        if (self.runner.get_model() is not self.model or self.model.language_model is not self.language
+                or self.language.logits_processor is not self.processor or self.language.lm_head is not self.head
+                or self.head.quant_method is not self.quant_method or self.head.weight is not self.weight):
+            raise RuntimeError('Actual native head ownership changed')
+        for owner, name, function in self.callbacks:
+            callback = getattr(owner, name, None)
+            if (type(callback) is not MethodType or callback.__self__ is not owner
+                    or callback.__func__ is not function):
+                raise RuntimeError('Actual native head callback changed')
+        if self._read() != self.signature:
+            raise RuntimeError('Actual native head configuration/suppression changed')
+
+    def receipt(self):
+        return {'native_logits_dtype': str(self.dtype),
+                'head_dtype_setting': None if self.processor.head_dtype is None else str(self.processor.head_dtype),
+                'suppressed_token_count': len(self.suppressed),
+                'suppressed_token_ids_sha256': digest(sorted(self.suppressed)),
+                'tensor_semantics': 'processed_native_head_before_sampler_transforms',
+                'normalized_probabilities': False}
+
+
 @dataclass(frozen=True)
 class LoadedModelIdentity:
     owner_pid: int
@@ -145,7 +226,7 @@ class LoadedEngineAccess:
         if cls.__module__ != "vllm.v1.worker.gpu.model_runner" or cls.__name__ != "GPUModelRunner":
             raise RuntimeError("Actual default V2 GPUModelRunner required")
         origins = []
-        for module, expected in {**SOURCE_HASHES, **INSTALLED}.items():
+        for module, expected in {**SOURCE_HASHES, **INSTALLED, **HEAD_SOURCES}.items():
             source = sys.modules.get(module)
             if source is None or file_sha(inspect.getsourcefile(source)) != expected:
                 raise RuntimeError("Installed observation source drift: " + module)
@@ -162,7 +243,7 @@ class LoadedEngineAccess:
         stat = Path(f"/proc/{os.getpid()}/stat").read_text()
         ticks = int(stat[stat.rfind(")") + 2:].split()[19])
         self.identity = LoadedModelIdentity(os.getpid(), ticks, REVISION, CONFIG_SHA256,
-                                           tuple(sorted({**SOURCE_HASHES, **INSTALLED}.items())),
+                                           tuple(sorted({**SOURCE_HASHES, **INSTALLED, **HEAD_SOURCES}.items())),
                                            digest(checkpoint_identity(checkpoint)),
                                            cls.__module__, cls.__name__, tuple(sorted(origins)))
         config = runner.vllm_config
@@ -187,6 +268,7 @@ class LoadedEngineAccess:
                 or type(runner.model_state).__name__ != 'DefaultModelState'
                 or runner.model_state.rope_state is not None):
             raise RuntimeError("Native observation requires exact synchronous eager configuration")
+        self.head_binding = NativeHeadBinding(runner, model, torch_module)
         self.registry = config.compilation_config.static_forward_context
         self.groups, self.builders, self.common = {}, {}, {}
         self.builder_ownership = MetadataBuilderOwnership(runner)
