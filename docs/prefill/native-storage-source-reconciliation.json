@@ -51,9 +51,9 @@
   },
   "purpose": "first-nine-frame-storage-frontier-control",
   "quality_qualified": false,
-  "runtime_commit": "d860524e6607eeac14bcb237efb8786529a76a79",
+  "runtime_commit": "1540ca8e69ec7fd8bc9b39c00fc1ae3cbb8a963b",
   "runtime_source_hashes": {
-    "docs/prefill/native-storage-control.md": "29719cfbd4c32a843c0d490a3eb07f55dc9748dac8782716314861566557cee2",
+    "docs/prefill/native-storage-control.md": "6e8d88dca51faa6e65a36c247c766b6d893a0fa19d74be9e8d4dbc528bd21907",
     "numerical_reference/prefill_native_control.py": "c9b9e375ad84cd31b6a2f09b0ae28dc33b2cd6fcf91b201d0da470dc119108e2",
     "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
     "scripts/prefill_diagnostic_client.py": "48d4914566eb708bee97fa9d5893a35b7708daa8fc1d01fb36230c226a2e39ff",
@@ -73,7 +73,7 @@
     "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
     "src/megartx/prefill_runner_binding.py": "0681c6a8697a0a161125f17fb82ecbab50bedc074b9bca646fbe0c5ced387370",
     "src/megartx/prefill_storage.py": "9b8d5610565d870bde4fd682ca6e00bc391327f1f2b98c5e34dfb283c0f9eeef",
-    "src/megartx/prefill_storage_native.py": "0957372f1d0238f85f6c147a5d067ca831f677f0011191376a066580e25f058b",
+    "src/megartx/prefill_storage_native.py": "8515ef3f9054b58fb06bc4ae64a4781b91d2860540c1f3376db783cc054077a9",
     "src/megartx/prefill_storage_plan.py": "d2709def9e441e98a855e550d5a70c764dea4ad4bd578ac80b4ae8a893776641",
     "src/megartx/prefill_storage_process.py": "ec86507acb81b255dd231b5b7303b928a6a13a5ca8b394a8fc85de7682235164",
     "src/megartx/vllm_scale_plugin.py": "2d92e1b89a734a3e57dc4c150a712578a75fa216e7c41d33961d3eec9cbda1f5"
