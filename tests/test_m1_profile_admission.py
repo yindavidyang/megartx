@@ -259,7 +259,8 @@ class RuntimeFileTests(unittest.TestCase):
         for name in ("manifest.json","cpu-dry-run.json"):(self.aot/name).write_text('{}')
         source_names=set(PROFILE_DRIVER_SOURCES)|{"src/megartx/"+p for p in CONTROLLER_SOURCES}|{
              "probes/m1_live_bridge.cu","probes/m1_installed_bridge.cuh","kernels/m1_installed_preparation.cuh",
-             "kernels/m1_maps_expand.cuh","scripts/build_m1_live_bridge.py","scripts/check_m1_live_bridge.py","scripts/check_m1_live_bindings.py"}
+             "kernels/m1_maps_expand.cuh","kernels/m1_sf_layout_contract.hpp",
+             "scripts/build_m1_live_bridge.py","scripts/check_m1_live_bridge.py","scripts/check_m1_live_bindings.py"}
         self.packages={"vllm":"0.30.0","flashinfer-python":"0.6.18.post1","torch":"2.13.0","nvidia-cuda-cupti":"13.0.85"}
         self.build=dict(base_head=self.plan["source_head"],returncode=0,reason=None,compiled_lease_controls_returncode=0,
              compiled_binding_controls_returncode=0,required_exports_present=True,binary_sha256=sha(self.binary),
@@ -282,6 +283,7 @@ class RuntimeFileTests(unittest.TestCase):
              ("controller",lambda b:b["live_contract"]["controller_source_hashes"].update({"m1_eager_benchmark.py":"f"*64})),
              ("driver",lambda b:b["source_hashes"].update({"scripts/m1_decode_profile.py":"f"*64})),
              ("native",lambda b:b["source_hashes"].update({"kernels/m1_installed_preparation.cuh":"f"*64})),
+             ("sf_contract",lambda b:b["source_hashes"].update({"kernels/m1_sf_layout_contract.hpp":"f"*64})),
              ("missing_source",lambda b:b["source_hashes"].pop("kernels/m1_maps_expand.cuh")),
              ("installed",lambda b:b["installed_pins"].update({str(self.installed):"f"*64})),
              ("packages",lambda b:b["installed_package_versions"].update(torch="unknown"))]

@@ -1,6 +1,7 @@
 // Task-local ELF bridge for the hash-pinned installed runner. No installed writes.
 // The incumbent runMoe, TMA setup, GEMMs and three-step fallback remain loaded.
 #include "../kernels/m1_installed_preparation.cuh"
+#include "../kernels/m1_sf_layout_contract.hpp"
 #include "m1_installed_bridge.cuh"
 #include "m1_live_symbols.h"
 #include <algorithm>
@@ -29,6 +30,10 @@ static std::atomic<unsigned> m1_active_leases{0};
 static std::mutex m1_observer_mutex;
 
 namespace {
+mx::M1SfLayoutContract<Desc::NVFP4BlockScaledConfig> const& sf_layout_contract() {
+  static const mx::M1SfLayoutContract<Desc::NVFP4BlockScaledConfig> proof;
+  return proof;
+}
 constexpr char runner_symbol[] = "_ZN12tensorrt_llm7kernels15cutlass_kernels18CutlassMoeFCRunnerI13__nv_fp4_e2m1S3_13__nv_bfloat16S3_S4_Lb0ELNS1_21Sm90Wfp4Afp8ScaleModeE0EvE6runMoeEPKvS8_bPKiPKfS8_S8_NS1_16ActivationParamsES8_S8_NS1_11QuantParamsElllliiPcPvPiNS1_20MOEParallelismConfigEbbRNS0_10LoraParamsEbbbRNS1_19MoeMinLatencyParamsEbP11CUstream_st";
 constexpr char live_tactic[] = "Cutlass GEMM Tactic\n\tstyle=TMA Warp Specialized\n\tsm: 120\n"
     "\ttile shape ID: 128x128x128\n\tcluster shape ID: 1x1x1\n"
@@ -162,6 +167,9 @@ int begin_lease(
     // Validate framing before any array access (including bad pointer tests).
     require(abi_version==2 && view_count==15 && view_bytes==sizeof(View),
             "live lease ABI/version/view framing mismatch");
+    // Prove the fixed source layouts once before any admitted device call.
+    // Initialization errors are handled by this same C ABI error boundary.
+    sf_layout_contract();
     lease=Lease{};
     require(views && stream && (!capture_enabled || directory) && (fused==0 || fused==1),"invalid live lease");
     for(int i=0;i<15;++i) {
@@ -486,7 +494,8 @@ template<> __attribute__((visibility("default"))) std::pair<Desc,Desc> Runner::s
   require(pinned_callsite(__builtin_return_address(0)),"TMA setup caller is not pinned");
   require(lease.expand_seen && stream==lease.stream,"consumer setup precedes preparation");
   // Descriptor checks remain mandatory in both execution modes. These D2H
-  // copies, fences and layout enumeration are validation, not optional evidence.
+  // copies and fences stay fresh. Only the source-invariant dense-layout proof
+  // is reused; captured/observer diagnostics also enumerate each actual layout.
   using Shape=Desc::ProblemShape::UnderlyingProblemShape;
   using Layout=Desc::NVFP4BlockScaledConfig::LayoutSF;
   std::ostringstream out;
@@ -564,14 +573,10 @@ template<> __attribute__((visibility("default"))) std::pair<Desc,Desc> Runner::s
       // The pinned SM120 mainloop uses the group LayoutSF as the TMA source
       // domain, including its 128-row atom. Enumerate that *actual* domain;
       // the logical row-zero SF mask alone would miss physical padding reads.
-      std::vector<unsigned char> seen(bytes,0);
-      for(int row=0;row<128;++row)for(int kk=0;kk<k;kk+=16) {
-        auto offset=size_t(layouts[e](cute::make_coord(row,kk,0)));
-        require(offset<bytes,"actual SF layout address escapes its carrier");
-        seen[offset]=1;
-      }
-      require(std::all_of(seen.begin(),seen.end(),[](auto v){return v==1;}),
-              "actual physical SF TMA domain is not the pinned dense carrier");
+      // Compare every actual semantic shape/stride tuple to the independently
+      // proven source layout, before using its dense-carrier conclusion. Never
+      // cache an expert pointer, route prefix, owner or returned descriptor.
+      sf_layout_contract().validate(layouts[e],stage,lease.capture_enabled || lease.observer);
       require(cute::get<0>(aq_strides[e])==k && cute::get<1>(aq_strides[e])==1 &&
           cute::get<0>(output_strides[e])==n && cute::get<1>(output_strides[e])==1 &&
           contains(lease.views[5],aq[e],k/2) && contains(lease.views[5],destinations[e],n*2),

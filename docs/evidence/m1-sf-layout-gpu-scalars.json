@@ -1,0 +1,151 @@
+{
+  "schema": "megartx-m1-sf-layout-gpu-scalars-v1",
+  "gpu_source_head": "c20677b43eb75418f6beed31b0c13a1dd27da891",
+  "gpu_source_tree": "18ac93b2eeab47288949d846e05ef18e17176898",
+  "base_head": "e886b98c1db30b1d77fb08471f1d6b33d162bbf1",
+  "source_inventory_sha256": "1a24cdd201a97ef6463bdddcd53da4d6a4871a8a42e8377a136be91fec89547a",
+  "plan_sha256": "f6abe78ba0a0b3da6fe01687530a4f5ee7553fbf82b01885fbb1487728c5191b",
+  "plan_file_sha256": "2b956e830c8103aaed900d7b3e07441b21c4353146d12b107d16ea2eb011dad1",
+  "binary_sha256": "e34b36154803e9ce6b9c0108ee683420418189e232252e9a3d815b7c947ae16e",
+  "build_receipt_sha256": "3da86611a512e951becfffc8eca6fd441f6916a3aada2f960c134fa51c61f955",
+  "instrumented": true,
+  "diagnostic_admission": "compiler_accounted_operation_diagnostic_v1",
+  "source_bound_diagnostic_gate_passed": true,
+  "source_review_status": "independently_cleared_before_run",
+  "evidence_review_status": "independently_accepted_operation_counts_and_observed_equality_only",
+  "publication_delta": "new report and sanitized scalar evidence only; frozen runtime source unchanged",
+  "extra_diagnostic_GPU_calls": 0,
+  "candidate_incremental_device_scratch_bytes": 0,
+  "requests": 8,
+  "output_tokens_per_request": 256,
+  "existing_one_token_drain_requests": 1,
+  "source_derived_avoided_work": {
+    "initialization_coordinate_evaluations": 28160,
+    "coordinate_evaluations_per_qualified_preparation": 225280,
+    "coordinate_evaluations_per_120_call_lane": 27033600,
+    "seen_vectors_per_qualified_preparation": 16,
+    "method": "CPU source/control proof; not measured GPU events or latency"
+  },
+  "validation": {
+    "all_eight_256_token_sequences_equal_original": true,
+    "within_context_stock_fused_warmup_measurement_equal": true,
+    "six_forced_bf16_fixtures_passed": true,
+    "natural_correction_selected_rows": 0,
+    "actual_dispatch_totals": {
+      "stock": 30600,
+      "fused": 30600,
+      "prefill_fallback": 4800
+    }
+  },
+  "lanes": {
+    "stock": {
+      "gpu_operations": 6440,
+      "unique_gpu_api_correlations": 6440,
+      "gpu_operation_inventory_sha256": "c0189366d990def557ae2a9bbcb6b0027c9bf3e90e3ba12244d92e8cbfe4f033",
+      "model_frames": 4,
+      "head_frames": 4,
+      "sampler_frames": 4,
+      "preparation_calls": 120,
+      "routed_calls": 120,
+      "correction_selections": 24,
+      "preparation_d2h_copies": 1800,
+      "preparation_stream_fences": 360,
+      "preparation_pointer_queries": 1200,
+      "correction_layer_attribution": "withheld; selection is outside the routed annotation",
+      "stream_wait_dependency_duration": "not measured",
+      "trace_sha256": "15cda96fd21f0531566e681753fc151db9b48844ec3887a958eea026eecbb543"
+    },
+    "fused": {
+      "gpu_operations": 6320,
+      "unique_gpu_api_correlations": 6320,
+      "gpu_operation_inventory_sha256": "e9ed3d4c73bfa0240adc6c0f8af176baaab33984cd690d6622ae0a09fd0f79cc",
+      "model_frames": 4,
+      "head_frames": 4,
+      "sampler_frames": 4,
+      "preparation_calls": 120,
+      "routed_calls": 120,
+      "correction_selections": 24,
+      "preparation_d2h_copies": 1800,
+      "preparation_stream_fences": 360,
+      "preparation_pointer_queries": 1200,
+      "correction_layer_attribution": "withheld; selection is outside the routed annotation",
+      "stream_wait_dependency_duration": "not measured",
+      "trace_sha256": "0d8338ca5474daafc802e88986303807caec02b3d2b08382f5f801f73f36404a"
+    }
+  },
+  "resources": {
+    "compiler_RSS_limit_bytes": 2147483648,
+    "compiler_shared_seconds_limit": 300,
+    "build_peak_aggregate_RSS_bytes": 746909696,
+    "build_span_seconds": 6.214228452008683,
+    "runtime_sampled_peak_compiler_RSS_bytes": 37748736,
+    "runtime_shared_compiler_span_seconds": 9.37495535297785,
+    "compiler_unknown_or_work_identities": 0
+  },
+  "postrun_identity": {
+    "source_files_verified": 278,
+    "adapter_copies_verified": true,
+    "packages_unchanged": true,
+    "checkpoint_config_index_shard_stat_unchanged": true,
+    "frozen_receipt_hashes_unchanged": true
+  },
+  "cleanup": {
+    "run_exit": 0,
+    "client_exit": 0,
+    "complete": true,
+    "owned_identities_remaining": 0,
+    "owned_gpu_processes_remaining": 0,
+    "GPU_slot_explicitly_released": true
+  },
+  "postrun_device_scalars": {
+    "used_mib": 41,
+    "free_mib": 32101,
+    "compute_processes": 0
+  },
+  "private_evidence_sha256": {
+    "count_equality_review_packet": "193b3103bc1da9a9d09b254864e840eb1d5cbf238fe975ebbd140861525ae555",
+    "private_result_inventory": "20c276bb12f18495c6999fb1dcea73d75d8aa3024e8963c044eeb59b579b9c08",
+    "local_result_verification": "ed86c304769fdc6d3db5db945f7ba3da6773ac9384c814c2e0818113210f10a2",
+    "remote_transfer_manifest": "391b04912268f48ff937c18a36384f1dd69d991b04d225fa4566be76fc685240",
+    "source_freeze": "6cfd568502040bb134f90b079169bdec8d0629a75cdadad9fd2b941cb633b4d3",
+    "operational_freeze": "7a6da6e20b7c4b435b7e3cb8e2fb12b5e266b0d7fdf97ea07d31e2f9812c9762"
+  },
+  "diagnostic_preservation": "CPU-only counted helper, exact real CUTLASS headers and reviewed bridge normalization; no new diagnostic envelope/mask/payload GPU coverage claimed",
+  "timing_qualified": false,
+  "performance_gate_passed": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "interpretation_limits": [
+    "Counts and observed equality only; no elapsed, gap, utilization or speedup comparison.",
+    "Natural correction selected zero rows; six forced startup fixtures do not establish general model quality.",
+    "Correction selections lack enclosing routed annotations; per-layer attribution remains withheld.",
+    "Stream wait operands/device durations remain unmeasured.",
+    "Sampled resource peaks do not establish all transient peaks.",
+    "Checkpoint config/index hashes and shard stat match; no fresh full-shard rehash.",
+    "No new diagnostic GPU coverage; detailed diagnostic behavior is CPU/source reviewed.",
+    "Historical manifests and prefill overlays remain byte-identical."
+  ],
+  "independent_outcome_review": {
+    "accepted_scope": "Operation counts and observed equality only.",
+    "evidence_blockers": [],
+    "review_method": "CPU-only transferred evidence replay; no remote filesystem re-attestation",
+    "packet_files_verified": 92,
+    "transfer_file_hashes_verified": 71,
+    "source_files_verified": 278,
+    "build_sources_verified": 27,
+    "local_result_verifier_reproduced": true,
+    "operation_inventory_and_unique_correlations_recomputed": true,
+    "exact_plan_actual_input_backend_and_native_phase_identity_verified": true,
+    "all_eight_sequences_equal_immutable_original": true,
+    "six_forced_fixture_traces_validated": true,
+    "timing_reader_rejected_profile_packet": true,
+    "new_remote_filesystem_attestation": false,
+    "new_device_execution": false,
+    "private_review_evidence_sha256": {
+      "independent_checks": "9cddaf3c0accfc24cb8cfcfaac79abcc51023a18a956eb95ab940f9b81cdd39b",
+      "independent_verifier_replay": "88fec423a249c959b2d3c7de8ff892be39879cb0b56e2649f1fcc7d5f1e81993",
+      "independent_check_script": "f82561f7a3afdb2f2b1b1968e2733bf77fd7532e4b92484fc0c5c9620021fcbb"
+    },
+    "original_private_packet_bytes_preserved": true
+  }
+}

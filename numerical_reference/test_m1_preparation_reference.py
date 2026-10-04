@@ -383,6 +383,28 @@ class M1PreparationTests(unittest.TestCase):
         for field in ("gpu_execution_verified", "quality_qualified", "graphs_qualified", "performance_qualified"):
             self.assertIs(diagnostic[field], False)
         diagnostic_changes = {r["path"]: r for r in diagnostic["superseded_sources"]}
+        layout_path = root / "docs/evidence/m1-sf-layout-source-pins.json"
+        layout = json.loads(layout_path.read_text())
+        self.assertEqual(layout["schema"], "megartx-m1-sf-layout-source-pins-v1")
+        self.assertEqual(layout["parent_head"], "e886b98c1db30b1d77fb08471f1d6b33d162bbf1")
+        self.assertEqual(layout["parent_ledger_sha256"], hashlib.sha256(
+            (root / "docs/evidence/m1-profile-admission-source-pins.json").read_bytes()).hexdigest())
+        for field in ("native_build_verified", "gpu_execution_verified", "quality_qualified", "graphs_qualified", "performance_qualified"):
+            self.assertIs(layout[field], False)
+        layout_changes = {r["path"]: r for r in layout["superseded_sources"]}
+        self.assertEqual(len(layout_changes),len(layout["superseded_sources"]))
+        self.assertEqual(set(layout_changes), {"probes/m1_live_bridge.cu", "scripts/build_m1_live_bridge.py",
+            "scripts/m1_decode_profile.py", "tests/test_m1_profile_admission.py",
+            "numerical_reference/test_m1_preparation_reference.py"})
+        self.assertEqual(set(layout["added_source_hashes"]), {"kernels/m1_sf_layout_contract.hpp",
+            "probes/m1_sf_layout_host_test.cpp", "numerical_reference/m1_sf_layout_proof.py",
+            "numerical_reference/test_m1_sf_layout_contract.py", "docs/m1-sf-layout-contract.md",
+            "docs/evidence/m1-sf-layout-cpu-proof.json"})
+        def layout_current(path, previous):
+            if path in layout_changes:
+                self.assertEqual(layout_changes[path]["prior_sha256"],previous,path)
+                return merged_current(path, "main_parent_sha256", layout_changes[path]["current_sha256"])
+            return previous
         self.assertEqual(set(diagnostic_changes), {"scripts/build_m1_live_bridge.py", "scripts/m1_eager_benchmark_client.py",
             "scripts/m1_owned_processes.py", "scripts/prepare_m1_eager_benchmark.py", "scripts/run_scale_validation.py",
             "src/megartx/m1_eager_benchmark.py", "tests/test_m1_launcher_resources.py",
@@ -395,24 +417,54 @@ class M1PreparationTests(unittest.TestCase):
         self.assertEqual(native["parent_ledger_sha256"], hashlib.sha256(
             (root / "docs/evidence/m1-profile-admission-source-pins.json").read_bytes()).hexdigest())
         native_changes = {entry["path"]: entry for entry in native["superseded_sources"]}
+        self.assertEqual(len(native_changes), len(native["superseded_sources"]))
         self.assertEqual(set(native_changes), {"src/megartx/vllm_scale_plugin.py", "scripts/run_scale_validation.py",
             "tests/test_m1_launcher_resources.py", "numerical_reference/test_m1_preparation_reference.py",
             "src/megartx/prefill_plan.py", "src/megartx/prefill_launch.py", "tests/test_prefill_plan.py",
             "tests/test_prefill_launch.py", "tests/test_prefill_runner.py"})
         for flag in ("gpu_execution_verified", "numerical_qualified", "performance_qualified"):
             self.assertIs(native[flag], False)
+        composition = json.loads((root / "docs/prefill/main-reconciliation-lineage.json").read_text())
+        self.assertEqual(composition["schema"], "megartx-prefill-main-reconciliation-lineage-v1")
+        self.assertEqual(composition["prefill_parent"], "7aafc35c5d6e16c620184a506b1487b1cd7eb74d")
+        self.assertEqual(composition["main_parent"], "ca6c385562aff30e91e8bb6a7f4228c9d766c30d")
+        self.assertEqual(composition["common_base"], native["base"])
+        self.assertEqual(set(composition["parent_ledgers"]), {
+            "docs/prefill/native-numerical-lineage.json", "docs/evidence/m1-sf-layout-source-pins.json"})
+        for path, expected in composition["parent_ledgers"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+        for flag in ("gpu_execution_verified", "numerical_qualified", "performance_qualified"):
+            self.assertIs(composition[flag], False)
+        merged_changes = {entry["path"]: entry for entry in composition["superseded_sources"]}
+        self.assertEqual(len(merged_changes), 1)
+        self.assertEqual(len(composition["superseded_sources"]), 1)
+        self.assertEqual(set(merged_changes), set(native_changes) & set(layout_changes))
+        self.assertEqual(set(merged_changes), {"numerical_reference/test_m1_preparation_reference.py"})
+        for record in merged_changes.values():
+            self.assertEqual(set(record), {"path", "prefill_parent_sha256", "main_parent_sha256", "current_sha256"})
+        def merged_current(path, parent_field, previous):
+            if path in merged_changes:
+                self.assertEqual(merged_changes[path][parent_field], previous, path)
+                return merged_changes[path]["current_sha256"]
+            return previous
         for path, expected in native["preserved_source_hashes"].items():
-            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(), expected, path)
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(), layout_current(path, expected), path)
         def native_current(path, previous):
             if path in native_changes:
                 self.assertEqual(native_changes[path]["prior_sha256"], previous, path)
-                return native_changes[path]["current_sha256"]
+                return merged_current(path, "prefill_parent_sha256", native_changes[path]["current_sha256"])
             return previous
+        def branch_current(path, previous):
+            if path in native_changes and path in layout_changes:
+                current = native_current(path, previous)
+                self.assertEqual(current, layout_current(path, previous), path)
+                return current
+            return native_current(path, previous) if path in native_changes else layout_current(path, previous)
         def diagnostic_current(path, previous):
             if path in diagnostic_changes:
                 self.assertEqual(diagnostic_changes[path]["prior_sha256"], previous, path)
                 previous = diagnostic_changes[path]["current_sha256"]
-            return native_current(path, previous)
+            return branch_current(path, previous)
         header_path = "kernels/m1_installed_preparation.cuh"
         header = (root / header_path).read_text()
         self.assertEqual(header.count("\nstruct PreparationDecision {"), 1, header_path)
@@ -484,11 +536,45 @@ class M1PreparationTests(unittest.TestCase):
         for path, expected in lean["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), diagnostic_current(path, expected), path)
         for path, record in diagnostic_changes.items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), native_current(path, record["current_sha256"]), path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), branch_current(path, record["current_sha256"]), path)
         for path, expected in diagnostic["added_source_hashes"].items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), branch_current(path, expected), path)
         for path, record in native_changes.items():
-            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(), record["current_sha256"], path)
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(), merged_current(path, "prefill_parent_sha256", record["current_sha256"]), path)
+        for path, record in layout_changes.items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), merged_current(path, "main_parent_sha256", record["current_sha256"]), path)
+        for path, expected in layout["added_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), expected, path)
+
+    def test_main_composition_rejects_wrong_parents_and_one_branch_resolution(self):
+        root = Path(__file__).resolve().parents[1]
+        ledger = root / "docs/prefill/main-reconciliation-lineage.json"
+        read_text = Path.read_text
+        for mutation in ("prefill_parent", "main_parent", "common_base", "prefill_parent_sha256",
+                         "main_parent_sha256", "current_sha256", "native_ledger", "layout_ledger",
+                         "unknown_source", "duplicate_source", "prefill_only", "main_only"):
+            def changed_text(path, *args, **kwargs):
+                data = read_text(path, *args, **kwargs)
+                if path == ledger:
+                    value = json.loads(data)
+                    if mutation in ("prefill_parent", "main_parent", "common_base"):
+                        value[mutation] = "0"*40
+                    elif mutation in ("prefill_parent_sha256", "main_parent_sha256", "current_sha256"):
+                        value["superseded_sources"][0][mutation] = "0"*64
+                    elif mutation in ("native_ledger", "layout_ledger"):
+                        key = "docs/prefill/native-numerical-lineage.json" if mutation == "native_ledger" else "docs/evidence/m1-sf-layout-source-pins.json"
+                        value["parent_ledgers"][key] = "0"*64
+                    elif mutation == "unknown_source":
+                        value["superseded_sources"][0]["path"] = "unknown.py"
+                    elif mutation == "duplicate_source":
+                        value["superseded_sources"].append(dict(value["superseded_sources"][0]))
+                    else:
+                        field = "prefill_parent_sha256" if mutation == "prefill_only" else "main_parent_sha256"
+                        value["superseded_sources"][0]["current_sha256"] = value["superseded_sources"][0][field]
+                    return json.dumps(value)
+                return data
+            with self.subTest(mutation=mutation), patch.object(Path, "read_text", changed_text), self.assertRaises(AssertionError):
+                self.test_committed_source_pins_match_exact_base_evidence()
 
     def test_native_overlay_preserves_exact_prior_and_current_lineage(self):
         root = Path(__file__).resolve().parents[1]
@@ -576,6 +662,29 @@ class M1PreparationTests(unittest.TestCase):
                     return json.dumps(value)
                 return data
             with self.subTest(field=field), patch.object(Path, "read_text", changed_text), self.assertRaises(AssertionError):
+                self.test_committed_source_pins_match_exact_base_evidence()
+
+    def test_layout_overlay_rejects_source_parent_vector_and_added_header_drift(self):
+        root = Path(__file__).resolve().parents[1]
+        ledger = root / "docs/evidence/m1-sf-layout-source-pins.json"
+        read_text,read_bytes = Path.read_text,Path.read_bytes
+        for mutation in ("prior_sha256","current_sha256","parent_ledger_sha256","unknown_source","header_bytes","bridge_bytes"):
+            def changed_text(path,*args,**kwargs):
+                data=read_text(path,*args,**kwargs)
+                if path==ledger:
+                    value=json.loads(data)
+                    if mutation in ("prior_sha256","current_sha256"):
+                        next(r for r in value["superseded_sources"] if r["path"]=="probes/m1_live_bridge.cu")[mutation]="0"*64
+                    elif mutation=="parent_ledger_sha256":value[mutation]="0"*64
+                    elif mutation=="unknown_source":value["added_source_hashes"]["unknown.cuh"]="0"*64
+                    return json.dumps(value)
+                return data
+            def changed_bytes(path,*args,**kwargs):
+                data=read_bytes(path,*args,**kwargs)
+                targets={"header_bytes":"kernels/m1_sf_layout_contract.hpp","bridge_bytes":"probes/m1_live_bridge.cu"}
+                return data+b"\n// unknown source\n" if mutation in targets and path==root/targets[mutation] else data
+            with self.subTest(mutation=mutation),patch.object(Path,"read_text",changed_text), \
+                 patch.object(Path,"read_bytes",changed_bytes),self.assertRaises(AssertionError):
                 self.test_committed_source_pins_match_exact_base_evidence()
 
 

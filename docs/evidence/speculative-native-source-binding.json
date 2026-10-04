@@ -1,0 +1,161 @@
+{
+  "schema": "megartx-speculative-native-source-binding-v1",
+  "installed_inspection": "read_only_SSH_python_S_no_runtime_import",
+  "date": "2026-10-03",
+  "files": {
+    "vllm/config/cache.py": {
+      "sha256": "f1c226ba679c884930dbfcaf41a57248b137a9a20d3ed8e3d3b31752bb484c07",
+      "upstream_sha256": "f1c226ba679c884930dbfcaf41a57248b137a9a20d3ed8e3d3b31752bb484c07",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/config/cache.py",
+      "bytes": 17129
+    },
+    "vllm/forward_context.py": {
+      "sha256": "cc1473477dcc7b762c3901b25cc7bf35c06a2c42f193136fed553abf6fe33f0e",
+      "upstream_sha256": "cc1473477dcc7b762c3901b25cc7bf35c06a2c42f193136fed553abf6fe33f0e",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/forward_context.py",
+      "bytes": 14580
+    },
+    "vllm/model_executor/layers/attention/attention.py": {
+      "sha256": "bc897e452f3aea603e353ca42a365d3be8836e9485d78cbf8cc4677baca2fb42",
+      "upstream_sha256": "bc897e452f3aea603e353ca42a365d3be8836e9485d78cbf8cc4677baca2fb42",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/layers/attention/attention.py",
+      "bytes": 33071
+    },
+    "vllm/model_executor/layers/logits_processor.py": {
+      "sha256": "6b0603d67b0c756253c2fdc882a3896d2e873a16e9aa2ef877aabca8d36bdb5f",
+      "upstream_sha256": "6b0603d67b0c756253c2fdc882a3896d2e873a16e9aa2ef877aabca8d36bdb5f",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/layers/logits_processor.py",
+      "bytes": 11953
+    },
+    "vllm/model_executor/layers/vocab_parallel_embedding.py": {
+      "sha256": "d42574ac79bd7d7847548784d2272c7c40cbd93fe6cdadb15e8c2db79d2074d7",
+      "upstream_sha256": "d42574ac79bd7d7847548784d2272c7c40cbd93fe6cdadb15e8c2db79d2074d7",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/layers/vocab_parallel_embedding.py",
+      "bytes": 25228
+    },
+    "vllm/model_executor/models/gemma4.py": {
+      "sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "upstream_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/models/gemma4.py",
+      "bytes": 69524
+    },
+    "vllm/model_executor/models/gemma4_mm.py": {
+      "sha256": "ee77a4f9884524e35219e8230a65f73eef675f2a23540cb267a25bf7029ea9b7",
+      "upstream_sha256": "ee77a4f9884524e35219e8230a65f73eef675f2a23540cb267a25bf7029ea9b7",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/models/gemma4_mm.py",
+      "bytes": 94514
+    },
+    "vllm/platforms/cuda.py": {
+      "sha256": "f0464617920723fd7a088b05aee84aa6b97ff8bf3ff4301fc474de67afb0ca31",
+      "upstream_sha256": "f0464617920723fd7a088b05aee84aa6b97ff8bf3ff4301fc474de67afb0ca31",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/platforms/cuda.py",
+      "bytes": 40672
+    },
+    "vllm/v1/attention/backend.py": {
+      "sha256": "01ac364372afa75fdb22486aa3a9c7cf9aebb742e3471dfb9e0f9d9d36b734bc",
+      "upstream_sha256": "01ac364372afa75fdb22486aa3a9c7cf9aebb742e3471dfb9e0f9d9d36b734bc",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/attention/backend.py",
+      "bytes": 40281
+    },
+    "vllm/v1/attention/backends/flashinfer.py": {
+      "sha256": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f",
+      "upstream_sha256": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/attention/backends/flashinfer.py",
+      "bytes": 117007
+    },
+    "vllm/v1/attention/backends/utils.py": {
+      "sha256": "fbc221360d2d54cb21ef3f625dc8711500de345a355801548b4337bb9b8abee0",
+      "upstream_sha256": "fbc221360d2d54cb21ef3f625dc8711500de345a355801548b4337bb9b8abee0",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/attention/backends/utils.py",
+      "bytes": 47150
+    },
+    "vllm/v1/core/block_pool.py": {
+      "sha256": "34c2fd67148cecb7763ff49ad694a57073759b0fa67572a4270dc995b4acf8fc",
+      "upstream_sha256": "34c2fd67148cecb7763ff49ad694a57073759b0fa67572a4270dc995b4acf8fc",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/core/block_pool.py",
+      "bytes": 36034
+    },
+    "vllm/v1/core/kv_cache_manager.py": {
+      "sha256": "58800535eda854580d84e1025bf32fe01b2a43ce0bba501b4f3d125e4f2c8afa",
+      "upstream_sha256": "58800535eda854580d84e1025bf32fe01b2a43ce0bba501b4f3d125e4f2c8afa",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/core/kv_cache_manager.py",
+      "bytes": 41398
+    },
+    "vllm/v1/engine/core.py": {
+      "sha256": "268bf40534a853812867ae8e80040f190983cb364b41182b55969aace20c93f5",
+      "upstream_sha256": "268bf40534a853812867ae8e80040f190983cb364b41182b55969aace20c93f5",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/engine/core.py",
+      "bytes": 106584
+    },
+    "vllm/v1/engine/core_client.py": {
+      "sha256": "fd6ca0cb7499b3086eef2fc57674b7ace56ef1c648f09e92e144b255b79018f8",
+      "upstream_sha256": "fd6ca0cb7499b3086eef2fc57674b7ace56ef1c648f09e92e144b255b79018f8",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/engine/core_client.py",
+      "bytes": 81200
+    },
+    "vllm/v1/executor/abstract.py": {
+      "sha256": "97791426b549e4447c967f8b8e668c2e376c6a75fa7091fd9df11bc9dafb65f7",
+      "upstream_sha256": "97791426b549e4447c967f8b8e668c2e376c6a75fa7091fd9df11bc9dafb65f7",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/executor/abstract.py",
+      "bytes": 15468
+    },
+    "vllm/v1/kv_cache_interface.py": {
+      "sha256": "1cf202f1a44d5bc5c3832b70b41507687ecceea3784e67a4f003bc0210d6eecb",
+      "upstream_sha256": "1cf202f1a44d5bc5c3832b70b41507687ecceea3784e67a4f003bc0210d6eecb",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/kv_cache_interface.py",
+      "bytes": 59289
+    },
+    "vllm/v1/worker/block_table.py": {
+      "sha256": "a09b8819e1417b7a186cf3472224e2138fc5d41a291c6692bb7df711b0c44259",
+      "upstream_sha256": "a09b8819e1417b7a186cf3472224e2138fc5d41a291c6692bb7df711b0c44259",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/worker/block_table.py",
+      "bytes": 20556
+    },
+    "vllm/v1/worker/gpu_model_runner.py": {
+      "sha256": "87c29d08c0bbf66993d8b984811e7325e35e6436242a773feb55ec88f16b2c51",
+      "upstream_sha256": "87c29d08c0bbf66993d8b984811e7325e35e6436242a773feb55ec88f16b2c51",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/worker/gpu_model_runner.py",
+      "bytes": 340999
+    },
+    "vllm/v1/worker/gpu_worker.py": {
+      "sha256": "6994436e4547c0996ab555b3e814e8ccea26b650dfc1b378b97d640745309347",
+      "upstream_sha256": "6994436e4547c0996ab555b3e814e8ccea26b650dfc1b378b97d640745309347",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/worker/gpu_worker.py",
+      "bytes": 65620
+    },
+    "vllm/v1/worker/utils.py": {
+      "sha256": "0ca3ec6bf4d20076145b7fe64e564962adebedc8f75a856b517ba0b2f2d77acf",
+      "upstream_sha256": "0ca3ec6bf4d20076145b7fe64e564962adebedc8f75a856b517ba0b2f2d77acf",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/worker/utils.py",
+      "bytes": 31607
+    },
+    "vllm/v1/worker/worker_base.py": {
+      "sha256": "4a1a5266b912fe97991d8dc89d92b923990da9f6cb4b817d00d52e9c0d26dd7c",
+      "upstream_sha256": "4a1a5266b912fe97991d8dc89d92b923990da9f6cb4b817d00d52e9c0d26dd7c",
+      "matches": true,
+      "url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/worker/worker_base.py",
+      "bytes": 14284
+    }
+  }
+}
