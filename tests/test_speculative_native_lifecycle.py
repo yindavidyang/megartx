@@ -2,6 +2,11 @@
 import os
 import queue
 import ctypes
+import ast
+import hashlib
+import tempfile
+import types
+from pathlib import Path
 from concurrent.futures import Future
 import subprocess
 import sys
@@ -161,6 +166,80 @@ class LeaseControls(unittest.TestCase):
 
 
 class DefaultOffAndReceiptMath(unittest.TestCase):
+    def test_birth_identity_failure_precedes_class_mutation(self):
+        base, proc = classes()
+        before_base, before_proc = dict(base.__dict__), dict(proc.__dict__)
+        active = proc.__new__(proc)
+        failure = OSError("birth identity unavailable")
+        with patch.object(lifecycle, "_process_start", side_effect=failure):
+            with self.assertRaises(OSError) as caught:
+                lifecycle._register_classes(base, proc, active)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(before_base, dict(base.__dict__))
+        self.assertEqual(before_proc, dict(proc.__dict__))
+        self.assertFalse(hasattr(active, "_megartx_native_state"))
+
+    def test_partial_hook_write_failure_rolls_back_only_owned_writes(self):
+        base, proc = classes()
+        before_base, before_proc = dict(base.__dict__), dict(proc.__dict__)
+        calls = []
+        original_setattr = setattr
+        failure = OSError("hook write failed")
+        def setter(cls, name, value):
+            calls.append((cls, name))
+            if len(calls) == 4:
+                raise failure
+            return original_setattr(cls, name, value)
+        with patch.object(lifecycle, "setattr", setter, create=True):
+            with self.assertRaises(OSError) as caught:
+                lifecycle._register_classes(base, proc)
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(before_base, dict(base.__dict__))
+        self.assertEqual(before_proc, dict(proc.__dict__))
+
+    def test_loaded_code_defaults_and_inherited_hooks_are_verified(self):
+        # Compile-only identity control with a small explicit CPU source fixture.
+        # Its synthetic source manifest is scoped to this test, never native admission.
+        source = '''class EngineCore:
+    def __init__(self, value=None): pass
+    def preprocess_add_request(self, request): pass
+    def add_request(self, request, request_wave=0): pass
+    def resume_scheduler(self): pass
+    def step(self): pass
+    def step_with_batch_queue(self): pass
+    def pause_scheduler(self, mode="abort", clear_cache=True): pass
+class EngineCoreProc(EngineCore):
+    def pause_scheduler(self, mode="abort", clear_cache=True): pass
+    def _handle_client_request(self, kind, request): pass
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "core.py"
+            path.write_text(source)
+            module = types.ModuleType("vllm.v1.engine.core")
+            exec(compile(source, str(path), "exec", dont_inherit=True), module.__dict__)
+            base, proc = module.EngineCore, module.EngineCoreProc
+            manifest = {"files": {"vllm/v1/engine/core.py": {"sha256": hashlib.sha256(source.encode()).hexdigest()}}}
+            with patch.dict(sys.modules, {module.__name__: module}), \
+                    patch("megartx.speculative_native_probe.source_manifest", return_value=manifest):
+                lifecycle._verify_loaded_methods(base, proc, path)
+                original = base.__init__
+                def partial(self, *args, **kwargs):
+                    return original(self, *args, **kwargs)
+                partial.__module__, partial.__qualname__ = original.__module__, original.__qualname__
+                base.__init__ = partial
+                with self.assertRaisesRegex(ProbeError, "EngineCore.__init__"):
+                    lifecycle._verify_loaded_methods(base, proc, path)
+                base.__init__ = original
+                original.__defaults__ = ("changed",)
+                with self.assertRaisesRegex(ProbeError, "EngineCore.__init__"):
+                    lifecycle._verify_loaded_methods(base, proc, path)
+                original.__defaults__ = (None,)
+                proc.step = base.step
+                lifecycle._verify_loaded_methods(base, proc, path)  # exact same inherited callable remains safe
+                proc.step = lambda self: None
+                with self.assertRaisesRegex(ProbeError, "shadowed"):
+                    lifecycle._verify_loaded_methods(base, proc, path)
+
     def test_registration_inside_constructor_observes_birth_before_executor(self):
         # Source-site lifecycle control only, not an actual vLLM engine receipt.
         observed = []

@@ -5,13 +5,17 @@ The normal utility loop owns reservations. An observation frame is not a lease.
 """
 
 from dataclasses import dataclass
+import ast
 import copy
+import hashlib
 from functools import wraps
 import inspect
 import os
 from pathlib import Path
 import threading
+import sys
 import time
+import types
 import uuid
 
 from .speculative_native_probe import (ADAPTER_FILES, GPU_CAP, P, REVISION,
@@ -226,8 +230,58 @@ def _active_core_birth(base):
         del frame
 
 
+def _verify_loaded_methods(base, proc, source_path):
+    """Compile pinned bytes without executing imports; compare loaded hook code.
+
+    A matching class filename does not establish the loaded callable. All hooks
+    we replace are undecorated in this source; wrapping or shadowing is rejected.
+    Proc.__init__ has a tracing decorator and is not replaced by registration.
+    """
+    source = Path(source_path).read_bytes()
+    from .speculative_native_probe import source_manifest
+    if hashlib.sha256(source).hexdigest() != source_manifest()["files"]["vllm/v1/engine/core.py"]["sha256"]:
+        raise ProbeError("Pinned registration method source differs")
+    if type(base) is not type or type(proc) is not type or base.__bases__ != (object,) or proc.__bases__ != (base,):
+        raise ProbeError("Loaded registration class hierarchy differs")
+    tree = ast.parse(source)
+    compiled = compile(source, str(source_path), "exec", dont_inherit=True, optimize=sys.flags.optimize)
+    class_codes = {code.co_name: code for code in compiled.co_consts if isinstance(code, types.CodeType)}
+    class_nodes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
+    methods = {"EngineCore": ("__init__", "preprocess_add_request", "add_request", "resume_scheduler",
+                              "step", "step_with_batch_queue", "pause_scheduler"),
+               "EngineCoreProc": ("pause_scheduler", "_handle_client_request")}
+    module = sys.modules["vllm.v1.engine.core"]
+    for cls in (base, proc):
+        expected_codes = {code.co_name: code for code in class_codes[cls.__name__].co_consts
+                          if isinstance(code, types.CodeType)}
+        expected_nodes = {node.name: node for node in class_nodes[cls.__name__].body
+                          if isinstance(node, ast.FunctionDef)}
+        for name in methods[cls.__name__]:
+            callback, node = cls.__dict__.get(name), expected_nodes[name]
+            defaults = tuple(ast.literal_eval(value) for value in node.args.defaults) or None
+            kwdefaults = {arg.arg: ast.literal_eval(value) for arg, value in
+                          zip(node.args.kwonlyargs, node.args.kw_defaults) if value is not None} or None
+            if (not inspect.isfunction(callback) or node.decorator_list
+                    or callback.__module__ != "vllm.v1.engine.core"
+                    or callback.__qualname__ != cls.__name__ + "." + name
+                    or callback.__globals__ is not module.__dict__
+                    or callback.__closure__ is not None or hasattr(callback, "__wrapped__")
+                    or callback.__code__ != expected_codes[name]
+                    or Path(callback.__code__.co_filename).resolve() != Path(source_path).resolve()
+                    or callback.__defaults__ != defaults or callback.__kwdefaults__ != kwdefaults):
+                raise ProbeError("Loaded registration method differs: " + cls.__name__ + "." + name)
+    for name in methods["EngineCore"]:
+        if name != "__init__" and name not in methods["EngineCoreProc"] and getattr(proc, name) is not getattr(base, name):
+            raise ProbeError("Loaded inherited registration method is shadowed: " + name)
+
+
 def _register_classes(base, proc, active_core=None):
     """Internal mutation step; caller verifies ALL identities first."""
+    # In the first source constructor, process-start IO can fail. Complete it
+    # before installing even the first hook so retry sees the original classes.
+    prepared_birth = _birth_state() if active_core is not None else None
+    if active_core is not None and "_megartx_native_state" in vars(active_core):
+        raise ProbeError("Active core already has registration state")
     old_init = base.__init__
     @wraps(old_init)
     def init(self, *args, **kwargs):
@@ -288,10 +342,27 @@ def _register_classes(base, proc, active_core=None):
             state["utility"] = None
     patches.extend([(proc, "_handle_client_request", handle), (proc, UTILITIES[0], owned_receipt),
                     (proc, UTILITIES[1], owned_probe), (proc, UTILITIES[2], owned_release)])
-    for cls, name, callback in patches:
-        setattr(cls, name, callback)
-    if active_core is not None:
-        active_core._megartx_native_state = _birth_state()
+    absent = object()
+    originals = [(cls, name, callback, cls.__dict__.get(name, absent)) for cls, name, callback in patches]
+    try:
+        for cls, name, callback, _ in originals:
+            setattr(cls, name, callback)
+        if active_core is not None:
+            vars(active_core)["_megartx_native_state"] = prepared_birth
+    except BaseException as primary:
+        for cls, name, callback, original in reversed(originals):
+            # Restore only our writes; never overwrite a subsequent foreign hook.
+            if cls.__dict__.get(name, absent) is not callback:
+                continue
+            try:
+                if original is absent:
+                    delattr(cls, name)
+                else:
+                    setattr(cls, name, original)
+            except BaseException as cleanup:
+                if hasattr(primary, "add_note"):
+                    primary.add_note("Owned registration rollback failed: " + str(cleanup))
+        raise
 
 
 def install_native_diagnostic():
@@ -312,6 +383,8 @@ def install_native_diagnostic():
             raise ProbeError("Unexpected actual EngineCore registration owner")
         if any(hasattr(cls, name) for name in UTILITIES):
             raise ProbeError("Duplicate or conflicting native registration")
+    _verify_loaded_methods(EngineCore, EngineCoreProc, root / "vllm/v1/engine/core.py")
+    _process_start(os.getpid())  # validate registration-process identity even before a future core
     active_core = _active_core_birth(EngineCore)
     _register_classes(EngineCore, EngineCoreProc, active_core)
     return True

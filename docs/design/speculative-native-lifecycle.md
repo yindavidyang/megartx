@@ -35,6 +35,15 @@ constructor frame for the first core; future cores enter the installed init
 wrapper. A late call cannot adopt a loaded core. First utility dispatch completes
 the observed birth ledger. Requests are counted from preprocessing onward.
 
+Registration also compares every replaced method with code compiled from pinned
+bytes without executing imports, including callable globals, qualified name,
+defaults, closure and inherited guard identity. A matching filename cannot admit
+a partial constructor replacement. Active-core birth identity/state is prepared
+before any hook write. Installation failures restore only owned hook writes and
+preserve the original error. These are the narrow corrections to the two
+independent registration findings at `acb9ce3`; runtime ownership/resource scope
+and shared-owner APIs are unchanged.
+
 The actual synchronous utility client sequence is:
 
 ```python

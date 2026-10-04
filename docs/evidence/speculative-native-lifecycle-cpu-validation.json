@@ -7,7 +7,7 @@
   ],
   "combined_main_reviewed": "e886b98c1db30b1d77fb08471f1d6b33d162bbf1",
   "implementation_binding": {
-    "speculative_native_lifecycle.py": "3ee166ec168ef511d3f91162cc0b28978a4693a6ad5d0fa54bb338ce983eb86a",
+    "speculative_native_lifecycle.py": "ae10f56bb7e33e5996c6673535c8fa32c618d667b18bdf8fbeca4d4324c175f5",
     "speculative_native_receipt.py": "7a7fcdae39347b1cb67d586f7cbf831524b4dc9bf8ab1460907b43ec331c7622",
     "speculative_native_probe.py": "4c43550e83d0412e27b22f0b058c4dbf2d03adaf90ff17cda677d392bb53541c"
   },
@@ -21,8 +21,8 @@
   },
   "local_python": "3.12.8",
   "local_numpy": "2.4.4",
-  "focused_CPU_tests": 53,
-  "full_CPU_tests": 336,
+  "focused_CPU_tests": 56,
+  "full_CPU_tests": 339,
   "full_CPU_skipped": 1,
   "independent_reference_tests": 513,
   "validation": [
@@ -38,5 +38,18 @@
   "GPU_imports_or_jobs": 0,
   "shared_plugin_launcher_edited": false,
   "claim_limit": "CPU fault controls and source inspection only; fixtures are not admitted native owners. Actual loaded layout/workspace/callback/fit remain unmeasured. Shared-owner launcher reconciliation and independent review/parent slot required.",
-  "CI": "pending publication exact-head verification"
+  "CI": "pending new exact-head verification",
+  "registration_fix_review_base": "acb9ce366609128b2a14bac7643a0a6357ef557a",
+  "registration_fix_controls": {
+    "reviewer_controls": 16,
+    "result": "local adapted recheck passed; independent fixed-head recheck pending",
+    "adaptation": "Restore protected code objects from compile-only pinned source because original AST extractor strips nested annotations; provide typing.Any in CPU globals; invert only the two defective-behavior assertions; other14 controls unchanged.",
+    "original_control_sha256": "ad4132e7ebce4e719068980001a5e4831a19435beb35d5f4776152a1a099967a",
+    "local_recheck_sha256": "03a8fc1c9b7636301f1553eac3aed7dae094c3fd58ac4b970ce8f2d553e26bf0",
+    "scope": "CPU source/lifecycle controls; no native or GPU admission"
+  },
+  "registration_fixes": [
+    "birth state/identity before hook mutation with owned rollback",
+    "actual replaced method code/default/global/hierarchy identity verified against pinned bytes"
+  ]
 }
