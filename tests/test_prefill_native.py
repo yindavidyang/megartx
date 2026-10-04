@@ -1,6 +1,7 @@
 """CPU-only negative and accounting tests. Fakes never establish native fit."""
 import ast
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from megartx.prefill_diagnostic_plan import (Evidence, freeze_plan, load_plan, require_clearance,
                                            publish_fit, BOUNDS, BASE, server_args, digest)
@@ -30,6 +32,24 @@ class NativeDiagnosticTests(unittest.TestCase):
         code = "import megartx.prefill_native, megartx.loaded_engine_access; import sys; assert not any(n=='torch' or n=='vllm' or n.startswith(('torch.','vllm.')) for n in sys.modules)"
         result = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_checkpoint_index_above_four_mib_is_bounded_cpu_metadata(self):
+        from megartx.prefill_diagnostic_plan import checkpoint_identity, CHECKPOINT_INDEX_MAX_BYTES
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);config=b'{}';(root/'config.json').write_bytes(config)
+            (root/'synthetic.safetensors').write_bytes(b'x')
+            index=root/'model.safetensors.index.json'
+            index.write_text(json.dumps({'weight_map':{'synthetic':'synthetic.safetensors'},
+                                         'cpu_fixture_padding':'x'*(4<<20)}))
+            self.assertGreater(index.stat().st_size,4<<20)
+            with patch('megartx.controlled_kv_capture.CONFIG_SHA256',hashlib.sha256(config).hexdigest()):
+                identity=checkpoint_identity(root)
+                self.assertEqual(identity['index_sha256'],hashlib.sha256(index.read_bytes()).hexdigest())
+                self.assertEqual(set(identity['shard_stats']),{'synthetic.safetensors'})
+                with index.open('wb') as stream:stream.truncate(CHECKPOINT_INDEX_MAX_BYTES+1)
+                with patch('megartx.prefill_diagnostic_plan.json.loads',side_effect=AssertionError('oversized index parsed')):
+                    with self.assertRaisesRegex(ValueError,'bounded identity'):
+                        checkpoint_identity(root)
 
     def test_frozen_exact_plan_bounds_drift_and_clearance(self):
         with tempfile.TemporaryDirectory() as d:

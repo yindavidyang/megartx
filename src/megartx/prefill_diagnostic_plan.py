@@ -9,6 +9,7 @@ import time
 BASE = "cf656d6632b9f1b08019a527a9269a9ed0fb0a26"
 PROPOSAL = "1661b04383c03f436550d63e514bef3a5ab8500316cbf117fc621e85ef8b4207"
 REVISION = "a19cfe00be84568a6867111c9a68c9c44fdcffe6"
+CHECKPOINT_INDEX_MAX_BYTES = 8 << 20  # CPU input bytes; decoded heap uses the separate host reserve.
 BOUNDS = {"prompt_tokens": 2048, "chunk_tokens": 256, "output_tokens": 256,
           "capacity_tokens": 2304, "max_requests": 1, "max_wall_seconds": 1800,
           "max_evidence_bytes": 8 << 20, "max_observer_gpu_scratch_bytes": 8 << 20,
@@ -228,7 +229,7 @@ def checkpoint_identity(checkpoint):
     if file_sha(checkpoint/'config.json') != CONFIG_SHA256:
         raise ValueError('Checkpoint config differs from selected immutable model')
     index = checkpoint/'model.safetensors.index.json'
-    if index.stat().st_size > 4 << 20:
+    if index.stat().st_size > CHECKPOINT_INDEX_MAX_BYTES:
         raise ValueError('Checkpoint index exceeds bounded identity scope')
     names = sorted(set(json.loads(index.read_text())['weight_map'].values()))
     if not 1 <= len(names) <= 128 or any(Path(n).name != n for n in names):
