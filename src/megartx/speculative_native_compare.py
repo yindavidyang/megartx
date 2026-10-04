@@ -3,7 +3,7 @@ import hashlib
 import uuid
 
 from .speculative_native_probe import ProbeError, REVISION
-from .speculative_native_plan import (LIMITS, PURPOSE, SHA, integer, read_json)
+from .speculative_native_plan import (LIMITS, PURPOSE, SHA, TORCH_BUILD_IDENTITY, integer, read_json)
 from .speculative_native_evidence import CAP, bounded_json_chunks
 
 SCALAR_KEYS = {"schema", "receipt_sha256", "diagnostic_target_forwards", "existing_startup_target_forwards",
@@ -110,6 +110,8 @@ def verify_private_receipt(raw, identity, scalar, plan):
     expected = {k: v["sha256"] for k, v in source_manifest()["files"].items()}
     if raw.get("source_sha256") != expected:
         raise ProbeError("Actual loaded receipt source differs")
+    if raw.get("torch_build_identity") != TORCH_BUILD_IDENTITY:
+        raise ProbeError("Actual loaded Torch distribution/CUDA build identity differs")
     from .speculative_native_probe import ADAPTER_FILES
     if raw.get("adapter_source_sha256") != {k: plan["source_sha256"]["src/megartx/" + k] for k in ADAPTER_FILES}:
         raise ProbeError("Actual adapter source differs")

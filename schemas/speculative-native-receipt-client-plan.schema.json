@@ -289,19 +289,24 @@
     "collector_materialization_guard": {
       "const": {
         "correction_commit": "b9f8e95e9483daa7be263e3a02a1b6a63ab09844",
-        "receipt_source_sha256": "bcea2a8201529004220b46518df3e5d5e88f7b526e337a7e5ebcd251c897b308",
+        "identity_correction_commit": "43fb52354cb0fd15845e0851d8eda3addb5835d3",
+        "receipt_source_sha256": "0b9b63a9e2ac8c4a3402cd37073cd5bf81b6fe82bf47e41018c3e1e66a4a016d",
+        "identity_correction_source_sha256": {
+          "src/megartx/speculative_native_probe.py": "05471223bd96af167f53c23c5d74d33d23698f0320ff6f6772f74e52fa5911cb",
+          "docs/design/speculative-native-zero-forward-protocol.json": "52fe1aa9c74769c4140ce1fc0e53771eceec616c94cb83124431d1957f8ba9bb"
+        },
         "targeted_python_records_bounded": true,
         "canonical_serialization_bounded": true,
         "native_counter_query_preallocation_bound_bytes": null,
         "review_status": "independent_CPU_review_clear_parent_scope_accepted_GPU_closed",
         "independent_review_reference": "task-5/review-bounded-summary.json; exact b9f8 correction",
+        "identity_independent_review_reference": "task-5/review-torch-summary.json; parent-relayed exact 43fb523 CPU clearance",
         "parent_scope_acceptance_reference": "parent-thread:01a0f166-1f28-7799-9a66-c30c5c758028; prospective monitored native counter query; no hard heap bound or GPU authorization"
       }
     },
     "preflight_blockers": {
       "const": [
         "shared_plugin_registration_and_evidence_hook_not_integrated",
-        "collector_distribution_runtime_version_contract_pending_committed_correction",
         "active_runner_selection_requires_reviewed_V1_binding_without_silent_override"
       ]
     },

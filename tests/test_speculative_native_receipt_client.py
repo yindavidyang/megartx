@@ -507,7 +507,7 @@ class SourceAndOperationalControls(unittest.TestCase):
             root = Path(tmp)
             (root / "torch").mkdir()
             path = root / "torch/version.py"
-            path.write_text("__version__ = '2.13.0+cu130'\ncuda: str = '13.0'\ngit_version = 'fixture'\n")
+            path.write_text("__version__ = '2.13.0+cu130'\ncuda: str = '13.0'\ngit_version = 'cf30153c4c131c8164ee7798e5022d810682e2cb'\n")
             with patch.object(plan, "hash_file", return_value=plan.TORCH_VERSION_SOURCE_SHA256):
                 result = plan.torch_version_source(root)
                 self.assertEqual(result["__version__"], "2.13.0+cu130")
@@ -574,9 +574,19 @@ class SourceAndOperationalControls(unittest.TestCase):
         self.assertEqual(schema["properties"]["runner_binding"]["const"], RUNNER_BINDING)
         self.assertEqual(len(RUNNER_SELECTION_SOURCES), 2)
 
+    def test_composed_corrections_and_review_markers_match_schema_and_exact_source(self):
+        from megartx.speculative_native_plan import COLLECTOR_GUARD, PREFLIGHT_BLOCKERS, hash_file
+        schema = read_json(ROOT / "schemas/speculative-native-receipt-client-plan.schema.json", 256 << 10)
+        self.assertEqual(schema["properties"]["collector_materialization_guard"]["const"], COLLECTOR_GUARD)
+        self.assertEqual(schema["properties"]["preflight_blockers"]["const"], PREFLIGHT_BLOCKERS)
+        self.assertEqual(hash_file(ROOT / "src/megartx/speculative_native_receipt.py"), COLLECTOR_GUARD["receipt_source_sha256"])
+        for path, expected in COLLECTOR_GUARD["identity_correction_source_sha256"].items():
+            self.assertEqual(hash_file(ROOT / path), expected)
+
 
 def private_fixture():
     """Host metadata fault fixture, never native execution/ownership evidence."""
+    from megartx.speculative_native_plan import TORCH_BUILD_IDENTITY
     row = scalar()
     row["allocation_lower_bound"] = allocation_lower_bound([64] * 30, 568, reject=False)
     row["decision"] = fit_decision(row["allocation_lower_bound"], allocated=1000, reserved=1000,
@@ -601,6 +611,7 @@ def private_fixture():
         lease_nonce="00000000-0000-4000-8000-000000000001", worker_pid=123, worker_start="456",
         source_sha256={k: v["sha256"] for k, v in source_manifest()["files"].items()},
         adapter_source_sha256={k: "c" * 64 for k in ADAPTER_FILES}, drained=True,
+        torch_build_identity=dict(TORCH_BUILD_IDENTITY),
         allocator={"allocated_bytes": 1000, "reserved_bytes": 1000, "cached_slack_bytes": 0,
                    "snapshot_coverage": "unavailable"},
         external_gpu_workspace_bound_bytes=None, ffi_allocator={"argument_exchange_coverage_verified": False,
@@ -642,6 +653,19 @@ class PrivateComparisonControls(unittest.TestCase):
         raw["source_sha256"]["vllm/v1/engine/core.py"] = "0" * 64
         row["receipt_sha256"] = identity["receipt_sha256"] = stream_digest(raw)
         with self.assertRaisesRegex(ProbeError, "loaded receipt source"):
+            verify_private_receipt(raw, identity, row, plan)
+
+    def test_loaded_torch_build_must_match_all_literal_identity_fields(self):
+        for key in ("distribution_version", "runtime_version", "cuda_build", "git_revision", "version_source_sha256"):
+            raw, identity, row, plan = private_fixture()
+            raw["torch_build_identity"][key] = "unbound"
+            row["receipt_sha256"] = identity["receipt_sha256"] = stream_digest(raw)
+            with self.assertRaisesRegex(ProbeError, "loaded Torch distribution/CUDA build"):
+                verify_private_receipt(raw, identity, row, plan)
+        raw, identity, row, plan = private_fixture()
+        del raw["torch_build_identity"]
+        row["receipt_sha256"] = identity["receipt_sha256"] = stream_digest(raw)
+        with self.assertRaisesRegex(ProbeError, "loaded Torch distribution/CUDA build"):
             verify_private_receipt(raw, identity, row, plan)
 
     def test_worker_owner_and_nonce_cannot_be_substituted(self):

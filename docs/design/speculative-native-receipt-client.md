@@ -10,6 +10,11 @@ collector correction `b9f8e95e9483daa7be263e3a02a1b6a63ab09844` is composed
 through a merge preserving both committed ancestries. Its independent CPU review
 is clear, and the parent accepts the prospective monitored native-counter query
 with its acquisition limitation explicit; this grants no live GPU execution.
+The exact identity correction `43fb52354cb0fd15845e0851d8eda3addb5835d3`
+is also composed without rebasing. Its independent CPU recheck is clear. The plan
+binds the resulting receipt, probe, and zero-forward protocol SHA-256 identities.
+This ancestry-preserving composition is distinct from any future merge with newer
+main; such a merge requires its own source freeze and integration review.
 The CPU fixtures exercise faults
 and metadata; they are never admitted native owners. GPU execution and merge
 remain closed.
@@ -226,15 +231,18 @@ The child applies an 8 MiB kernel per-file bound to startup evidence before
 imports. A 64 MiB run evidence disk reserve is separate from these RAM/GPU limits
 and is not an allocation-coverage claim.
 
-The shared registration/evidence-hook integration, a committed collector
-distribution/runtime-version distinction, and reviewed active runner selection
-are the remaining frozen source blockers in this branch. Read-only installed metadata reports Torch distribution
+The shared registration/evidence-hook integration and reviewed active runner
+selection are the remaining frozen source blockers in this branch. Read-only installed metadata reports Torch distribution
 `2.13.0`; the pinned `torch/version.py` reports runtime `2.13.0+cu130` and CUDA
 `13.0`. The new preflight checks both domains independently without importing
-Torch. The original collector metadata check expects the runtime tag in
-distribution metadata and therefore remains blocked pending its owner's
-committed correction; the historical runtime pin is unchanged. The composed exact
-correction removes global snapshot materialization, bounds targeted Python
+Torch. The composed `43fb523` correction separately checks distribution identity,
+loaded runtime literal, CUDA build, git revision, and the pinned version source.
+Private receipt comparison verifies all five identities after verifying the
+receipt digest. Its independent recheck passed 75 focused, 358 scaffold (one
+skip), 20 prior lifecycle, 10 receipt, and five identity controls, with six CI
+checks green, as relayed by the parent from `task-5/review-torch-summary.json`.
+The historical runtime pin is unchanged. The composed `b9f8e95` correction
+removes global snapshot materialization, bounds targeted Python
 records before copies, streams canonical hashing, and reports segment/block
 snapshot coverage as unavailable. Its selected-device native Torch counter query
 still materializes a private-pool dictionary before Python can guard its count.
@@ -255,7 +263,7 @@ was read or incorporated.
 `validate_authorization` rejects the remaining blocker before device queries, imports,
 output-directory acquisition, or model startup. No supplied boolean or edited
 authorization file can override them. The collector guard binds the corrected
-receipt source SHA-256 and both committed ancestries; it records partial Python
+receipt/probe/protocol source SHA-256 and all three committed ancestries; it records partial Python
 acquisition protection and the exact independent review/parent scope acceptance
 references, without claiming a native host peak bound. After shared integration
 and the exact client/plan are reviewed, the plan generator/schema must be deliberately updated

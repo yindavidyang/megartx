@@ -17,16 +17,21 @@ from .speculative_native_lifecycle import WORKER_EXTENSION
 
 REVIEWED_LIFECYCLE = "95f31095f94d254b79c6620a046ccdffce712941"
 COMPOSED_COLLECTOR_CORRECTION = "b9f8e95e9483daa7be263e3a02a1b6a63ab09844"
+COMPOSED_IDENTITY_CORRECTION = "43fb52354cb0fd15845e0851d8eda3addb5835d3"
 COLLECTOR_GUARD = {
     "correction_commit": COMPOSED_COLLECTOR_CORRECTION,
-    "receipt_source_sha256": "bcea2a8201529004220b46518df3e5d5e88f7b526e337a7e5ebcd251c897b308",
+    "identity_correction_commit": COMPOSED_IDENTITY_CORRECTION,
+    "receipt_source_sha256": "0b9b63a9e2ac8c4a3402cd37073cd5bf81b6fe82bf47e41018c3e1e66a4a016d",
+    "identity_correction_source_sha256": {
+        "src/megartx/speculative_native_probe.py": "05471223bd96af167f53c23c5d74d33d23698f0320ff6f6772f74e52fa5911cb",
+        "docs/design/speculative-native-zero-forward-protocol.json": "52fe1aa9c74769c4140ce1fc0e53771eceec616c94cb83124431d1957f8ba9bb"},
     "targeted_python_records_bounded": True, "canonical_serialization_bounded": True,
     "native_counter_query_preallocation_bound_bytes": None,
     "review_status": "independent_CPU_review_clear_parent_scope_accepted_GPU_closed",
     "independent_review_reference": "task-5/review-bounded-summary.json; exact b9f8 correction",
+    "identity_independent_review_reference": "task-5/review-torch-summary.json; parent-relayed exact 43fb523 CPU clearance",
     "parent_scope_acceptance_reference": "parent-thread:01a0f166-1f28-7799-9a66-c30c5c758028; prospective monitored native counter query; no hard heap bound or GPU authorization"}
 PREFLIGHT_BLOCKERS = ["shared_plugin_registration_and_evidence_hook_not_integrated",
-                      "collector_distribution_runtime_version_contract_pending_committed_correction",
                       "active_runner_selection_requires_reviewed_V1_binding_without_silent_override"]
 RUNNER_SELECTION_SOURCES = {
     "vllm/config/vllm.py": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
@@ -38,6 +43,9 @@ RUNNER_BINDING = {
     "automatic_selection_source": "V2_when_Triton_and_no_unsupported_features",
     "selection_source_sha256": RUNNER_SELECTION_SOURCES}
 TORCH_VERSION_SOURCE_SHA256 = "d7662da37d4b8b037c81e7ae20381a43893b379facf17988a6d4f17a93265140"
+TORCH_BUILD_IDENTITY = {"distribution_version": "2.13.0", "runtime_version": "2.13.0+cu130",
+                        "cuda_build": "13.0", "git_revision": "cf30153c4c131c8164ee7798e5022d810682e2cb",
+                        "version_source_sha256": TORCH_VERSION_SOURCE_SHA256}
 BASE = Path("/home/yyang/projects/megartx-baseline-20260930")
 PYTHON = str(BASE / ".venv/bin/python")
 SITE = BASE / ".venv/lib/python3.12/site-packages"
@@ -197,8 +205,12 @@ def freeze(project, *, client_mode="async"):
     head = _git(project, "rev-parse", "HEAD")
     subprocess.run(["git", "-C", str(project), "merge-base", "--is-ancestor", REVIEWED_LIFECYCLE, head], check=True)
     subprocess.run(["git", "-C", str(project), "merge-base", "--is-ancestor", COMPOSED_COLLECTOR_CORRECTION, head], check=True)
+    subprocess.run(["git", "-C", str(project), "merge-base", "--is-ancestor", COMPOSED_IDENTITY_CORRECTION, head], check=True)
     if hash_file(project / "src/megartx/speculative_native_receipt.py", 1 << 20) != COLLECTOR_GUARD["receipt_source_sha256"]:
         raise ProbeError("Composed exact collector correction source differs")
+    for path, expected in COLLECTOR_GUARD["identity_correction_source_sha256"].items():
+        if hash_file(project / path, 1 << 20) != expected:
+            raise ProbeError("Composed exact identity correction source differs: " + path)
     result = {"schema": SCHEMA, "purpose": PURPOSE, "reviewed_lifecycle_commit": REVIEWED_LIFECYCLE,
               "source_head": head, "source_sha256": {p: hash_file(project / p, 1 << 20) for p in OWNED_FILES},
               "installed_client_sources": CLIENT_SOURCES, "checkpoint_revision": REVISION,
@@ -270,7 +282,9 @@ def torch_version_source(root):
             if name in result:
                 raise ProbeError("Duplicate Torch version-source assignment")
             result[name] = ast.literal_eval(node.value)
-    if result.get("__version__") != "2.13.0+cu130" or result.get("cuda") != "13.0":
+    if (result.get("__version__") != TORCH_BUILD_IDENTITY["runtime_version"]
+            or result.get("cuda") != TORCH_BUILD_IDENTITY["cuda_build"]
+            or result.get("git_version") != TORCH_BUILD_IDENTITY["git_revision"]):
         raise ProbeError("Pinned Torch runtime/CUDA version source differs")
     return result
 
