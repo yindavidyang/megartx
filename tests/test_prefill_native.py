@@ -181,6 +181,12 @@ class NativeDiagnosticTests(unittest.TestCase):
                 self.assertNotIn('exact default-off',result.stderr)
                 self.assertFalse((directory/'untouched-base').exists())
                 self.assertFalse((directory/'untouched-work').exists())
+            result = subprocess.run(command,cwd=directory,env={**env,'VLLM_USE_V2_MODEL_RUNNER':'0'},
+                                    capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('inherited override',result.stderr)
+            self.assertNotIn('http import primary',result.stderr)
+            self.assertFalse((directory/'untouched-work').exists())
 
 
 if __name__ == '__main__': unittest.main()

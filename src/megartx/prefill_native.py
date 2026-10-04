@@ -7,6 +7,7 @@ from dataclasses import asdict
 from contextlib import contextmanager
 from functools import wraps
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,7 @@ from .controlled_kv_capture import gather_writer_rows
 from .loaded_engine_access import LoadedEngineAccess
 from .prefill_diagnostic_plan import (Evidence, load_plan, digest, remaining, checkpoint_identity,
                                      verify_adapter_sources)
+from .controlled_kv_capture import SOURCE_HASHES, _digest, validate_context, validate_metadata
 from .prefill_kv import PrefillKVObserver
 
 
@@ -72,7 +74,7 @@ class RequestLedger:
         if type(token) is not int or not 0 <= token < 262144 or type(discarded) is not bool:
             raise ValueError("Actual bounded sampler output required")
         if discarded != (self.end < 2048):
-            raise ValueError("Actual sampler discard mask differs from prompt completion")
+            raise ValueError("Actual sampler discard state differs from prompt completion")
         if not discarded:
             if len(self.outputs) >= 256:
                 raise ValueError("Native output budget exceeded")
@@ -203,7 +205,7 @@ class NativeProvider(PrefillKVObserver):
     positions; per-frame K/V hashes cover actual new rows and retained boundaries.
     Those observations cannot establish native numerical equivalence.
     """
-    def __init__(self, runner, plan, directory, torch):
+    def __init__(self, runner, plan, directory, torch, hook_checks):
         self.torch, self.plan = torch, plan
         self.adapter_sources = verify_adapter_sources(plan)
         self.access = LoadedEngineAccess.from_runner(runner, torch)
@@ -219,12 +221,73 @@ class NativeProvider(PrefillKVObserver):
         self.logit_seen = False
         self.failed, self.started, self.completed = False, False, False
         self.deadline = float(os.environ['MEGARTX_PREFILL_NATIVE_DEADLINE'])
+        self.hook_checks = hook_checks
+        self.require_hooks()
         remaining(self.deadline)
         self.evidence.write('loaded.json', {"schema": "megartx-loaded-model-observation-v1",
                             "identity": asdict(self.access.identity), "plan_sha256": plan['plan_sha256'],
                             "executing_adapter_sources": self.adapter_sources,
                             "mutable_lease_granted": False,
                             "memory": memory_sample(torch, 'cache_initialized', self.scratch, self.ledger)})
+        from .prefill_diagnostic_plan import INSTALLED
+        self.evidence.write('runner-binding.json', {
+            'schema': 'megartx-prefill-runner-binding-v1', 'plan_sha256': plan['plan_sha256'],
+            'source_head': plan['source_head'], 'owner_pid': self.access.identity.owner_pid,
+            'owner_start_ticks': self.access.identity.owner_start_ticks,
+            'runner_policy': self.access.runner_policy, 'installed_sources': INSTALLED,
+            'hook_bindings': {key: True for key in hook_checks}, 'mutable_lease_granted': False})
+
+    def require_hooks(self):
+        from .prefill_runner_binding import HOOKS, require_default_selection
+        require_default_selection(self.access._runner.vllm_config)
+        if set(self.hook_checks) != set(HOOKS) or not all(check() for check in self.hook_checks.values()):
+            raise RuntimeError('Actual V2 native observer hook binding changed')
+
+    def read_frame(self, positions, tokens):
+        """V2 dtype binding; all original owner/metadata/cache checks retained."""
+        torch = self.torch
+        from vllm.forward_context import get_forward_context
+
+        context = get_forward_context()
+        path = Path(inspect.getsourcefile(get_forward_context))
+        if _digest(path) != SOURCE_HASHES["vllm.forward_context"]:
+            raise RuntimeError("K/V ForwardContext source changed")
+        validate_context(context)
+        if (not isinstance(positions, torch.Tensor) or not isinstance(tokens, torch.Tensor)
+                or positions.dtype != torch.int64 or tokens.dtype != torch.int32
+                or positions.ndim != 1 or tokens.ndim != 1):
+            raise RuntimeError("K/V actual position/token context must retain V2 I32 token and I64 position row identity")
+        positions, tokens = [int(p) for p in positions.tolist()], [int(t) for t in tokens.tolist()]
+        slots, capacities, identities, bindings = {}, {}, {}, []
+        for ordinal, descriptor in enumerate(self.descriptors):
+            name, parent, attn, impl = self.layers[ordinal]
+            if parent.attn is not attn or attn.impl is not impl or context.no_compile_layers.get(name) is not attn or name not in context.slot_mapping or name not in context.attn_metadata:
+                raise RuntimeError("K/V actual registry/module/backend owner changed")
+            meta, mapping, cache = context.attn_metadata[name], context.slot_mapping[name], attn.kv_cache
+            validate_metadata(meta, len(positions))
+            if not isinstance(mapping, torch.Tensor) or mapping.dtype != torch.int64 or tuple(mapping.shape) != (len(positions),) or not torch.equal(mapping, meta.slot_mapping):
+                raise RuntimeError("K/V metadata differs from the actual writer slot map")
+            if context.is_padding is not None and (context.is_padding.shape != mapping.shape or bool(context.is_padding.any().item())):
+                raise RuntimeError("K/V controlled forward has padded rows")
+            heads, dim = descriptor["kv_heads"], descriptor["head_dim"]
+            if attn.num_kv_heads != heads or attn.head_size != dim or attn.head_size_v != dim or attn.sliding_window != descriptor["window_size"] or impl.num_kv_heads != heads or impl.head_size != dim or impl.window_left != (1023 if descriptor["window_size"] else -1):
+                raise RuntimeError("K/V actual head/window geometry differs from the frozen config")
+            if attn.kv_cache_dtype not in {"auto", "bfloat16"} or impl.cache_dtype != attn.kv_cache_dtype or impl.is_kvcache_nvfp4 or cache.dtype != torch.bfloat16 or cache.device.type != "cuda":
+                raise RuntimeError("K/V capture requires unchanged BF16 CUDA storage")
+            shape, strides = tuple(cache.shape), tuple(cache.stride())
+            if len(shape) != 4 or shape[0] < 1 or shape[1] != heads or shape[2] < 1 or shape[3] != 2 * dim or any(s < 1 for s in strides) or strides[-1] != 1:
+                raise RuntimeError("K/V view is not the pinned logical BHNC representation")
+            storage, offset = cache.untyped_storage(), cache.storage_offset()
+            extent = offset + sum((n - 1) * s for n, s in zip(shape, strides)) + 1
+            if offset < 0 or extent * 2 > storage.nbytes():
+                raise RuntimeError("K/V view exceeds its actual allocation")
+            identities[ordinal] = (id(cache), storage.data_ptr(), storage.nbytes(), offset, shape, strides, str(cache.device))
+            slots[ordinal] = [int(s) for s in mapping.detach().cpu().tolist()]
+            capacities[ordinal] = shape[0] * shape[2]
+            bindings.append({"layer": ordinal, "layer_name": name, "cache_view_shape": list(shape), "cache_view_strides": list(strides),
+                             "resolved_layout": impl.kv_cache_layout.name, "writer": "FlashInferImpl.do_kv_cache_update",
+                             "registry_owner_verified": True, "metadata_writer_slots_equal": True, "dtype": "bf16"})
+        return slots, capacities, identities, bindings
 
     def active(self):
         remaining(self.deadline)
@@ -243,13 +306,19 @@ class NativeProvider(PrefillKVObserver):
         if verify_adapter_sources(self.plan) != self.adapter_sources:
             raise RuntimeError("Executing native adapter identity changed before frame admission")
         self.started = True
+        self.require_hooks()
         return True
 
     def prepare_inputs(self, result):
         if self.failed:
             raise RuntimeError("Poisoned native provider cannot prepare another frame")
-        self.access.common.clear()
-        self.logits_indices = result[0]
+        self.access.prepare_inputs(result)
+        self.logits_indices = result.logits_indices
+
+    def prepare_attn(self, batch, result):
+        if self.failed:
+            raise RuntimeError('Poisoned native provider cannot prepare attention')
+        self.access.prepare_attn(batch, result)
 
     def begin(self, model, tokens, positions):
         if not self.active():
@@ -346,7 +415,7 @@ class NativeProvider(PrefillKVObserver):
         if (tuple(hidden.shape) != (1, 2816) or logits is None or tuple(logits.shape) != (1, 262144)
                 or logits.dtype != torch.float32):
             raise RuntimeError("Actual head shape differs")
-        # Indices were captured from actual _prepare_inputs, not inferred from
+        # Indices were captured from actual V2 prepare_inputs, not inferred from
         # token equality. Check selected raw hidden bytes without whole-view copies.
         indices = self.logits_indices.cpu().tolist()
         if indices != [len(self.hidden)-1]:
@@ -370,9 +439,22 @@ class NativeProvider(PrefillKVObserver):
             return
         if self.failed or not self.logit_seen or tuple(result.sampled_token_ids.shape) != (1, 1):
             raise RuntimeError("Native sample lacks actual unique logit row")
-        runner = self.access._runner
+        if (type(result).__module__ != 'vllm.v1.worker.gpu.sample.output'
+                or type(result).__name__ != 'SamplerOutput'
+                or result.num_sampled is None or tuple(result.num_sampled.shape) != (1,)
+                or result.num_rejected is None or tuple(result.num_rejected.shape) != (1,)):
+            raise RuntimeError('Actual V2 sampled-count output required')
+        for tensor, dtype in ((result.sampled_token_ids, self.torch.int64),
+                              (result.num_sampled, self.torch.int32),
+                              (result.num_rejected, self.torch.int32)):
+            if (not isinstance(tensor, self.torch.Tensor) or tensor.dtype != dtype
+                    or tensor.device != self.access._runner.device):
+                raise RuntimeError('V2 sample/count tensors lost actual device/dtype identity')
         token = int(result.sampled_token_ids.item())
-        discarded = bool(runner.discard_request_mask.np[0])
+        count, rejected = int(result.num_sampled.item()), int(result.num_rejected.item())
+        if count not in (0, 1) or rejected != 0:
+            raise RuntimeError('V2 ordinary sampled/rejected counts changed')
+        discarded = count == 0
         self.ledger.sampled(token, discarded)
         if not discarded:
             self.evidence.write('samples.jsonl', {'output_index': len(self.ledger.outputs)-1,
@@ -410,13 +492,17 @@ def install_native_observer(torch, model_cls):
             or any(os.environ.get(k) for k in ('MEGARTX_M1_PREPARATION', 'MEGARTX_CONTROLLED_DIR',
                    'MEGARTX_LOGITS_DIR', 'MEGARTX_NATIVE_DIAGNOSTIC'))):
         raise RuntimeError("Native prefill requires its exclusive observer-only opt-in")
-    from vllm.v1.worker.gpu_model_runner import GPUModelRunner
+    from .prefill_runner_binding import require_default_selection, verify_installed_files
+    verify_installed_files()
+    from vllm.v1.worker.gpu.model_runner import GPUModelRunner
+    from vllm.v1.worker.gpu_model_runner import GPUModelRunner as RejectedRunner
     from vllm.v1.attention.backends.flashinfer import FlashInferMetadataBuilder
     plan = load_plan(plan_path, os.environ.get("MEGARTX_PREFILL_NATIVE_SOURCE_ROOT"))
     verify_adapter_sources(plan)  # Before installing any new observation hooks.
     providers = {}
-    old_init, old_prepare, old_sample = (GPUModelRunner.initialize_kv_cache,
-                                        GPUModelRunner._prepare_inputs, GPUModelRunner._sample)
+    old_constructor, old_execute = GPUModelRunner.__init__, GPUModelRunner.execute_model
+    old_init, old_prepare, old_attn, old_sample = (GPUModelRunner.initialize_kv_cache,
+        GPUModelRunner.prepare_inputs, GPUModelRunner.prepare_attn, GPUModelRunner.sample)
     old_build = FlashInferMetadataBuilder.build
     old_forward, old_head = model_cls.forward, model_cls.compute_logits
 
@@ -439,6 +525,30 @@ def install_native_observer(torch, model_cls):
         with provider.scratch.scope(name):
             return getattr(provider, name)(*args)
 
+    @wraps(old_constructor)
+    def constructed(runner, vllm_config, *args, **kwargs):
+        require_default_selection(vllm_config)
+        verify_installed_files()
+        return old_constructor(runner, vllm_config, *args, **kwargs)
+
+    def rejected(*args, **kwargs):
+        raise RuntimeError('Native prefill cannot construct the unbound V1 runner')
+
+    @wraps(old_execute)
+    def executed(runner, scheduler_output, *args, **kwargs):
+        provider = providers.get(id(runner))
+        try:
+            require_live(provider)
+            # Ordinary zero-token scheduler housekeeping performs no forward;
+            # delegate it unchanged, including after the final observed sample.
+            if (Path(directory)/'request.json').exists() and scheduler_output.total_num_scheduled_tokens:
+                if provider is None or not provider.active():
+                    raise RuntimeError('Active native request lacks its V2 observer before execute_model')
+            return old_execute(runner, scheduler_output, *args, **kwargs)
+        except BaseException as error:
+            poison(provider, error)
+            raise
+
     @wraps(old_init)
     def initialized(runner, *args, **kwargs):
         provider = providers.get(id(runner))
@@ -446,8 +556,26 @@ def install_native_observer(torch, model_cls):
             require_live(provider)
             if provider is not None:
                 raise RuntimeError("Repeated native runner cache initialization")
+            require_default_selection(runner.vllm_config)
             result = old_init(runner, *args, **kwargs)
-            providers[id(runner)] = NativeProvider(runner, plan, directory, torch)
+            profiling = kwargs.get('is_profiling', args[1] if len(args) > 1 else False)
+            if not profiling:
+                if providers:
+                    raise RuntimeError('Only one native loaded runner is admitted')
+                providers[id(runner)] = NativeProvider(runner, plan, directory, torch, hook_checks)
+            return result
+        except BaseException as error:
+            poison(provider, error)
+            raise
+
+    @wraps(old_attn)
+    def attention(runner, input_batch, *args, **kwargs):
+        provider = providers.get(id(runner))
+        try:
+            require_live(provider)
+            result = old_attn(runner, input_batch, *args, **kwargs)
+            if provider is not None:
+                provider.prepare_attn(input_batch, result)
             return result
         except BaseException as error:
             poison(provider, error)
@@ -488,6 +616,8 @@ def install_native_observer(torch, model_cls):
         matches = [p for p in providers.values() if p.access.model is model]
         if len(matches) > 1:
             raise RuntimeError("Ambiguous loaded native model owner")
+        if not matches and (Path(directory)/'request.json').exists():
+            raise RuntimeError('Active native request has no bound V2 model observer')
         return matches[0] if matches else None
 
     @wraps(old_forward)
@@ -522,16 +652,37 @@ def install_native_observer(torch, model_cls):
         provider = providers.get(id(runner))
         try:
             require_live(provider)
+            if provider is not None and provider.started and not provider.completed:
+                batch = args[1] if len(args) > 1 else kwargs.get('input_batch')
+                if batch is not provider.access.input_batch:
+                    raise RuntimeError('V2 sample escaped actual prepared InputBatch')
             result = old_sample(runner, *args, **kwargs)
             if provider is not None:
-                provider.sampled(result)
+                output, count, rejected_count = result
+                if count is not output.num_sampled or rejected_count is not output.num_rejected:
+                    raise RuntimeError('V2 sample result/count tensor identity changed')
+                provider.sampled(output)
             return result
         except BaseException as error:
             poison(provider, error)
             raise
 
+    hook_checks = {
+        'runner_constructor': lambda: GPUModelRunner.__init__ is constructed,
+        'initialize_kv_cache': lambda: GPUModelRunner.initialize_kv_cache is initialized,
+        'execute_model': lambda: GPUModelRunner.execute_model is executed,
+        'prepare_inputs': lambda: GPUModelRunner.prepare_inputs is prepared,
+        'prepare_attn': lambda: GPUModelRunner.prepare_attn is attention,
+        'sample': lambda: GPUModelRunner.sample is sampled,
+        'metadata_build': lambda: FlashInferMetadataBuilder.build is built,
+        'model_forward': lambda: model_cls.forward is forward,
+        'compute_logits': lambda: model_cls.compute_logits is head}
+    GPUModelRunner.__init__ = constructed
+    RejectedRunner.__init__ = rejected
     GPUModelRunner.initialize_kv_cache = initialized
-    GPUModelRunner._prepare_inputs = prepared
+    GPUModelRunner.execute_model = executed
+    GPUModelRunner.prepare_inputs = prepared
+    GPUModelRunner.prepare_attn = attention
     FlashInferMetadataBuilder.build = built
-    GPUModelRunner._sample = sampled
+    GPUModelRunner.sample = sampled
     model_cls.forward, model_cls.compute_logits = forward, head

@@ -23,12 +23,29 @@ SOURCES = (
     "src/megartx/nvfp4_runtime.py", "src/megartx/m1_live.py",
     "src/megartx/prefill_kv.py", "src/megartx/controlled_kv_capture.py",
     "src/megartx/m1_execution.py", "src/megartx/prefill_plan.py",
-    "src/megartx/prefill_runner.py", "src/megartx/prefill_collect.py")
+    "src/megartx/prefill_runner.py", "src/megartx/prefill_collect.py",
+    "src/megartx/prefill_runner_binding.py")
 INSTALLED = {
+    "vllm.config.vllm": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+    "vllm.envs": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f",
+    "vllm.v1.worker.gpu_worker": "6994436e4547c0996ab555b3e814e8ccea26b650dfc1b378b97d640745309347",
     "vllm.v1.worker.gpu_model_runner": "87c29d08c0bbf66993d8b984811e7325e35e6436242a773feb55ec88f16b2c51",
-    "vllm.v1.worker.block_table": "a09b8819e1417b7a186cf3472224e2138fc5d41a291c6692bb7df711b0c44259",
+    "vllm.v1.worker.gpu.model_runner": "174c93db921c23cf0396eee4764be25b2bd2d4b6a06e9fa41ce3598b884ce8ce",
+    "vllm.v1.worker.gpu.block_table": "61c004315d5af7e7eae4e2a9e6be92ea82c520327690a7f55a73bb9ce95f520a",
+    "vllm.v1.worker.gpu.input_batch": "d5dd956eb319bd69dd9e762047833d81ad40b21fce619fcb2133759e73620694",
+    "vllm.v1.worker.gpu.attn_utils": "b9b81e59dda2720b1f9c434471381f879228832443e52756e469b4ad4905888f",
+    "vllm.v1.worker.gpu.states": "99418f5df43ca612ded72609fee011620b065b2cab2f249ccb387096bf4ae71a",
+    "vllm.v1.worker.gpu.sample.sampler": "832c9945d201a1e730ff9b4b52076aa83bd4a5064e1e4cfea952cf84d4a8d1f0",
+    "vllm.v1.worker.gpu.sample.output": "d6e298c0f197d487a8faaf7200f500fa83df1d7a4bbf4339cadd6a18008f7f9c",
+    "vllm.v1.worker.gpu.model_states": "07815d0b788fc88185772f581bbf892a675259f9288375571f29887622f8d93c",
+    "vllm.v1.worker.gpu.model_states.default": "bb614f814780f052e869f9acf31dfbfa68718ee7dc6252eefa901b5730ee8a2a",
+    "vllm.v1.worker.gpu.model_states.interface": "5675b6fedc7403a9ab410b1e5565974e78fac23c42ab4253ae1da52d6e09b594",
+    "vllm.v1.worker.utils": "0ca3ec6bf4d20076145b7fe64e564962adebedc8f75a856b517ba0b2f2d77acf",
     "vllm.v1.kv_cache_interface": "1cf202f1a44d5bc5c3832b70b41507687ecceea3784e67a4f003bc0210d6eecb",
     "vllm.v1.core.kv_cache_utils": "2666c9f113584e52e7521058efd2c0d9598544559dc942d3a3da87001a3fedf2"}
+RUNNER_POLICY = {"runner_module": "vllm.v1.worker.gpu.model_runner",
+                 "runner_class": "GPUModelRunner", "resolved_v2": True,
+                 "selector_env": None, "selection_override_injected": False}
 
 
 def digest(value):
@@ -47,8 +64,10 @@ def load_plan(path, root=None):
     value = json.loads(path.read_text())
     expected = {"schema", "base", "proposal_sha256", "source_head", "source_hashes",
                 "checkpoint_revision", "checkpoint_identity", "tokens", "prompt_sha256", "bounds", "plan_sha256",
-                "adapter_site"}
-    if set(value) != expected or value["schema"] != "megartx-prefill-native-plan-v2":
+                "adapter_site", "runner_policy"}
+    if (set(value) != expected or value["schema"] != "megartx-prefill-native-plan-v3"
+            or value['runner_policy'] != RUNNER_POLICY
+            or digest(value['runner_policy']) != digest(RUNNER_POLICY)):
         raise ValueError("Unknown native diagnostic plan")
     if (value["base"] != BASE or value["proposal_sha256"] != PROPOSAL
             or value["checkpoint_revision"] != REVISION or value["bounds"] != BOUNDS
@@ -89,12 +108,13 @@ def load_plan(path, root=None):
 
 
 def freeze_plan(tokens, source_head, root, checkpoint, adapter_site=None):
-    value = {"schema": "megartx-prefill-native-plan-v2", "base": BASE,
+    value = {"schema": "megartx-prefill-native-plan-v3", "base": BASE,
              "proposal_sha256": PROPOSAL, "source_head": source_head,
              "source_hashes": {p: file_sha(Path(root) / p) for p in SOURCES},
              "checkpoint_revision": REVISION, "checkpoint_identity": checkpoint, "tokens": tokens,
              "prompt_sha256": digest(tokens), "bounds": BOUNDS.copy(),
-             "adapter_site": str(Path(adapter_site or Path(root)/'src').resolve())}
+             "adapter_site": str(Path(adapter_site or Path(root)/'src').resolve()),
+             "runner_policy": RUNNER_POLICY.copy()}
     value["plan_sha256"] = digest(value)
     return value
 
@@ -181,6 +201,8 @@ def publish_fit(evidence, plan, ownership):
     directory = evidence.directory
     read = lambda name: json.loads((directory/name).read_text())
     observer, client, loaded, geometry = [read(n) for n in ('observer.json', 'client.json', 'loaded.json', 'geometry.json')]
+    from .prefill_runner_binding import validate_binding
+    binding = validate_binding(plan, directory, require_live=False)  # Owner is already cleaned up.
     scratch = observer.get('observer_gpu_scratch', {})
     if (ownership.get('cleanup_complete') is not True or ownership.get('failure') is not None
             or ownership.get('owned_identities_remaining') or ownership.get('owned_gpu_pids_remaining')
@@ -192,6 +214,8 @@ def publish_fit(evidence, plan, ownership):
             or observer.get('prompt_frames') != 8 or observer.get('decode_input_rows') != 255
             or observer.get('emitted_outputs') != 256 or observer.get('committed_length') != 2303
             or loaded.get('mutable_lease_granted') is not False
+            or loaded.get('identity', {}).get('owner_pid') != binding['owner_pid']
+            or loaded.get('identity', {}).get('owner_start_ticks') != binding['owner_start_ticks']
             or geometry.get('physical_policy') != 'full_context' or geometry.get('capacity_tokens') != 2304
             or geometry.get('actual_owned_page_ranges_disjoint') is not True
             or scratch.get('domain') != 'incremental_gpu_allocator_bytes'

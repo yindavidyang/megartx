@@ -20,7 +20,7 @@ original-scale correction, TP1/EP1, eager, prefix caching off, explicit
 M1 custom preparation, controlled routing and verifier mutation are off.
 The existing six bounded startup native/reference fixtures remain unchanged.
 
-The version2 private plan freezes actual repository hashes, source HEAD, checkpoint
+The version3 private plan freezes actual repository hashes, source HEAD, checkpoint
 config/index hashes and shard size/mtime identities. Full checkpoint shard byte
 rehashing is not implied. Existing original packed/scales/global tensor checks
 remain in the unchanged startup fixture. A separate owner-authored clearance
@@ -64,7 +64,45 @@ scheduler pause/resume, rollback, staging, commit, release or a mutable lease.
 DSpark's EngineCore utility and worker extension remain a separate capability;
 no sibling uncommitted module is imported.
 
-The provider captures actual `_prepare_inputs` logits indices, actual FlashInfer
+### Active runner and pre-dispatch binding
+
+The installed `VllmConfig.use_v2_model_runner` property resolves V2 when the
+environment selector is unset, Triton is present and no unsupported features
+apply. The accepted decode pilot also selected V2. This diagnostic preserves that
+baseline and binds `vllm.v1.worker.gpu.model_runner.GPUModelRunner`; it injects no
+runner override. An inherited `VLLM_USE_V2_MODEL_RUNNER`, a resolved V1/unknown
+configuration or a different runner is rejected. Selector, config and worker
+source bytes are pinned together with the actual V2 implementation. CPU controls
+execute exact installed selection AST excerpts with substituted external
+boundaries; they do not establish native observation or baseline equivalence.
+
+The original15c9d37 fit attempt bound V1 hooks while startup selected V2. It
+failed with no observer/geometry/client/fit receipt. Owned cleanup and the sole
+GPU-slot release were verified. Its frozen source, private results and release
+receipt remain unchanged. That consumed clearance grants no retry.
+
+After actual cache initialization, the provider publishes `runner-binding.json`
+with its live PID/start identity, actual class/config, installed source vector and
+verified callback identities. The launcher checks that identity belongs to its
+owned process tree; the client independently checks the live receipt before
+creating the marker or importing HTTP. A missing/mismatched receipt prevents the
+POST. Before every scheduled forward, a purpose-specific `execute_model` admission
+wrapper checks provider presence and live hook identities before delegating to
+the unchanged ordinary runner. Zero-token scheduler housekeeping is delegated
+unchanged. The model callback independently rejects an unbound active model.
+
+V2's per-step actual `InputBatch` supplies request/state-row identity, original
+I32 token and I64 position tensor objects, unpadded query lengths and final-row
+logits indices. The historical I64 helper stays byte-identical; the provider-only
+I32 override retains every other historical source/owner/metadata/cache check.
+The actual `prepare_attn` result must borrow the incumbent gathered table and
+slot-map buffers. Each gathered kernel-page table is also compared with the
+actual request-state row. Manager/kernel subdivision is verified from their
+integer ratio and the source-bound allocation stride, rather than assuming both
+page sizes are equal. Unknown model-state, fast-prefill, sharding, padding and
+parallel paths remain outside this diagnostic.
+
+The provider captures actual `prepare_inputs` logits indices, actual FlashInfer
 builder `CommonAttentionMetadata`, group block tables, kernel block sizes,
 query-start locations, sequence lengths and ForwardContext writer slot maps.
 All30 original layer/backend/writer owners, BF16 shapes/strides, physical
@@ -89,8 +127,8 @@ is tracked through all eight prompt chunks and 255 one-row decode inputs. This
 coverage is explicitly `new_written_rows_and_retained_boundaries`; it is not an
 independent comparison of every retained tensor element.
 
-The actual selected hidden-row bits bind `compute_logits`. Actual `_sample`
-outputs and discard masks distinguish seven intermediate discarded prompt samples
+The actual selected hidden-row bits bind `compute_logits`. Actual V2 `sample`
+outputs and `num_sampled`/`num_rejected` tensors distinguish seven intermediate discarded prompt samples
 from the final prompt sample. Output #1 is an uncached anchor at position2048;
 255 actual decode inputs follow. Streamed token IDs and usage must match the
 native sample ledger. The final committed length is2303, with256 emitted outputs

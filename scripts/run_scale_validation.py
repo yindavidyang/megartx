@@ -72,6 +72,8 @@ if prefill_native:
     project_root = pathlib.Path(__file__).resolve().parents[1]
     prefill_plan = load_prefill_plan(args.prefill_native_plan, project_root)
     require_clearance(args.prefill_native_clearance, prefill_plan)
+    if os.environ.get('VLLM_USE_V2_MODEL_RUNNER') is not None:
+        parser.error('native prefill requires default runner selection without an inherited override')
     if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=project_root, text=True).strip() != prefill_plan["source_head"]:
         parser.error("native prefill source HEAD differs from review/plan")
     prefill_deadline = time.monotonic() + 1800
@@ -579,6 +581,9 @@ try:
         raise RuntimeError("Another GPU compute job appeared; benchmark not started")
     require_resources()
     if prefill_native:
+        from megartx.prefill_runner_binding import validate_binding
+        binding = validate_binding(prefill_plan, prefill_evidence.directory, ownership.remembered)
+        phase('native_observer_runner_gate_passed', runner_policy=binding['runner_policy'])
         bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/prefill_diagnostic_client.py"),
                          "--plan", str(args.prefill_native_plan), "--output", str(output)]
     elif eager_benchmark:

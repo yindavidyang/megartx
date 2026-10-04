@@ -24,6 +24,7 @@ class Tensor:
     def tolist(self): return self.values
     def data_ptr(self): return self.pointer
     def item(self): return self.values
+    def __int__(self): return int(self.values)
     def __len__(self): return len(self.values)
     def __getitem__(self, key):
         value = self.values[key[0]][key[1]] if isinstance(key, tuple) else self.values[key]
@@ -40,8 +41,7 @@ def frame_fixture(start=0, end=256):
         name = f"layer-{layer}"
         ids = list(range(1, 73))
         actual = Tensor([ids], pointer=10000+layer)
-        table = NS(get_device_tensor=lambda n,a=actual:a, block_size=32, num_blocks_per_row=[72])
-        tables[layer] = table
+        tables[layer] = actual
         slots[layer] = [ids[p//32]*32+p%32 for p in range(start,end)]
         meta = NS(slot_mapping=Tensor(slots[layer]))
         common = NS(num_reqs=1,num_actual_tokens=end-start, query_start_loc=Tensor([0,end-start]),
@@ -55,11 +55,23 @@ def frame_fixture(start=0, end=256):
         identities[layer] = (layer+1, 100000000+layer*size, size,0,(256,8,32,512),(8*32*512,32*512,512,1),'cuda:0')
         placements.append(NS(layers=[name],size=size,offset=0,layer_stride=size,block_stride=page,host_resident=False))
         access.groups[name] = (layer, NS(block_size=32,page_size_bytes=page))
-    batch = NS(num_reqs=1,req_ids=['request'],block_table=tables)
-    access._runner = NS(get_model=lambda:access.model,input_batch=batch,_kernel_block_sizes={i:32 for i in range(30)},
+    positions=Tensor(list(range(start,end)))
+    batch = NS(num_reqs=1,req_ids=['request'], input_ids=Tensor(list(range(start,end))),positions=positions,
+               num_computed_tokens_np=Tensor([start]),prefill_len_np=Tensor([2048]),
+               query_start_loc_np=Tensor([0,end-start]),idx_mapping=Tensor([0]),idx_mapping_np=Tensor([0]),
+               seq_lens=Tensor([end]))
+    access.input_batch,access.block_tables=batch,tables
+    access.slot_mappings={l:metas[f'layer-{l}'].slot_mapping for l in range(30)}
+    class Counts:
+        def __getitem__(self,key):return 72
+    access._runner = NS(get_model=lambda:access.model,kernel_block_sizes={i:32 for i in range(30)},
+                       req_states=NS(req_id_to_index={'request':0}),
+                       block_tables=NS(blocks_per_kv_block={i:1 for i in range(30)},
+                           block_sizes={i:32 for i in range(30)},kernel_block_sizes={i:32 for i in range(30)},
+                           num_blocks=NS(np=Counts()),block_tables={i:NS(gpu=t) for i,t in tables.items()}),
                        kv_cache_config=NS(kv_cache_tensors=placements))
-    context = NS(no_compile_layers=access.registry,attn_metadata=metas)
-    return access,owner,context,Tensor(list(range(start,end))),slots,identities
+    context = NS(no_compile_layers=access.registry,attn_metadata=metas,slot_mapping={n:m.slot_mapping for n,m in metas.items()})
+    return access,owner,context,positions,slots,identities
 
 class FrameReview(unittest.TestCase):
     def test_actual_bind_rejects_query_and_slot_drift_before_write(self):
@@ -71,17 +83,17 @@ class FrameReview(unittest.TestCase):
                 if kind=='placement': a._runner.kv_cache_config.kv_cache_tensors[0].offset=2
                 if kind=='alias': i[1]=(i[1][0],i[0][1],*i[1][2:])
                 with self.assertRaises((RuntimeError,ValueError)):
-                    a.bind_frame(o,0,c,Tensor(list(range(256))),p,s,i)
+                    a.bind_frame(o,0,c,a.input_batch.input_ids,p,s,i)
     def test_retained_query_prefix_remapping_rejected_before_model_work(self):
         ledger=RequestLedger(list(range(2048)))
         a,o,c,p,s,i=frame_fixture()
-        first=a.bind_frame(o,0,c,Tensor(list(range(256))),p,s,i)
+        first=a.bind_frame(o,0,c,a.input_batch.input_ids,p,s,i)
         ledger.begin(list(range(256)),p.tolist(),s,i,'request');ledger.complete();ledger.sampled(17,True)
         a,o,c,p,s,i=frame_fixture(256,512)
         # Same backing allocations and new writer rows. Only a retained query page changes.
-        a._runner.input_batch.block_table[5].get_device_tensor(1).values[0][0]=100
+        a.block_tables[5].values[0][0]=100
         with self.assertRaisesRegex(RuntimeError,'Retained native query block'):
-            a.bind_frame(o,1,c,Tensor(list(range(256,512))),p,s,i,ledger.positions)
+            a.bind_frame(o,1,c,a.input_batch.input_ids,p,s,i,ledger.positions)
         self.assertEqual(first.block_tables[5][0],1)
         self.assertIsNone(ledger.pending)
 
@@ -89,14 +101,14 @@ class FrameReview(unittest.TestCase):
         for layer,block in ((0,8),(5,0),(5,17)):
             a,o,c,p,s,i=frame_fixture(1280,1536)
             retained={l:{pos:(pos//32+1)*32+pos%32 for pos in range(1280)} for l in range(30)}
-            a._runner.input_batch.block_table[layer].get_device_tensor(1).values[0][block]=100
+            a.block_tables[layer].values[0][block]=100
             with self.subTest(layer=layer,block=block),self.assertRaisesRegex(RuntimeError,'Retained native query block'):
-                a.bind_frame(o,5,c,Tensor(list(range(1280,1536))),p,s,i,retained)
+                a.bind_frame(o,5,c,a.input_batch.input_ids,p,s,i,retained)
         # Expired local rows are outside the query union; full-context storage
         # still owns disjoint physical pages, checked independently.
         a,o,c,p,s,i=frame_fixture(1280,1536)
-        a._runner.input_batch.block_table[0].get_device_tensor(1).values[0][0]=100
-        a.bind_frame(o,5,c,Tensor(list(range(1280,1536))),p,s,i,retained)
+        a.block_tables[0].values[0][0]=100
+        a.bind_frame(o,5,c,a.input_batch.input_ids,p,s,i,retained)
 
     def test_historical_group_overlays_use_owned_page_intervals(self):
         local=(1,1000,3276*131072,0,(3276,8,16,512),(65536,512,4096,1),'cuda:0')
@@ -110,6 +122,7 @@ class Provider:
         self.access=NS(model=runner.model,builders={id(runner.builder):1})
         self.failed=False;self.log=[];self.scratch=NS(scope=lambda phase:nullcontext())
     def prepare_inputs(self,result): self.log.append('prepare')
+    def prepare_attn(self,*args):self.log.append('attention')
     def begin(self,*args): self.log.append('begin');return object()
     def finish(self,*args): self.log.append('finish')
     def head(self,*args): self.log.append('head')
@@ -127,17 +140,25 @@ def hook_fixture():
             return object()
         def compute_logits(self,*a,**kw): return object()
     class Runner:
-        def __init__(self): self.model,self.builder=Model(),Builder()
+        def __init__(self,vllm_config):
+            self.model,self.builder,self.vllm_config=Model(),Builder(),vllm_config
         def initialize_kv_cache(self,*a,**kw): return 'initialized'
-        def _prepare_inputs(self,*a,**kw):
+        def execute_model(self,*a,**kw):return object()
+        def prepare_inputs(self,*a,**kw):
             if getattr(self,'error',None): raise self.error
             return (None,None,1)
-        def _sample(self,*a,**kw): return object()
+        def prepare_attn(self,*a,**kw):
+            if getattr(self,'error',None):raise self.error
+            return object()
+        def sample(self,*a,**kw):
+            output=NS(num_sampled=object(),num_rejected=object())
+            return output,output.num_sampled,output.num_rejected
     modules={}
-    for name in ('vllm','vllm.v1','vllm.v1.worker','vllm.v1.worker.gpu_model_runner',
+    for name in ('vllm','vllm.v1','vllm.v1.worker','vllm.v1.worker.gpu','vllm.v1.worker.gpu.model_runner','vllm.v1.worker.gpu_model_runner',
                  'vllm.v1.attention','vllm.v1.attention.backends','vllm.v1.attention.backends.flashinfer'):
         modules[name]=ModuleType(name)
-    modules['vllm.v1.worker.gpu_model_runner'].GPUModelRunner=Runner
+    modules['vllm.v1.worker.gpu.model_runner'].GPUModelRunner=Runner
+    modules['vllm.v1.worker.gpu_model_runner'].GPUModelRunner=type('RejectedRunner',(),{})
     modules['vllm.v1.attention.backends.flashinfer'].FlashInferMetadataBuilder=Builder
     return modules,Runner,Model
 
@@ -146,10 +167,11 @@ class HookReview(unittest.TestCase):
         modules,Runner,Model=hook_fixture()
         env={'MEGARTX_PREFILL_NATIVE_PLAN':'synthetic-plan','MEGARTX_PREFILL_NATIVE_DIR':'synthetic-dir','MEGARTX_SCALE_MODE':'native'}
         with patch.dict(sys.modules,modules),patch.dict(os.environ,env,clear=True), \
-             patch('megartx.prefill_native.load_plan',return_value={}),patch('megartx.prefill_native.NativeProvider',Provider),patch('megartx.prefill_native.verify_adapter_sources',return_value={}):
+             patch('megartx.prefill_native.load_plan',return_value={}),patch('megartx.prefill_native.NativeProvider',Provider),patch('megartx.prefill_native.verify_adapter_sources',return_value={}), \
+             patch('megartx.prefill_runner_binding.verify_installed_files'):
             install_native_observer(TORCH,Model)
-            runner=Runner();runner.initialize_kv_cache()
-            provider=Runner._prepare_inputs.__closure__
+            runner=Runner(NS(use_v2_model_runner=True,is_mm_encoder_only=False));runner.initialize_kv_cache()
+            provider=Runner.prepare_inputs.__closure__
             providers=next(cell.cell_contents for cell in provider if isinstance(cell.cell_contents,dict))
             callback(runner,providers[id(runner)])
     def test_forward_interrupt_poison_preserves_same_primary(self):
@@ -161,23 +183,30 @@ class HookReview(unittest.TestCase):
     def test_prepare_interrupt_poison_preserves_primary_and_rejects_reuse(self):
         def callback(r,p):
             error=KeyboardInterrupt('prepare interrupt');r.error=error
-            with self.assertRaises(KeyboardInterrupt) as caught:r._prepare_inputs()
+            with self.assertRaises(KeyboardInterrupt) as caught:r.prepare_inputs()
             self.assertIs(caught.exception,error);self.assertTrue(p.failed)
-            with self.assertRaisesRegex(RuntimeError,'Poisoned'):r._prepare_inputs()
+            with self.assertRaisesRegex(RuntimeError,'Poisoned'):r.prepare_inputs()
         self.exercise(callback)
     def test_builder_interrupt_poison_preserves_primary_and_rejects_reuse(self):
         def callback(r,p):
             error=KeyboardInterrupt('builder interrupt');r.builder.error=error
             with self.assertRaises(KeyboardInterrupt) as caught:r.builder.build(0,object())
             self.assertIs(caught.exception,error);self.assertTrue(p.failed)
-            with self.assertRaisesRegex(RuntimeError,'Poisoned'):r._prepare_inputs()
+            with self.assertRaisesRegex(RuntimeError,'Poisoned'):r.prepare_inputs()
+        self.exercise(callback)
+    def test_attention_interrupt_poison_preserves_primary_and_rejects_reuse(self):
+        def callback(r,p):
+            error=KeyboardInterrupt('attention interrupt');r.error=error
+            with self.assertRaises(KeyboardInterrupt) as caught:r.prepare_attn(object())
+            self.assertIs(caught.exception,error);self.assertTrue(p.failed)
+            with self.assertRaisesRegex(RuntimeError,'Poisoned'):r.prepare_attn(object())
         self.exercise(callback)
     def test_abort_failure_does_not_replace_primary_interrupt(self):
         def callback(r,p):
             error=SystemExit('prepare primary');r.error=error
             def failed_abort(): raise RuntimeError('secondary abort')
             p.abort=failed_abort
-            with self.assertRaises(SystemExit) as caught:r._prepare_inputs()
+            with self.assertRaises(SystemExit) as caught:r.prepare_inputs()
             self.assertIs(caught.exception,error);self.assertTrue(p.failed)
             if hasattr(error,'__notes__'):self.assertIn('secondary abort',error.__notes__[0])
             with self.assertRaisesRegex(RuntimeError,'Poisoned'):r.builder.build(0,object())
@@ -205,7 +234,7 @@ class ShapeAndSourceReview(unittest.TestCase):
                     provider.head(model,NS(shape=(1,2816)),NS(shape=shape,dtype=dtype))
     def test_actual_access_rejects_changed_loaded_source(self):
         from megartx.controlled_kv_capture import SOURCE_HASHES
-        Runner=type('GPUModelRunner',(),{'__module__':'vllm.v1.worker.gpu_model_runner'})
+        Runner=type('GPUModelRunner',(),{'__module__':'vllm.v1.worker.gpu.model_runner'})
         with tempfile.TemporaryDirectory() as d:
             path=Path(d)/'drift.py';path.write_text('# changed loaded implementation bytes\n')
             module=ModuleType(next(iter(SOURCE_HASHES)));module.__file__=str(path)

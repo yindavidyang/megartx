@@ -80,6 +80,8 @@ def validate_observation(plan, stream, observer):
 
 
 def run(plan, directory, deadline):
+    from megartx.prefill_runner_binding import validate_binding
+    validate_binding(plan, directory)
     import requests
     evidence = Evidence(directory)
     evidence.write('request.json', {'schema': 'megartx-prefill-native-request-v1', 'plan_sha256': plan['plan_sha256']})
