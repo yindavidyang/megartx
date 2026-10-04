@@ -15,7 +15,7 @@
     "tests/fixtures/shared-launcher-composition/prefill.source": "27f47525141ba511e5c4282f9717fb5fba44e4131fec3ae832143e1958b83384",
     "tests/test_m1_warmed_timing.py": "8d68eea109379f88bbc0bb7f4835ed5ee65c15f28a58fb76bf9c73af227f84a8",
     "tests/test_prefill_current_main_reconciliation.py": "2425e8968ab628c55ffed2cf34cdf187c883cb921c0eaa0858b3b07be2526409",
-    "tests/test_shared_launcher_composition.py": "2a871ab1bd8280432cab7e570414b9721745a809c0de4457276e6fe41e30f696"
+    "tests/test_shared_launcher_composition.py": "08557384f2bc334a714951b4344524698e2774131821ea637228ed9184346087"
   },
   "changed_source_hashes": {
     "numerical_reference/test_m1_preparation_reference.py": "401f3e66f6bb948f965e81a4fa3e50d774912b9b94f7365ed98b5b237a57fa92",
@@ -42,7 +42,7 @@
   "cpu_review_pending": true,
   "default_fit_equivalence": {
     "additional_tests": {
-      "tests/test_shared_launcher_composition.py": "2a871ab1bd8280432cab7e570414b9721745a809c0de4457276e6fe41e30f696"
+      "tests/test_shared_launcher_composition.py": "08557384f2bc334a714951b4344524698e2774131821ea637228ed9184346087"
     },
     "historical_tests": "PR34 fixtures remain unchanged; current parent branches are separately checked",
     "method": "exact_parent_branch_ast_and_extracted_lifecycle",
@@ -97,7 +97,7 @@
   },
   "purpose": "first-nine-frame-storage-frontier-control",
   "quality_qualified": false,
-  "runtime_commit": "6db7ebb47d05d3df56dd9ea52ecec9d1373ba067",
+  "runtime_commit": "2629c8ac3f50b868379e8fc26797af6494b12be7",
   "runtime_source_hashes": {
     "docs/prefill/current-main-composition.md": "e36a26f18f6f7dc9dcdd50a7dfe5542db547ea8a410cf55b6c9f55d999a30383",
     "docs/prefill/native-storage-control.md": "6e8d88dca51faa6e65a36c247c766b6d893a0fa19d74be9e8d4dbc528bd21907",
@@ -126,7 +126,7 @@
     "src/megartx/prefill_storage_process.py": "ec86507acb81b255dd231b5b7303b928a6a13a5ca8b394a8fc85de7682235164",
     "src/megartx/vllm_scale_plugin.py": "2d92e1b89a734a3e57dc4c150a712578a75fa216e7c41d33961d3eec9cbda1f5"
   },
-  "runtime_tree": "e6e3db7dc447618065de5aff930e11af6a3fdb2e",
+  "runtime_tree": "4894980291fe771f80cbe6ae065432725ae556d6",
   "schema": "megartx-prefill-current-main-source-reconciliation-v1",
   "scope": "CPU-only two-parent composition; same one-context native storage/frontier scope; PR36 excluded",
   "superseded_sources": [
@@ -317,7 +317,7 @@
       "prefill_parent_sha256": "5acce1ecc79f46479eb689033d8945a10cef03ce10f3e700631f54dffc25c4b2"
     },
     {
-      "current_sha256": "2a871ab1bd8280432cab7e570414b9721745a809c0de4457276e6fe41e30f696",
+      "current_sha256": "08557384f2bc334a714951b4344524698e2774131821ea637228ed9184346087",
       "main_parent_sha256": null,
       "path": "tests/test_shared_launcher_composition.py",
       "prefill_parent_sha256": null
