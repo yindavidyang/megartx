@@ -1,0 +1,21 @@
+{
+  "schema": "megartx-native-zero-forward-protocol-v1",
+  "status": "CPU_implementation_native_execution_pending_review_and_parent_slot",
+  "gpu_authorized": false,
+  "reviewed_composition": ["9fc367d6ce0fc4e442a612231752a66344460085", "cf656d6632b9f1b08019a527a9269a9ed0fb0a26"],
+  "registration": "megartx.speculative_native_lifecycle.install_native_diagnostic",
+  "registration_environment": {"MEGARTX_NATIVE_DIAGNOSTIC": "1", "MEGARTX_SCALE_MODE": "native", "VLLM_PLUGINS": "megartx_scale_adapter", "MEGARTX_M1_PREPARATION": null},
+  "worker_extension_cls": "megartx.speculative_native_lifecycle.NativeDiagnosticWorkerExtension",
+  "utility_sequence": ["pause_scheduler(keep, false); await completion", "megartx_owned_native_receipt(receipt_admission)", "megartx_owned_native_release(); shutdown"],
+  "ownership": "fresh actual EngineCoreProc synchronous utility loop; empty scheduler/input/batch/pending queues; no prior request; actual BlockPool ref_cnt=1 objects retained; purpose-specific worker ticket bound to actual model_runner",
+  "lifecycle": "never resume or serve after receipt entry; request ingress sealed; idle steps return without model runner; free only after worker device drain and lease revocation; unknown drain retains references and poisons for owned teardown",
+  "diagnostic_target_forwards": 0,
+  "existing_startup": "original startup allowed only under separately approved owned resource controls; complete model frames from all 30 dispatch counters; forced six expert fixture pairs/actual correction rows counted separately; no prepare rerun",
+  "collection": ["actual cache groups, placements, storage identity/extent, manager/kernel/builder sizes, owned page byte union", "existing attention, wrapper, XQA, FP4 cache and vLLM workspace owners without lazy getters", "Torch allocated/reserved/slack and host snapshot digest/segment count without history enable or peak reset", "actual loaded DLPack exchange capsule allocator address and mapped binary digest when observable; do not invoke allocator", "CUDA free/total, host free, native head dtype, known lower bound and explicit missing transitive bounds"],
+  "bounds": {"incremental_verifier_gpu_bytes": 8388608, "minimum_gpu_free_bytes": 2147483648, "minimum_host_free_bytes": 8589934592, "compiler_shared_host_bytes": 2147483648, "compiler_seconds": 300, "wall_including_cleanup_seconds": 1800, "receipt_host_metadata_bytes": 8388608, "max_gpu_jobs": 1},
+  "unknown_bound_rule": "stop at receipt; current collector does not execute M1/M2/M256 device/JIT size queries and cannot establish residual external bounds; no dictionary or review boolean overrides an unresolved live receipt decision",
+  "next_probe": "separate fit implementation/review and parent slot; exact live receipt digest; existing 85 diagnostic target calls plus at most 11 original startup frames, total at most 96; original minimal protocol and bounds still required",
+  "publication": "code/docs and allowlisted scalar decision only; pointers, prompts, raw receipts, tensors, snapshots and logs remain private",
+  "shared_files_edited": [],
+  "excluded": ["GPU job in CPU phase", "training", "download", "package or system changes", "lazy workspace creation", "autotune", "benchmark", "quality or speed claims", "merge"]
+}

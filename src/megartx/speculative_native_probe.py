@@ -153,7 +153,7 @@ def select_greedy(anchor, candidates, argmax, remaining, eos=(1, 106)):
     return tuple(emitted), accepted, len(emitted), emitted[-1] in eos or len(emitted) == remaining
 
 
-def allocation_lower_bound(group_bytes, metadata_bytes, hidden_rows=2, *, head_element_bytes=2):
+def allocation_lower_bound(group_bytes, metadata_bytes, hidden_rows=2, *, head_element_bytes=2, reject=True):
     """Actual padded manager pages, head coexistence and retained hidden rows.
 
     This is a rejection bound, not admission: MoE/attention/allocator peaks are
@@ -168,7 +168,9 @@ def allocation_lower_bound(group_bytes, metadata_bytes, hidden_rows=2, *, head_e
               "hidden_bytes": hidden_rows * 2816 * 2, "metadata_bytes": metadata_bytes}
     result["known_bytes"] = sum(result.values())
     result["remaining_for_native_scratch_and_allocator"] = GPU_CAP - result["known_bytes"]
-    if result["known_bytes"] > GPU_CAP:
+    if type(reject) is not bool:
+        raise ProbeError("Invalid lower-bound rejection policy")
+    if reject and result["known_bytes"] > GPU_CAP:
         raise ProbeError("Actual page padding/head/metadata already exceeds 8 MiB")
     return result
 
@@ -225,73 +227,11 @@ def check_admission(admission):
 
 
 def run_engine_core_probe(core, prompt, admission, *, enabled=False):
-    """Smallest EngineCore utility exposure; MUST be called by its utility loop.
-
-    Launcher first pauses an EMPTY fresh engine with mode=keep, clear_cache=False.
-    The synchronous utility loop cannot schedule/add another request during RPC.
-    On RPC/drain uncertainty retain allocator references and poison the engine;
-    only owned process teardown may dispose of them. Never resume this engine.
-    """
+    """Registered utility only; a prior receipt alone cannot admit target work."""
     if enabled is not True:
         raise ProbeError("Native diagnostic is default-off")
-    check_admission(admission)
-    # EngineCoreProc inherits EngineCore; check the defining source directly.
-    if not any(c.__module__ == "vllm.v1.engine.core" and c.__name__ == "EngineCore"
-               for c in type(core).__mro__):
-        raise ProbeError("No actual EngineCore owner")
-    inspect_sources(Path(inspect.getsourcefile(type(core))).resolve().parents[3])
-    if (getattr(core, "_megartx_native_used", False) or not core.is_scheduler_paused()
-            or core.scheduler.has_requests() or core.batch_queue
-            or getattr(core, "pending_add_requests", ())):
-        raise ProbeError("Exclusive empty paused EngineCore required")
-    core._megartx_native_used = True
-    core._megartx_native_poisoned = True
-    manager = core.scheduler.kv_cache_manager
-    _class_source(manager, "vllm.v1.core.kv_cache_manager", "KVCacheManager")
-    pool = manager.block_pool
-    _class_source(pool, "vllm.v1.core.block_pool", "BlockPool")
-    config = core.vllm_config
-    if (config.cache_config.enable_prefix_caching or config.speculative_config is not None
-            or config.parallel_config.world_size != 1 or config.use_v2_model_runner
-            or config.kv_transfer_config is not None or config.ec_transfer_config is not None
-            or config.parallel_config.enable_dbo):
-        raise ProbeError("Incompatible serving/transfer/speculative owner")
-    groups = core.scheduler.kv_cache_config.kv_cache_groups
-    sizes = [g.kv_cache_spec.block_size for g in groups]
-    if any(b not in (16, 32, 64) for b in sizes):
-        raise ProbeError("Unreviewed actual page size")
-    # Full 2048 prefix retained, no scheduler sliding-ring recycling. Reserve the
-    # serial continuation capacity plus ONE independently charged COW page/group.
-    counts = [(P + 4 + b - 1) // b + 1 for b in sizes]
-    blocks = pool.get_new_blocks(sum(counts))
-    drained = False
-    ticket = {"nonce": str(uuid.uuid4()), "engine_pid": os.getpid(),
-              "engine_start": _process_start(os.getpid()), "block_sizes": sizes, "groups": []}
-    try:
-        if any(b.ref_cnt != 1 or b.is_null for b in blocks):
-            raise ProbeError("BlockPool did not grant sole reservation")
-        cursor = 0
-        for count in counts:
-            ticket["groups"].append([b.block_id for b in blocks[cursor:cursor + count]])
-            cursor += count
-        result = core.model_executor.collective_rpc(
-            "megartx_native_probe", timeout=min(900, admission["deadline_monotonic"] - time.monotonic()),
-            kwargs={"ticket": ticket, "prompt": list(prompt), "admission": admission})
-        if len(result) != 1 or result[0].get("drained") is not True:
-            raise ProbeError("Worker did not confirm owned device drainage")
-        drained = True
-        core._megartx_native_poisoned = False
-        return result[0]
-    finally:
-        if not drained:
-            try:
-                core.model_executor.collective_rpc("synchronize_device", timeout=30)
-                drained = True
-            except BaseException:
-                # Do not reuse uncertain pages or unpause a poisoned engine.
-                core._megartx_native_retained_blocks = blocks
-        if drained:
-            pool.free_blocks(blocks)
+    from .speculative_native_lifecycle import owned_probe
+    return owned_probe(core, prompt, admission)
 
 
 @dataclass(frozen=True)
@@ -342,6 +282,13 @@ class OwnedNativeProbe:
         if enabled is not True:
             raise ProbeError("Native diagnostic is default-off")
         check_admission(admission)
+        # Only the registered worker receipt can bind this mutation capability.
+        # A read-only frame or a guessed PID/nonce/block-ID dictionary is insufficient.
+        lease = getattr(runner, "_megartx_native_mutation_lease", None)
+        if (not isinstance(lease, dict) or lease.get("ticket") != ticket
+                or lease.get("receipt_sha256") != admission.get("zero_forward_receipt_sha256")
+                or lease.get("admitted") is not True):
+            raise ProbeError("No actual worker-bound admitted mutation lease")
         _class_source(runner, "vllm.v1.worker.gpu_model_runner", "GPUModelRunner")
         root = Path(inspect.getsourcefile(type(runner))).resolve().parents[3]
         inspect_sources(root)
