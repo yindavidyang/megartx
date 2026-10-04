@@ -1,0 +1,73 @@
+{
+  "schema": "megartx-native-bounded-receipt-cpu-validation-v1",
+  "review_base": "95f31095f94d254b79c6620a046ccdffce712941",
+  "implementation_binding": {
+    "speculative_native_lifecycle.py": "ae10f56bb7e33e5996c6673535c8fa32c618d667b18bdf8fbeca4d4324c175f5",
+    "speculative_native_receipt.py": "bcea2a8201529004220b46518df3e5d5e88f7b526e337a7e5ebcd251c897b308",
+    "speculative_native_probe.py": "4c43550e83d0412e27b22f0b058c4dbf2d03adaf90ff17cda677d392bb53541c"
+  },
+  "zero_protocol_sha256": "6d266ba80ff6aa369c2fcc886245d0a7cc1a3f3b6170a84dca95e06d097fcfde",
+  "minimal_protocol_sha256": "015266ed1d74f7912a83d847d28ad976cc93eef31e13c7b69a7210b7e58570e6",
+  "source_manifest_sha256": "9f3bc95cab7003e29aef1723bbc86ca3f85f3588a36151b5522f8e549ee16c5f",
+  "installed_allocator_source_observation": {
+    "path": "torch/cuda/memory.py",
+    "sha256": "7dc1d9d2a00b571977e6ecc6997d7ccfa4f13b620c11faf1f3f82317c548ec99",
+    "method": "read-only SSH source/hash; no Torch/CUDA/model imports or counter query"
+  },
+  "focused_CPU_tests": 71,
+  "full_CPU_tests": 354,
+  "full_CPU_skipped": 1,
+  "new_CPU_controls": 15,
+  "local_replay_of_independent_base_controls": {
+    "count": 20,
+    "result": "passed locally; new exact-commit independent review pending",
+    "script_sha256": "a41cb3a18158499a820e97d5572bc913d2fbb9a7d7494a1ae98bb7791579c312",
+    "adaptation": "none; unchanged independently authored fixed harness copied privately with local checkout path alias; no sibling uncommitted imports or verifier bypass"
+  },
+  "validation": [
+    "full CPU scaffold",
+    "focused lifecycle/probe CPU tests",
+    "unchanged independent base-control replay",
+    "configuration validation",
+    "compileall",
+    "CPU-only -S freeze",
+    "git diff whitespace"
+  ],
+  "local_python": "3.12.8",
+  "local_numpy": "2.4.4",
+  "CI_at_freeze_creation": "not yet run for new commit; exact-head verification required after publication",
+  "native_executed": false,
+  "GPU_imports_or_jobs": 0,
+  "shared_plugin_launcher_edited": false,
+  "registration_probe_lifecycle_and_cleanup_changed": false,
+  "correction": [
+    "remove global allocator snapshot; unavailable count/hash stay null with explicit status",
+    "primitive/structure/exact serialized-byte preflight followed by streaming canonical SHA256; accepted digest equivalence verified",
+    "targeted cache/page/workspace/tensor/process-map acquisition limits fail closed before excessive copying or tensor inspection",
+    "one selected-device nested allocator query retains current/peak counters without flattening or repeated getter queries; observed private-pool count guarded after native query only"
+  ],
+  "resource_scope": {
+    "serialized_evidence_limit_bytes": 8388608,
+    "minimum_host_free_bytes": 8589934592,
+    "serialized_limit_is_total_Python_heap_limit": false,
+    "native_counter_query_preallocation_bound_bytes": null,
+    "native_counter_query_limitation": "pinned _cuda_memoryStats materializes its private-pool dictionary before Python count guard; fresh empty eager process prevents serving-history accumulation but does not prove zero private pools or a fixed native host peak; host before/after readings are reserve checks, not a peak bound"
+  },
+  "admission": {
+    "GPU_authorized": false,
+    "fit_still_false": true,
+    "unchanged_blockers": [
+      "original M1/M2/M256 temporary bound",
+      "transitive FFI argument-route coverage",
+      "residual external CUDA allocation bound"
+    ],
+    "before_execution": "independent review of exact correction and residual native-query acquisition scope, parent protocol acceptance, client/shared-owner reconciliation and serialized owned slot"
+  },
+  "client_contract": {
+    "task": "01a10651-18d3-7268-86df-bee5b2989041",
+    "callback_worker_class_utility_arguments_admission_keys_scalar_allowlist": "unchanged",
+    "required_rebinding": "new committed implementation_binding and zero_protocol_sha256; old admission hashes must fail",
+    "private_receipt_fields": "allocator snapshot count/hash unavailable; explicit aggregate coverage, actual counter/pool observations and host readings; no raw receipt publication"
+  },
+  "claim_limit": "CPU source/fixture verification only. No actual loaded allocator counter, private-pool count, host acquisition peak, layout/workspace ownership or native fit measured. No integration or GPU clearance from this freeze."
+}

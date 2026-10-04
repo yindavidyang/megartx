@@ -100,8 +100,51 @@ Existing initialized attention/wrapper/XQA fields, FlashInfer buffer cache and
 vLLM workspace manager are read without lazy workspace getters, planning,
 autotuning or preparation reruns. Backing storage is deduplicated by device and
 pointer. CPU and GPU baseline extents are separately ledgered. Allocated,
-reserved, cached slack, pre-existing peaks and a bounded host snapshot digest
-are recorded without enabling history or resetting peaks.
+reserved, cached slack and pre-existing peaks come from one selected-device
+`memory_stats_as_nested_dict` query, without enabling history or resetting peaks.
+The global allocator snapshot is not requested: segment count/hash are `null`
+with `not_collected_unbounded_global_snapshot`, and coverage explicitly covers
+aggregate counters only. Missing aggregate counters are an error, not zero.
+
+The narrow correction after `95f3109` replaces whole-receipt `json.dumps`/encode
+materialization with plain-primitive structure and exact byte-count preflight,
+then streaming canonical SHA256. Sorted keys, compact separators, ASCII escaping
+and finite-number policy preserve the former digest for accepted metadata.
+Preflight limits depth to 16, values to 131072, container entries to 8192, scalar
+strings to 4096 characters and integers to 256 bits. It counts bounded scalar
+tokens and container punctuation, rejecting before hash encoding or full worker
+RPC return if serialized evidence exceeds 8 MiB. Excess is never truncated.
+
+Targeted acquisition checks thirty cache owners and at most thirty groups,
+placements and attention builders before inspecting tensor storage. The reviewed
+16/32/64 manager sizes permit at most 130 pages per owner, 3900 page records total.
+Workspace acquisition limits records to 512, visited objects to 256, fields and
+workspace/cache containers to 256, labels to 4096 characters, tensor dimensions
+to 64 and the process-map read to 1 MiB. The existing nested-owner scan depth of
+three remains its scope. These limits can reject a legitimate topology; the
+decision requires measured resource review, not silently enlarged limits.
+
+The **8 MiB serialized evidence cap is not an 8 MiB Python acquisition-heap
+cap**. Object graphs, sorting and individual bounded encoding tokens have host
+overhead. The **8 GiB host-free floor is a separate reserve**, checked before
+targeted collection and before/after the allocator query. It is not an allocation
+ceiling or a measurement of transient peak host use.
+
+Read-only inspection of installed `torch/cuda/memory.py` binds SHA256
+`7dc1d9d2a00b571977e6ecc6997d7ccfa4f13b620c11faf1f3f82317c548ec99`.
+Its public scalar getters call the flattened `memory_stats` route. Using one
+nested query avoids those repeated queries and flattened private-pool copies,
+while retaining useful aggregate counters. Source controls require a fresh,
+empty, eager single-worker lease, preventing serving-history accumulation and
+normal model graph capture. They do not establish zero private pools from other
+startup/library paths. The native `_cuda_memoryStats` result still materializes
+private-pool records before Python can guard their count. The 64-pool guard is
+explicitly **after acquisition**; the receipt records observed count (or `null`
+when absent), host readings and `native_query_preallocation_bound_bytes: null`.
+No fixed native query host-peak bound is exposed or inferred. This concrete
+limitation remains for independent and owned startup/resource review before any
+execution. Neither reduced snapshot coverage nor these host readings can admit
+the native probe or resolve its FFI/temporary/external allocation blockers.
 
 Existing startup model frames come from the 30 routed dispatch counters and must
 fit the existing eleven-frame allowance. Six forced expert fixture pairs and
@@ -143,3 +186,12 @@ snapshot or logs are returned. Native correctness, allocation coverage and fit
 remain unexecuted. CPU fixtures exercise lifecycle failures and host metadata;
 they are never accepted as native EngineCore, worker, runner or cache owners.
 No benchmark, quality or performance claim follows from this implementation.
+
+Client task `01a10651-18d3-7268-86df-bee5b2989041` keeps the same callback,
+worker class, utility arguments, admission keys and scalar allowlist. Its bounded
+writer must bind the corrected committed `implementation_binding` and new
+`zero_protocol_sha256`; old admission hashes must fail. Do not import sibling
+uncommitted files. Receipt errors use the existing confirmed-drain cleanup;
+unknown drain still retains references for owned teardown. The separate
+[bounded-receipt CPU evidence](../evidence/speculative-native-receipt-bounded-cpu-validation.json)
+records this correction for independent review without granting a GPU slot.
