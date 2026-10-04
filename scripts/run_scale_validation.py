@@ -10,7 +10,6 @@ import subprocess
 import threading
 import time
 
-import requests
 import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 from megartx.nvfp4_qualification import activation, natural_coverage
@@ -185,6 +184,8 @@ if args.router_score_only and (args.mode != "native" or args.activation_only or 
     parser.error("--router-score-only requires native mode, a recorded prefix manifest, chunk256, and no other corpus flags")
 if args.router_prefix_manifest is not None and not args.router_score_only:
     parser.error("--router-prefix-manifest requires --router-score-only")
+import requests  # Runtime HTTP dependency, after argument/plan admission.
+
 base = pathlib.Path(os.environ["MEGARTX_BASE"])
 project = pathlib.Path(__file__).resolve().parents[1]
 work = pathlib.Path(os.environ["MEGARTX_WORK"])

@@ -127,7 +127,7 @@ class NativeDiagnosticTests(unittest.TestCase):
         with self.assertRaises(ValueError): stream.consume('data: [DONE]')
 
     def test_launcher_rejects_missing_plan_before_environment_or_resources(self):
-        result = subprocess.run([sys.executable,str(ROOT/'scripts/run_scale_validation.py'),'--label','cpu','--mode','native','--client','prefill-native','--trials','1'],capture_output=True,text=True)
+        result = subprocess.run([sys.executable,'-S',str(ROOT/'scripts/run_scale_validation.py'),'--label','cpu','--mode','native','--client','prefill-native','--trials','1'],capture_output=True,text=True)
         self.assertNotEqual(result.returncode,0)
         self.assertIn('exact default-off',result.stderr)
         self.assertNotIn('MEGARTX_BASE',result.stderr)
