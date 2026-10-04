@@ -98,7 +98,7 @@ def native_request_identity(plan, engine_request_id):
             'external_request_id': external_id, 'engine_request_id': engine_request_id}
 
 
-def native_ledger_comparison(plan, client, observer):
+def native_ledger_comparison(plan, client, observer, stream_facts):
     """Bounded field-level diagnostics without prompt, token IDs, or raw IDs."""
     checks = []
     def describe(value, private=False):
@@ -156,6 +156,31 @@ def native_ledger_comparison(plan, client, observer):
         'suffix_length': len(engine_id)-len(prefix) if type(engine_id) is str else None,
         'suffix_is_lower_hex': type(engine_id) is str and len(engine_id) == len(prefix)+8
             and all(c in '0123456789abcdef' for c in engine_id[len(prefix):])})
+    # The separately persisted pre-validation transport record is mandatory,
+    # including at fit publication. A client-complete receipt cannot stand in
+    # for missing/stale/failed transport observations.
+    stream = stream_facts if type(stream_facts) is dict else {}
+    stream_expected = {'schema': 'megartx-prefill-client-stream-v1',
+        'plan_sha256': plan['plan_sha256'], 'response_id_sha256': digest(response_id),
+        'emitted_outputs': 256, 'stream_done': True, 'finish_reason': 'length',
+        'numerical_qualified': False, 'performance_qualified': False}
+    equal('stream.record.type', type(stream_facts).__name__, 'dict')
+    equal('stream.record.keys', sorted(stream),
+          sorted([*stream_expected, 'sse_events', 'output_ids_sha256', 'usage']))
+    for key, expected in stream_expected.items():
+        equal('stream.'+key, stream.get(key), expected)
+    equal('stream.output_ids_sha256.client', stream.get('output_ids_sha256'), client.get('output_ids_sha256'))
+    equal('stream.output_ids_sha256.observer', stream.get('output_ids_sha256'), observer.get('output_ids_sha256'))
+    equal('stream.sse_events.client', stream.get('sse_events'), client.get('sse_events'))
+    stream_events = stream.get('sse_events')
+    equal('stream.sse_events.bounded', type(stream_events) is int and 3 <= stream_events <= 300, True)
+    stream_usage = stream.get('usage')
+    equal('stream.usage.keys', sorted(stream_usage) if type(stream_usage) is dict else None,
+          ['completion_tokens', 'prompt_tokens', 'total_tokens'])
+    for key, expected in {'prompt_tokens': 2048, 'completion_tokens': 256, 'total_tokens': 2304}.items():
+        actual = stream_usage.get(key) if type(stream_usage) is dict else None
+        equal('stream.usage.'+key, actual, expected)
+        equal('stream.usage.'+key+'.client', actual, usage.get(key) if type(usage) is dict else None)
     failed = [check['field'] for check in checks if not check['ok']]
     return {'schema': 'megartx-prefill-native-ledger-comparison-v1',
             'plan_sha256': plan['plan_sha256'], 'status': 'match' if not failed else 'mismatch',
@@ -308,7 +333,11 @@ def publish_fit(evidence, plan, ownership):
     observer, client, loaded, geometry = [read(n) for n in ('observer.json', 'client.json', 'loaded.json', 'geometry.json')]
     from .prefill_runner_binding import validate_binding
     binding = validate_binding(plan, directory, require_live=False)  # Owner is already cleaned up.
-    comparison = native_ledger_comparison(plan, client, observer)
+    stream_path = directory/'client-stream.json'
+    if (stream_path.is_symlink() or not stream_path.is_file() or stream_path.stat().st_size > 65536):
+        raise ValueError('Native fit requires a bounded persisted client-stream observation')
+    stream_facts = read('client-stream.json')
+    comparison = native_ledger_comparison(plan, client, observer, stream_facts)
     if comparison['failed_fields']:
         raise ValueError('Native fit ledger mismatch: ' + json.dumps(comparison, sort_keys=True))
     scratch = observer.get('observer_gpu_scratch', {})

@@ -22,7 +22,7 @@ from megartx.prefill_native import RequestLedger, NativeProvider
 from prefill_identity_fixture import DATA, NS as ID_NS, run_case, excerpt
 from test_prefill_native_head import Tensor, TORCH, sampled_counts
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
-from prefill_diagnostic_client import StreamLedger, LedgerMismatch, validate_observation, payload, run
+from prefill_diagnostic_client import StreamLedger, LedgerMismatch, validate_observation, payload, run, stream_observation
 
 ROOT = Path(__file__).resolve().parents[1]
 TRANSPORT = json.loads((ROOT/'tests/fixtures/prefill-native-token-transport.json').read_text())
@@ -280,7 +280,7 @@ class TokenAndComparisonTests(unittest.TestCase):
             (self.observer,{**client,'engine_request_id':source_engine_id()[:-8]+'76543210'})]
         for observer,bad_client in cases:
             with tempfile.TemporaryDirectory() as d,patch('megartx.prefill_runner_binding.validate_binding',return_value={}):
-                for name,value in [('observer.json',observer),('client.json',bad_client),('loaded.json',{}),('geometry.json',{})]:
+                for name,value in [('observer.json',observer),('client.json',bad_client),('client-stream.json',stream_observation(PLAN,self.stream)),('loaded.json',{}),('geometry.json',{})]:
                     Path(d,name).write_text(json.dumps(value))
                 with self.assertRaisesRegex(ValueError,'Native fit ledger mismatch'):publish_fit(Evidence(d),PLAN,{})
                 self.assertFalse(Path(d,'fit.json').exists())

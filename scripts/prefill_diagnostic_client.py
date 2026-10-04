@@ -104,7 +104,7 @@ def client_receipt(plan, stream, observer):
 
 def validate_observation(plan, stream, observer, evidence=None):
     client = client_receipt(plan, stream, observer)
-    diagnostic = native_ledger_comparison(plan, client, observer)
+    diagnostic = native_ledger_comparison(plan, client, observer, stream_observation(plan, stream))
     # Persist every comparison, including mismatch, before the exception. This
     # is a diagnostic record, never a successful client or observed-fit receipt.
     if evidence is not None:
