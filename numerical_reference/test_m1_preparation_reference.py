@@ -400,11 +400,31 @@ class M1PreparationTests(unittest.TestCase):
             "probes/m1_sf_layout_host_test.cpp", "numerical_reference/m1_sf_layout_proof.py",
             "numerical_reference/test_m1_sf_layout_contract.py", "docs/m1-sf-layout-contract.md",
             "docs/evidence/m1-sf-layout-cpu-proof.json"})
+        warmed = json.loads((root / "docs/evidence/m1-warmed-timing-source-pins.json").read_text())
+        self.assertEqual(warmed["schema"], "megartx-m1-warmed-timing-source-pins-v1")
+        self.assertEqual(warmed["parent_head"], "ca6c385562aff30e91e8bb6a7f4228c9d766c30d")
+        self.assertEqual(warmed["parent_ledger_sha256"], hashlib.sha256(layout_path.read_bytes()).hexdigest())
+        self.assertEqual(warmed["timing_admission"], "sampled_compiler_quiescence_after_all_warmups_v1")
+        for field in ("native_build_verified", "gpu_execution_verified", "quality_qualified", "graphs_qualified", "performance_qualified"):
+            self.assertIs(warmed[field], False)
+        warmed_changes = {r["path"]: r for r in warmed["superseded_sources"]}
+        self.assertEqual(len(warmed_changes),len(warmed["superseded_sources"]))
+        self.assertEqual(set(warmed_changes), {"scripts/m1_eager_benchmark_client.py", "scripts/m1_owned_processes.py",
+            "scripts/prepare_m1_eager_benchmark.py", "scripts/run_scale_validation.py", "src/megartx/m1_eager_benchmark.py",
+            "tests/test_m1_launcher_resources.py", "numerical_reference/test_m1_preparation_reference.py"})
+        self.assertEqual(set(warmed["added_source_hashes"]), {"tests/test_m1_warmed_timing.py", "docs/m1-warmed-timing-policy.md"})
+        for path, expected in warmed["preserved_historical_ledgers"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),expected,path)
+        def warmed_current(path, previous):
+            if path in warmed_changes:
+                self.assertEqual(warmed_changes[path]["prior_sha256"],previous,path)
+                return warmed_changes[path]["current_sha256"]
+            return previous
         def layout_current(path, previous):
             if path in layout_changes:
                 self.assertEqual(layout_changes[path]["prior_sha256"],previous,path)
-                return layout_changes[path]["current_sha256"]
-            return previous
+                previous = layout_changes[path]["current_sha256"]
+            return warmed_current(path, previous)
         self.assertEqual(set(diagnostic_changes), {"scripts/build_m1_live_bridge.py", "scripts/m1_eager_benchmark_client.py",
             "scripts/m1_owned_processes.py", "scripts/prepare_m1_eager_benchmark.py", "scripts/run_scale_validation.py",
             "src/megartx/m1_eager_benchmark.py", "tests/test_m1_launcher_resources.py",
@@ -491,9 +511,30 @@ class M1PreparationTests(unittest.TestCase):
         for path, expected in diagnostic["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(), layout_current(path,expected), path)
         for path, record in layout_changes.items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),record["current_sha256"],path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),warmed_current(path,record["current_sha256"]),path)
         for path, expected in layout["added_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),warmed_current(path,expected),path)
+        for path, record in warmed_changes.items():
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),record["current_sha256"],path)
+        for path, expected in warmed["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),expected,path)
+
+    def test_warmed_overlay_cannot_erase_prior_lineage_or_relabel_unknown_source(self):
+        root = Path(__file__).resolve().parents[1]
+        ledger = root / "docs/evidence/m1-warmed-timing-source-pins.json"
+        read_text = Path.read_text
+        for field in ("prior_sha256", "current_sha256"):
+            def changed_text(path, *args, **kwargs):
+                data = read_text(path, *args, **kwargs)
+                if path == ledger:
+                    value = json.loads(data)
+                    row = next(r for r in value["superseded_sources"] if r["path"] == "src/megartx/m1_eager_benchmark.py")
+                    row[field] = "0" * 64
+                    return json.dumps(value)
+                return data
+            with self.subTest(field=field), patch.object(Path, "read_text", changed_text), \
+                 self.assertRaisesRegex(AssertionError, "src/megartx/m1_eager_benchmark.py"):
+                self.test_committed_source_pins_match_exact_base_evidence()
 
     def test_stale_combined_source_or_ledger_hash_is_rejected(self):
         root = Path(__file__).resolve().parents[1]

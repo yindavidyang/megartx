@@ -7,6 +7,7 @@ import ctypes
 from dataclasses import asdict, dataclass
 import errno
 import hashlib
+import math
 import os
 from pathlib import Path
 import signal
@@ -309,14 +310,28 @@ class OwnedProcesses:
         self.failure = None
         self.failure_sample = None
         self.lock = threading.RLock()
+        self.observation_intervals = []
+        self.compiler_lifetimes = {}
+        self.runtime_files = None
 
     def register(self, root):
         with self.lock:
             self.root_identity = root.identity
             self.remembered[root.identity] = root
 
-    def observe(self, processes, now):
+    def sample(self):
         with self.lock:
+            started = time.monotonic()
+            return self.observe(snapshot(), time.monotonic(), sampled_start=started)
+
+    def observe(self, processes, now, *, sampled_start=None):
+        with self.lock:
+            started_ns = int((now if sampled_start is None else sampled_start) * 1e9)
+            finished_ns = int(now * 1e9)
+            self.observation_intervals.append([started_ns, finished_ns])
+            if self.runtime_files is not None:
+                if error := self.runtime_files.version_error():
+                    self.fail(error)
             if self.metadata_timing is not None:
                 if error := self.metadata_timing.version_error():
                     self.fail(error)
@@ -354,6 +369,28 @@ class OwnedProcesses:
                         changed = True
                     elif process.ppid in parents:
                         self.classify_timing(process, now, descendant=True)
+            present = {p.identity: p for p in alive}
+            for identity in self.compiler_identities:
+                history = self.compiler_lifetimes.setdefault(identity, {
+                    "first_observed_ns": finished_ns, "last_observed_ns": finished_ns,
+                    "completed_by_ns": None, "absent_by_ns": None, "last_live_ns": None, "completion_conflict": False})
+                process = present.get(identity)
+                if process is None:
+                    if history["absent_by_ns"] is None:
+                        history["absent_by_ns"] = finished_ns
+                    if history["completed_by_ns"] is None:
+                        history["completed_by_ns"] = finished_ns
+                else:
+                    if history["absent_by_ns"] is not None:
+                        history["completion_conflict"] = True
+                    history["last_observed_ns"] = finished_ns
+                    if process.state == "Z" and process.compiler_identity_verified:
+                        if history["completed_by_ns"] is None:
+                            history["completed_by_ns"] = finished_ns
+                    elif process.state != "Z":
+                        history["last_live_ns"] = finished_ns
+                        if history["completed_by_ns"] is not None:
+                            history["completion_conflict"] = True
             compiling = [p for p in alive if p.identity in self.compiler_identities and p.state != "Z"]
             rss = sum(p.rss_bytes for p in compiling)
             self.peak_compiler_rss = max(self.peak_compiler_rss, rss)
@@ -395,7 +432,7 @@ class OwnedProcesses:
         return [p for p in processes.values() if p.identity in self.remembered]
 
     def stop(self, signum=signal.SIGTERM):
-        alive = self.observe(snapshot(), time.monotonic())
+        alive = self.sample()
         for process in alive:
             signal_identity(process, signum)
 
@@ -414,6 +451,9 @@ class OwnedProcesses:
                     "timing_metadata_only_identities": sorted(self.metadata_identities - self.non_metadata_identities),
                     "timing_unknown_or_work_identities": sorted(self.non_metadata_identities),
                     "timing_classification_history": [{"identity": i, **h} for i,h in self.timing_history.items()],
+                    "compiler_observation_intervals_ns": list(self.observation_intervals),
+                    "compiler_lifetimes": [{"identity": i, **h} for i, h in sorted(self.compiler_lifetimes.items())],
+                    "warmed_runtime_files": self.runtime_files.report() if self.runtime_files is not None else None,
                     "remembered_identities": [asdict(p) for p in self.remembered.values()]}
 
     def require_compiler_quiescence(self):
@@ -431,6 +471,18 @@ class OwnedProcesses:
                     raise RuntimeError("Owned compiler activity invalidates eager timing")
             elif self.compiler_identities or self.peak_compiler_rss or self.compiler_elapsed:
                 raise RuntimeError("Owned compiler activity invalidates eager timing")
+
+    def require_warmed_quiescence(self, boundaries):
+        """Prospective sampled window only; never mutate lifetime classification.
+
+        All first-seen identities at/after the opening boundary reject, even if
+        first found after close. Sampling cannot establish a late zombie's end.
+        A pre-window identity needs a verified terminal or disappearance sample
+        strictly before POST. Neither age estimates nor argv guesses prove this.
+        """
+        with self.lock:
+            report = self.report()
+            return evaluate_warmed_quiescence(report, boundaries)
 
     def finalize_metadata(self):
         with self.lock:
@@ -473,7 +525,7 @@ class OwnedProcesses:
             while True:
                 try:
                     operation, identity = "observe_snapshot", None
-                    alive = self.observe(snapshot(), time.monotonic())
+                    alive = self.sample()
                     operation = "root_poll"
                     root_poll()
                     for process in alive:
@@ -523,3 +575,77 @@ def preserve_primary(primary, cleanup_error):
             primary.__notes__ = getattr(primary, "__notes__", []) + [cleanup_error]
     else:
         raise RuntimeError(cleanup_error)
+
+
+# The 50 ms watchdog must retain coverage across request gaps too. Long or
+# missing observations fail closed; this is sampled evidence, never proof that
+# a shorter-lived compiler could not exist between observations.
+WARMED_MAX_SAMPLE_GAP_NS = 250_000_000
+
+
+def evaluate_warmed_quiescence(report, boundaries):
+    start, end = boundaries["measurement_start_ns"], boundaries["measurement_end_ns"]
+    if type(start) is not int or type(end) is not int or not 0 < start < end:
+        raise RuntimeError("warmed timing window is invalid")
+    for field in ("sampled_peak_compiler_rss_bytes", "shared_compiler_elapsed_seconds"):
+        value = report.get(field)
+        if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+            raise RuntimeError("warmed timing resource evidence is uncertain")
+    if (report.get("failure") or report.get("timing_metadata_policy_invalid")
+            or report.get("compiler_rss_limit_bytes") != 2 << 30
+            or report.get("shared_compiler_seconds_limit") != 300
+            or report.get("sampled_peak_compiler_rss_bytes", 2**64) > 2 << 30
+            or report.get("shared_compiler_elapsed_seconds", 2**64) > 300):
+        raise RuntimeError(report.get("failure") or "warmed timing resource/file integrity differs")
+    metadata = report.get("timing_metadata_policy")
+    if metadata is not None and (metadata.get("final") or {}).get("passed") is not True:
+        raise RuntimeError("warmed timing requires successful final metadata verification")
+    samples = report.get("compiler_observation_intervals_ns", [])
+    previous = -1
+    for interval in samples:
+        if (not isinstance(interval, list) or len(interval) != 2
+                or any(type(t) is not int for t in interval)
+                or not 0 <= interval[0] <= interval[1] or interval[0] < previous):
+            raise RuntimeError("warmed timing observation order/clock uncertain")
+        previous = interval[1]
+    before = [i for i, s in enumerate(samples) if s[1] < start]
+    after = [i for i, s in enumerate(samples) if s[0] > end]
+    if not before or not after:
+        raise RuntimeError("warmed timing observation coverage missing")
+    cover = samples[before[-1]:after[0]+1]
+    if (any(b-a > WARMED_MAX_SAMPLE_GAP_NS for a,b in cover)
+            or any(b[1]-a[0] > WARMED_MAX_SAMPLE_GAP_NS for a,b in zip(cover,cover[1:]))):
+        raise RuntimeError("warmed timing observation gap uncertain")
+    histories = report.get("compiler_lifetimes", [])
+    identities = {tuple(p["identity"]) for p in histories}
+    observed = {(p["pid"], p["start_ticks"]) for p in report.get("sampled_compiler_identities", [])}
+    if len(histories) != len(identities) or identities != observed:
+        raise RuntimeError("warmed timing compiler lifetime evidence missing")
+    classifications = report.get("timing_classification_history", [])
+    unknown = {tuple(i) for i in report.get("timing_unknown_or_work_identities", [])}
+    metadata_only = {tuple(i) for i in report.get("timing_metadata_only_identities", [])}
+    if (len(classifications) != len(identities) or {tuple(h["identity"]) for h in classifications} != identities
+            or unknown & metadata_only or unknown | metadata_only != identities
+            or any((h.get("first_unknown_or_work_sample") is not None) != (tuple(h["identity"]) in unknown)
+                   for h in classifications)):
+        raise RuntimeError("warmed timing sticky classification history differs")
+    observed_times = {s[1] for s in samples}
+    classified = {tuple(h["identity"]): h for h in classifications}
+    for h in histories:
+        first, last, completed, live = (h.get(k) for k in
+            ("first_observed_ns", "last_observed_ns", "completed_by_ns", "last_live_ns"))
+        if (type(first) is not int or type(last) is not int or type(completed) is not int
+                or not 0 <= first <= completed < start or last < first
+                or live is not None and (type(live) is not int or not first <= live < completed)
+                or h.get("completion_conflict") is not False
+                or first not in observed_times or completed not in observed_times or last not in observed_times
+                or live is not None and live not in observed_times
+                or first != int(classified[tuple(h["identity"])]["first_sample"] * 1e9)
+                or last != int(classified[tuple(h["identity"])]["last_sample"] * 1e9)):
+            raise RuntimeError("Owned compiler overlap or late/uncertain observation invalidates warmed timing")
+    return {"sampled_quiescence_passed": True, "measurement_start_ns": start, "measurement_end_ns": end,
+            "max_sample_gap_ns": WARMED_MAX_SAMPLE_GAP_NS,
+            "completed_premeasurement_compiler_identities": sorted(identities),
+            "completed_unknown_or_work_identities": sorted(unknown),
+            "compiler_history_preserved": True,
+            "limitation": "Sampled observations cannot prove absence between samples; completed unknown startup processes remain unclassified"}

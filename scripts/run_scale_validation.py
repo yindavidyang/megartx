@@ -29,6 +29,8 @@ parser.add_argument("--mode", choices=("native", "reference", "control", "paired
 parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal", "m1-eager-benchmark"), default="quality")
 parser.add_argument("--m1-eager-benchmark-plan", type=pathlib.Path)
 parser.add_argument("--m1-private-aot", type=pathlib.Path)
+parser.add_argument("--m1-warmed-timing", action="store_true",
+                    help="Prospective all-warmups-complete sampled compiler-quiescent timing; separate from lifetime/profile policies")
 parser.add_argument("--m1-timing-metadata-help", action="store_true",
                     help="Enable only the reviewed hash/identity/argv-bound tileiras --help timing distinction")
 parser.add_argument("--controlled-plan", type=pathlib.Path)
@@ -54,7 +56,7 @@ metadata_timing = None
 if eager_benchmark:
     if any(os.environ.get(key) for key in ("FLASHINFER_DISABLE_JIT", "FLASHINFER_DISABLE_VERSION_CHECK")):
         parser.error("private AOT requires ordinary FlashInfer version/JIT policy")
-    from megartx.m1_eager_benchmark import load_plan, require_profile_intent
+    from megartx.m1_eager_benchmark import load_plan, require_profile_intent, require_warmed_intent, WARMED_RULE
     if (args.m1_eager_benchmark_plan is None or args.m1_private_aot is None or args.m1_preparation not in {"stock", "fused"}
             or args.mode != "native" or args.m1_execution != "capture-free"
             or args.m1_bridge is None or args.m1_build_receipt is None
@@ -68,6 +70,7 @@ if eager_benchmark:
     benchmark_plan = load_plan(args.m1_eager_benchmark_plan)
     try:
         require_profile_intent(benchmark_plan, args.m1_decode_profile)
+        require_warmed_intent(benchmark_plan, args.m1_warmed_timing)
     except RuntimeError as error:
         parser.error(str(error))
     if args.m1_timing_metadata_help != benchmark_plan["metadata_help_timing"]:
@@ -99,7 +102,7 @@ if eager_benchmark:
     if args.m1_timing_metadata_help:
         from m1_owned_processes import MetadataHelpTiming
         metadata_timing = MetadataHelpTiming(aot_manifest["flashinfer_root"], benchmark_plan["source_head"])
-elif args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None or args.m1_timing_metadata_help or args.m1_decode_profile:
+elif args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None or args.m1_timing_metadata_help or args.m1_decode_profile or args.m1_warmed_timing:
     parser.error("eager benchmark plan requires --client m1-eager-benchmark")
 normal_plan = None
 if args.client == "normal":
@@ -252,10 +255,11 @@ phases = (output / "server-phases.jsonl").open("a", buffering=1)
 
 
 def phase(name, **fields):
-    row = {"phase": name, "monotonic_ns": time.perf_counter_ns(), "unix_ns": time.time_ns(), "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), **fields}
+    row = {"phase": name, "monotonic_ns": time.monotonic_ns(), "unix_ns": time.time_ns(), "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), **fields}
     phases.write(json.dumps(row) + "\n")
     (output / "status.json").write_text(json.dumps(row, indent=2))
     print(json.dumps(row), flush=True)
+    return row["monotonic_ns"]
 
 
 def gpu_jobs():
@@ -304,7 +308,7 @@ def compiler_guard():
     from m1_owned_processes import snapshot
     while not stop_guard.is_set():
         try:
-            ownership.observe(snapshot(), time.monotonic())
+            ownership.sample()
             if ownership.failure:
                 fail_guard(ownership.failure)
                 return
@@ -330,7 +334,7 @@ def sampler():
             try:
                 result = subprocess.run(["nvidia-smi", "--query-gpu=" + fields, "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=5)
                 values = result.stdout.strip().split(", ")
-                logfile.write(json.dumps({"monotonic_ns": time.perf_counter_ns(), "unix_ns": time.time_ns(), "fields": fields.split(","), "values": values, "exit": result.returncode}) + "\n")
+                logfile.write(json.dumps({"monotonic_ns": time.monotonic_ns(), "unix_ns": time.time_ns(), "fields": fields.split(","), "values": values, "exit": result.returncode}) + "\n")
                 if eager_benchmark and (result.returncode != 0 or len(values) != len(fields.split(","))):
                     raise RuntimeError("eager benchmark GPU headroom telemetry unavailable")
                 if result.returncode == 0 and len(values) >= 2 and float(values[1]) < 2048 and server is not None and server.poll() is None:
@@ -389,6 +393,8 @@ launch_manifest = {
     "trials_per_context": benchmark_plan["trials"] if benchmark_plan else (0 if args.client in {"controlled", "normal"} else args.trials),
     "eager_benchmark_plan_sha256": benchmark_plan["plan_sha256"] if benchmark_plan else None,
     "m1_decode_profile_requested": args.m1_decode_profile,
+    "m1_warmed_timing_requested": args.m1_warmed_timing,
+    "timing_admission": benchmark_plan.get("timing_admission") if benchmark_plan else None,
     "diagnostic_admission": benchmark_plan.get("diagnostic_admission") if benchmark_plan else None,
     "controlled_request_count": 1 if args.client == "controlled" else None,
     "normal_request_count": 2 if normal_plan else None,
@@ -423,6 +429,9 @@ try:
     if eager_benchmark:
         from m1_owned_processes import OwnedProcesses, enable_subreaper, read_process
         ownership = OwnedProcesses(enable_subreaper(), metadata_timing=metadata_timing)
+        if args.m1_warmed_timing:
+            from m1_eager_benchmark_client import WarmedRuntimeFiles
+            ownership.runtime_files = WarmedRuntimeFiles(benchmark_plan, launch_manifest)
         available_kib = int(next(l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:")))
         if available_kib < 8 * 1024 * 1024:
             raise RuntimeError("Host available RAM below 8 GiB before launch")
@@ -453,7 +462,7 @@ try:
         time.sleep(2)
     if not ready:
         raise RuntimeError("Server startup exceeded the bounded 20 minute compile/load limit")
-    phase("server_ready")
+    server_ready_ns = phase("server_ready")
     if args.m1_external_observer:
         from megartx.m1_process_lifecycle import validate_engine_core_registration_before_dispatch
         evidence_dir = output / "m1-process-evidence"
@@ -490,8 +499,10 @@ try:
     other = []
     if ownership is not None:
         from m1_owned_processes import snapshot
-        owned_snapshot = snapshot()
-        ownership.observe(owned_snapshot, time.monotonic())
+        with ownership.lock:
+            sample_started = time.monotonic()
+            owned_snapshot = snapshot()
+            ownership.observe(owned_snapshot, time.monotonic(), sampled_start=sample_started)
     for pid in gpu_jobs():
         try:
             if ((ownership is not None and (pid not in owned_snapshot or owned_snapshot[pid].identity not in ownership.remembered))
@@ -519,9 +530,18 @@ try:
         bench_command.append("--activation-only")
     if args.routing_diagnostic:
         bench_command.append("--routing-diagnostic")
-    phase("client_launch", command=bench_command)
+    if eager_benchmark and args.m1_warmed_timing:
+        bench_command.append("--m1-warmed-timing")
+    client_launch_ns = phase("client_launch", command=bench_command)
     with (output / "client.log").open("w") as bench_log:
         result = subprocess.run(bench_command, env=env, stdout=bench_log, stderr=subprocess.STDOUT, timeout=3600)
+    client_returned_ns = time.monotonic_ns()
+    if eager_benchmark and args.m1_warmed_timing:
+        with (output / "warmed-launch-boundaries.json").open("x") as stream:
+            json.dump({"schema": "megartx-m1-warmed-launch-boundaries-v1",
+                       "timing_admission": WARMED_RULE, "plan_sha256": benchmark_plan["plan_sha256"],
+                       "server_ready_ns": server_ready_ns, "client_launch_ns": client_launch_ns,
+                       "client_returned_ns": client_returned_ns}, stream, indent=2)
     (output / "benchmark.exit").write_text(str(result.returncode) + "\n")
     require_resources()
     if result.returncode:
@@ -558,15 +578,30 @@ finally:
     stop_guard.set()
     if guard_thread is not None:
         guard_thread.join(timeout=10)
+        if guard_thread.is_alive() and ownership is not None:
+            ownership.fail("Owned compiler guard did not stop")
     stop_sample.set()
     if sample_thread.ident is not None:
         sample_thread.join(timeout=10)
+        if sample_thread.is_alive() and ownership is not None:
+            ownership.fail("Owned resource sampler did not stop")
     if ownership is not None:
         ownership_report = ownership.cleanup(gpu_jobs, server.poll if server is not None else lambda: None)
-        metadata_final = ownership.finalize_metadata()
+        if ownership.runtime_files is not None:
+            try:
+                runtime_final = ownership.runtime_files.finalize()
+                if not runtime_final["passed"]:
+                    ownership.fail(runtime_final["errors"][0])
+            except Exception as error:
+                ownership.fail("Warmed final source/AOT verification failed: " + str(error))
+        try:
+            metadata_final = ownership.finalize_metadata()
+        except Exception as error:
+            ownership.fail("Final metadata verification failed: " + str(error))
+            metadata_final = None
         if metadata_final is not None:
             (output / "timing-metadata-final.json").write_text(json.dumps(metadata_final, indent=2))
-            ownership_report.update(ownership.report())
+        ownership_report.update(ownership.report())
         (output / "owned-processes.json").write_text(json.dumps(ownership_report, indent=2))
     if server is not None and ownership is None:
         phase("owned_server_stop")
@@ -656,6 +691,12 @@ finally:
                 receipt = validate_profile_run(output, benchmark_plan, ownership_report)
                 with (output / "decode-diagnostic-admission.json").open("x") as stream:
                     json.dump(receipt, stream, indent=2)
+            elif args.m1_warmed_timing:
+                from m1_eager_benchmark_client import validate_warmed_run, summarize_run
+                receipt = validate_warmed_run(output, benchmark_plan, ownership_report)
+                with (output / "warmed-timing-admission.json").open("x") as stream:
+                    json.dump(receipt, stream, indent=2)
+                summarize_run(output)
             else:
                 ownership.require_compiler_quiescence()
                 from m1_eager_benchmark_client import summarize_run
