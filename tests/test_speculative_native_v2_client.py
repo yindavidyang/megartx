@@ -331,6 +331,20 @@ class V2ComparisonControls(unittest.TestCase):
         row=v2_scalar(); row['v2_owner']={'private':42}
         with self.assertRaises(ProbeError): validate_scalar_receipt(row, runner_lane='v2')
 
+    def test_raw_policy_boolean_aliases_fail_with_matching_receipt_digest(self):
+        for key, value in (("resolved_v2", 1), ("selection_override_injected", 0)):
+            raw, identity, row, frozen = v2_private_fixture()
+            raw["v2_owner"]["runner_policy"] = dict(raw["v2_owner"]["runner_policy"])
+            raw["v2_owner"]["runner_policy"][key] = value
+            row["receipt_sha256"] = identity["receipt_sha256"] = stream_digest(raw)
+            with self.assertRaises(ProbeError): lifecycle._check_result(raw)
+            with self.assertRaises(ProbeError): verify_private_receipt(raw, identity, row, frozen)
+            # The independent comparison also checks exact nested types even if
+            # an internal owner check is replaced in this CPU fault fixture.
+            with patch.object(lifecycle, "_check_result"):
+                with self.assertRaisesRegex(ProbeError, "private/public owner capability"):
+                    verify_private_receipt(raw, identity, row, frozen)
+
     def test_source_and_owner_drift_rejected_with_matching_digest(self):
         for mutation in (lambda raw:raw['source_sha256'].pop('vllm/v1/worker/gpu/model_runner.py'),
                 lambda raw:raw['v2_owner'].__setitem__('drafter_loaded', True),

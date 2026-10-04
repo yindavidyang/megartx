@@ -147,7 +147,7 @@ def verify_private_receipt(raw, identity, scalar, plan):
         if type(owners) is not dict or set(owners) != V2_SCALAR_KEYS | identity_keys | {"metadata_builder_identities"}:
             raise ProbeError("Malformed actual V2 owner identity")
         for key in V2_SCALAR_KEYS:
-            if owners[key] != scalar[key] or type(owners[key]) is not type(scalar[key]):
+            if canonical(owners[key]) != canonical(scalar[key]):
                 raise ProbeError("V2 private/public owner capability differs")
         for key in identity_keys:
             integer(owners[key], 1)

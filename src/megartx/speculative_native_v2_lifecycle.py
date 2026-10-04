@@ -58,13 +58,14 @@ def _require_core(core, utility):
 
 
 def _check_result(receipt):
+    from .speculative_native_plan import canonical
     if (receipt.get("schema") != "megartx-native-v2-zero-forward-receipt-v1"
             or receipt.get("purpose") != PURPOSE or receipt.get("decision", {}).get("admitted") is not False
             or receipt.get("v2_owner", {}).get("mutable_verifier_lease_granted") is not False
             or receipt.get("v2_owner", {}).get("drafter_loaded") is not False
             or receipt.get("v2_owner", {}).get("metadata_built") is not False
             or receipt.get("v2_owner", {}).get("input_batch_prepared") is not False
-            or receipt.get("v2_owner", {}).get("runner_policy") != POLICY):
+            or canonical(receipt.get("v2_owner", {}).get("runner_policy")) != canonical(POLICY)):
         raise ProbeError("Unbound V2 receipt or unexpected later-stage authority")
 
 
