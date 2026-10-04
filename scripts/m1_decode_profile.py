@@ -66,7 +66,8 @@ def verify_runtime_files(plan, launch):
     sources = build["source_hashes"]
     required_sources = set(PROFILE_DRIVER_SOURCES) | {"src/megartx/" + p for p in plan["controller_source_hashes"]} | {
         "probes/m1_live_bridge.cu", "probes/m1_installed_bridge.cuh", "kernels/m1_installed_preparation.cuh",
-        "kernels/m1_maps_expand.cuh", "scripts/build_m1_live_bridge.py", "scripts/check_m1_live_bridge.py",
+        "kernels/m1_maps_expand.cuh", "kernels/m1_sf_layout_contract.hpp",
+        "scripts/build_m1_live_bridge.py", "scripts/check_m1_live_bridge.py",
         "scripts/check_m1_live_bindings.py"}
     require(set(sources) == required_sources and all(sources[p] == h for p, h in plan["driver_source_hashes"].items()),
             "build driver inventory differs")

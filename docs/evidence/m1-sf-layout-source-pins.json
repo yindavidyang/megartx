@@ -1,0 +1,47 @@
+{
+  "schema": "megartx-m1-sf-layout-source-pins-v1",
+  "parent_head": "e886b98c1db30b1d77fb08471f1d6b33d162bbf1",
+  "parent_ledger_sha256": "4e7ac0e132d0e6d5f3181d2d9e81a2b84914b0a54cadbd2818d5623d7b14c74c",
+  "scope": "CPU-only source-derived SF layout proof; no descriptor/owner/route/readback or stream check removed; immutable history and prefill overlays preserved.",
+  "status": "candidate_pending_independent_review",
+  "superseded_sources": [
+    {
+      "path": "probes/m1_live_bridge.cu",
+      "prior_sha256": "428cef5dd354994141ee73e155b92bafd4b8a61195c918f7908792ed34411e0a",
+      "current_sha256": "a576e25aaafa67941eccb9a7cd5ce42adca6138c1d10519e50844f0ea9493cbd"
+    },
+    {
+      "path": "scripts/build_m1_live_bridge.py",
+      "prior_sha256": "e9339b3a981db057fe96d94b997ad0d745075dc589dae3dd3d76293970aa268f",
+      "current_sha256": "7e8c22ae617fcac565e04f563119f6c93df68b79f90efcce6f3a52548bebb37b"
+    },
+    {
+      "path": "scripts/m1_decode_profile.py",
+      "prior_sha256": "e9aa4c071f1659ac1fd500b9babb1bbacefa8a598be78c74e164f668f84b4e7c",
+      "current_sha256": "7b5f21db856039dae48da01ec307c1a5138a0f27979922e9e87093fded6f8b3d"
+    },
+    {
+      "path": "tests/test_m1_profile_admission.py",
+      "prior_sha256": "0de28c6c906762e0180a2fe082151c3bea1cfd41b7f4b06fa269cd6360b0a14c",
+      "current_sha256": "6412d4c09a49d3b69bf73920213a6a404dc02831f9ba8ee668264d4cbb352c69"
+    },
+    {
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "prior_sha256": "877c53197e30eb322864a70b7f25027fc5649661ff88893ecaf78c75764717e0",
+      "current_sha256": "0f3dd6d69cec7356f3fb2d9858a9dd1bff0a40b15ce53b7d82c3da518f6f3650"
+    }
+  ],
+  "added_source_hashes": {
+    "kernels/m1_sf_layout_contract.hpp": "015e2570ade16b93763a3bbf79b4e5f51e7d39096376eebcf6d2e8cce15d77b0",
+    "probes/m1_sf_layout_host_test.cpp": "ad4b2a98275d7b93e7ee48788e15744db57c9248da665fdf7669648da6024f33",
+    "numerical_reference/m1_sf_layout_proof.py": "d2a5384de60d33d57cb742a5397bb7c5b1b7e7b27568c6db5b20b26b2d52342d",
+    "numerical_reference/test_m1_sf_layout_contract.py": "d9871fcd687d1bdfacdc5ca864573bf36a76273292413c92e553c2a4c2c61b0d",
+    "docs/m1-sf-layout-contract.md": "989967baf71ba68ffe165a2a0421ac75cad22ebeb3ba116ce20c6db4c86aa4a4",
+    "docs/evidence/m1-sf-layout-cpu-proof.json": "1f463c069bba1e290a65489b0682d06531902fccf952e0754149d07c75271168"
+  },
+  "native_build_verified": false,
+  "gpu_execution_verified": false,
+  "quality_qualified": false,
+  "graphs_qualified": false,
+  "performance_qualified": false
+}
