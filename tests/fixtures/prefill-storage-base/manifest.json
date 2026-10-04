@@ -1,0 +1,38 @@
+{
+  "files": {
+    "scripts/run_scale_validation.py": {
+      "fixture": "scripts__run_scale_validation.py.source",
+      "sha256": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d"
+    },
+    "src/megartx/prefill_diagnostic_plan.py": {
+      "fixture": "src__megartx__prefill_diagnostic_plan.py.source",
+      "sha256": "f6b6b12a1e26ddc3ba5856659d534ec1a4de5a0d631f1edd808ac2f45e9c4f5f"
+    },
+    "src/megartx/prefill_native.py": {
+      "fixture": "src__megartx__prefill_native.py.source",
+      "sha256": "31b08825695d8c10cff5ee287a84030e2052b1ba6618bab201828335cbf02c24"
+    },
+    "src/megartx/vllm_scale_plugin.py": {
+      "fixture": "src__megartx__vllm_scale_plugin.py.source",
+      "sha256": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
+    },
+    "tests/test_prefill_launch.py": {
+      "fixture": "tests__test_prefill_launch.py.source",
+      "sha256": "ddee944db06b7cbcb39f897e3f8a803353538e5cf3c921e2bbbd299424d18b3d"
+    },
+    "tests/test_prefill_native_reconciliation.py": {
+      "fixture": "tests__test_prefill_native_reconciliation.py.source",
+      "sha256": "40ee0efab698e0e878775846978055dae92271d136e2bb87d2ee22ce7a33b5e8"
+    },
+    "tests/test_prefill_plan.py": {
+      "fixture": "tests__test_prefill_plan.py.source",
+      "sha256": "b973792f5b6768dc715c022b6085866d9cb390e3a90df46b9355a84fea1a967c"
+    },
+    "tests/test_prefill_runner.py": {
+      "fixture": "tests__test_prefill_runner.py.source",
+      "sha256": "0629b62b1c4aad031b36d6cf381765309917aeab44ccb91fee60d4b90d5b06a7"
+    }
+  },
+  "source_head": "3e9f50f509c5f79da8505dd04b251cf950502283",
+  "source_tree": "7f0543aaad4999a5a8ed698c58524cfb0a32ee06"
+}

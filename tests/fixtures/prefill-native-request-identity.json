@@ -1,0 +1,215 @@
+{
+  "commit": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+  "extracts": {
+    "random_uuid": {
+      "path": "vllm/utils/__init__.py",
+      "first_line": 11,
+      "last_line": 12,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/utils/__init__.py#L11-L12",
+      "file_sha256": "c58b3f45deeb98bccca22c945526fd15d483a2f5eb8a3c62cf7df218b081885f",
+      "file_git_blob_sha": "e8287b0cd1148437f994eafdb5c1529c23a37e2c",
+      "excerpt_sha256": "df7e0ffaa50f4b1ed7cef7d2a3a133df420cbf2ee959f47b5a7da39d6021433d",
+      "source": "def random_uuid() -> str:\n    return f\"{uuid.uuid4().int & MASK_64_BITS:016x}\"  # 16 hex chars\n"
+    },
+    "mask_64_bits": {
+      "path": "vllm/utils/__init__.py",
+      "first_line": 8,
+      "last_line": 8,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/utils/__init__.py#L8-L8",
+      "file_sha256": "c58b3f45deeb98bccca22c945526fd15d483a2f5eb8a3c62cf7df218b081885f",
+      "file_git_blob_sha": "e8287b0cd1148437f994eafdb5c1529c23a37e2c",
+      "excerpt_sha256": "2f4166904326d74350043237d28e338598fe787978382811f13f06c01a206cc7",
+      "source": "MASK_64_BITS = (1 << 64) - 1\n"
+    },
+    "base_request_id": {
+      "path": "vllm/entrypoints/serve/engine/serving.py",
+      "first_line": 117,
+      "last_line": 126,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/entrypoints/serve/engine/serving.py#L117-L126",
+      "file_sha256": "70143311acc2230b925e7f3603b8b9314f029ff5e98d5af990b3bdca691331f1",
+      "file_git_blob_sha": "23e3927203136712480858e48244a1d3e098da59",
+      "excerpt_sha256": "4ac11bed71f24a3d20c168d1619a24a523c0f7d4e9b41c47d92338d990ecdf2c",
+      "source": "    def _base_request_id(\n        raw_request: Request | None, default: str | None = None\n    ) -> str | None:\n        \"\"\"Pulls the request id to use from a header, if provided\"\"\"\n        if raw_request is not None and (\n            (req_id := raw_request.headers.get(\"X-Request-Id\")) is not None\n        ):\n            return req_id\n\n        return random_uuid() if default is None else default\n"
+    },
+    "assign_request_id": {
+      "path": "vllm/v1/engine/input_processor.py",
+      "first_line": 262,
+      "last_line": 279,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/engine/input_processor.py#L262-L279",
+      "file_sha256": "c8abd8e4e14d99929d45a7ff3b2a74898269c5e2a7fa30b826623ee85e4ce813",
+      "file_git_blob_sha": "3f86f3c8b239f3dc04b4f6ddb5afe87e8e5ce515",
+      "excerpt_sha256": "8ebc5d64f9808009c9e0dec5aba7ec6bab40cde74f55ab8aa9c6e99b3acb9e82",
+      "source": "    def assign_request_id(request: EngineCoreRequest):\n        \"\"\"Replace the externally supplied request ID with an internal request ID\n        that adds 8 random characters in order to ensure uniqueness.\n        \"\"\"\n        if request.external_req_id is not None:\n            raise ValueError(\n                \"The external_req_id field should not be set on EngineCoreRequests\"\n                \" passed to vLLM; use the request_id field.\"\n            )\n        request.external_req_id = request.request_id\n        if envs.VLLM_DISABLE_REQUEST_ID_RANDOMIZATION:\n            logger.warning_once(\n                \"VLLM_DISABLE_REQUEST_ID_RANDOMIZATION is set and will be \"\n                \"removed in a future release. Duplicate externally-provided \"\n                \"request IDs may cause failures and/or subtle correctness errors.\"\n            )\n        else:\n            request.request_id = f\"{request.external_req_id}-{random_uuid():.8}\"\n"
+    },
+    "fanout_tail": {
+      "path": "vllm/v1/engine/async_llm.py",
+      "first_line": 475,
+      "last_line": 505,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/engine/async_llm.py#L475-L505",
+      "file_sha256": "52cbf404f1dbc99c6bebf4a50a7eb18ff842a1f53106a45f365523192d816be1",
+      "file_git_blob_sha": "bf3f5f420ae8ce46bcdc1e6cf16d12cc6b0585a6",
+      "excerpt_sha256": "86bf2f4d3954f0a03a098a7a4da5e0d0b7fd109333772825148a482d232499b4",
+      "source": "        self.input_processor.assign_request_id(request)\n\n        # We start the output_handler on the first call to add_request() so\n        # we can call __init__ before the event loop, which enables us\n        # to handle startup failure gracefully in the OpenAI server.\n        self._run_output_handler()\n\n        # Create a new output collector for the request.\n        queue = RequestOutputCollector(params.output_kind, request.request_id)\n\n        # Use cloned params that may have been updated in process_inputs()\n        params = request.params\n\n        if is_pooling or params.n == 1:\n            await self._add_request(request, prompt_text, None, 0, queue)\n            return queue\n\n        parent_params = params\n        assert isinstance(parent_params, SamplingParams)\n\n        # Fan out child requests (for n>1).\n        parent_request = ParentRequest(request)\n        for idx in range(parent_params.n):\n            request_id, child_params = parent_request.get_child_info(idx)\n            child_request = request if idx == parent_params.n - 1 else copy(request)\n            child_request.request_id = request_id\n            child_request.sampling_params = child_params\n            await self._add_request(\n                child_request, prompt_text, parent_request, idx, queue\n            )\n        return queue\n"
+    },
+    "parent_init": {
+      "path": "vllm/v1/engine/parallel_sampling.py",
+      "first_line": 36,
+      "last_line": 50,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/engine/parallel_sampling.py#L36-L50",
+      "file_sha256": "bf3f0a3c6640aaf706d1b6f7ec3a8e09a970f3dd9e7e96fa6a901779ea84f61d",
+      "file_git_blob_sha": "8eb6fa057d376b19411f2b705ac9bd7510b9653f",
+      "excerpt_sha256": "85120b59f88e2caf4a33b85e1f9440ac594d4092c998549276feadc81607cddd",
+      "source": "    def __init__(self, request: EngineCoreRequest) -> None:\n        assert request.external_req_id is not None\n        sampling_params = request.params\n        self.request_id = request.request_id\n        self.external_req_id = request.external_req_id\n        self.sampling_params = sampling_params\n\n        self.child_requests = set()\n        self.output_aggregator = (\n            [cast(CompletionOutput, None)] * sampling_params.n\n            if (sampling_params.output_kind == RequestOutputKind.FINAL_ONLY)\n            else []\n        )\n        self.max_num_generation_tokens = 0\n        self.cached_child_sampling_params = None\n"
+    },
+    "child_sampling_params": {
+      "path": "vllm/v1/engine/parallel_sampling.py",
+      "first_line": 52,
+      "last_line": 81,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/engine/parallel_sampling.py#L52-L81",
+      "file_sha256": "bf3f0a3c6640aaf706d1b6f7ec3a8e09a970f3dd9e7e96fa6a901779ea84f61d",
+      "file_git_blob_sha": "8eb6fa057d376b19411f2b705ac9bd7510b9653f",
+      "excerpt_sha256": "bf529301da5b0060c41b3bb8134d5669d3d1e3f804273a5ef1f8e683ea2ed347",
+      "source": "    def _get_child_sampling_params(\n        self,\n        index: int,\n    ) -> SamplingParams:\n        \"\"\"Efficiently obtain child `sampling_params`\n\n        If `sampling_params.seed` is not `None` then\n        each child request requires a unique clone of\n        parent `sampling_params` with a unique seed.\n\n        Args:\n          index: index within `n` child requests\n\n        Returns:\n          Child `sampling_params` instance.\n        \"\"\"\n        seed = self.sampling_params.seed\n        if self.cached_child_sampling_params:\n            # Reuse child sampling_params data structure\n            return self.cached_child_sampling_params\n        # Build child sampling_params\n        child_sampling_params = copy(self.sampling_params)\n        child_sampling_params.n = 1\n        if seed is None:\n            # Cache child sampling_params for later reuse\n            self.cached_child_sampling_params = child_sampling_params\n        else:\n            # Each child gets a clone with a unique seed\n            child_sampling_params.seed = seed + index\n        return child_sampling_params\n"
+    },
+    "child_info": {
+      "path": "vllm/v1/engine/parallel_sampling.py",
+      "first_line": 83,
+      "last_line": 94,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/engine/parallel_sampling.py#L83-L94",
+      "file_sha256": "bf3f0a3c6640aaf706d1b6f7ec3a8e09a970f3dd9e7e96fa6a901779ea84f61d",
+      "file_git_blob_sha": "8eb6fa057d376b19411f2b705ac9bd7510b9653f",
+      "excerpt_sha256": "6944c163a2bea584fb26da047048453141c692b4c233d89da9ce13713b8fbc4f",
+      "source": "    def get_child_info(self, index: int) -> tuple[str, SamplingParams]:\n        \"\"\"Get child request ID and sampling params.\n\n        Args:\n          index: index within `n` child requests.\n\n        Returns:\n          (request ID, sampling_params) tuple\n        \"\"\"\n        child_req_id = f\"{index}_{self.request_id}\"\n        self.child_requests.add(child_req_id)\n        return child_req_id, self._get_child_sampling_params(index)\n"
+    },
+    "make_request_output": {
+      "path": "vllm/v1/engine/output_processor.py",
+      "first_line": 286,
+      "last_line": 350,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/engine/output_processor.py#L286-L350",
+      "file_sha256": "e47b86cd69ce1c1e3f53dac655eaa75c32a4057d10f4a1db16bb83a397f2a329",
+      "file_git_blob_sha": "257287243dbd417f7be5b0033e5e4b1c32f2b7d1",
+      "excerpt_sha256": "3be2107a8a5808ff72320c20ee45e5d480b2d2fa98f5487efc844b1f53dc2c8d",
+      "source": "    def make_request_output(\n        self,\n        new_token_ids: list[int],\n        pooling_output: torch.Tensor | None,\n        finish_reason: FinishReason | None,\n        stop_reason: int | str | None,\n        kv_transfer_params: dict[str, Any] | None = None,\n        ec_transfer_params: dict[str, Any] | None = None,\n    ) -> RequestOutput | PoolingRequestOutput | None:\n        finished = finish_reason is not None\n        final_only = self.output_kind == RequestOutputKind.FINAL_ONLY\n\n        if not finished and final_only:\n            # Only the final output is required in FINAL_ONLY mode.\n            return None\n\n        if self.stream_interval > 1:\n            assert self.detokenizer is not None\n\n            # Send output request only when\n            # 1. It has finished, or\n            # 2. It is the first token, or\n            # 3. It has reached the stream interval number of tokens\n            if not (\n                finished\n                or self.sent_tokens_offset == 0\n                or self.detokenizer.num_output_tokens() - self.sent_tokens_offset\n                >= self.stream_interval\n            ):\n                return None\n\n            if self.output_kind == RequestOutputKind.DELTA:\n                # Send tokens from the offset in DELTA mode, otherwise all\n                # tokens are sent.\n                new_token_ids = self.detokenizer.output_token_ids[\n                    self.sent_tokens_offset :\n                ]\n                self.sent_tokens_offset = self.detokenizer.num_output_tokens()\n\n        external_req_id = self.external_req_id\n\n        if pooling_output is not None:\n            return self._new_request_output(\n                external_req_id,\n                [self._new_pooling_output(pooling_output)],\n                finished,\n            )\n\n        output = self._new_completion_output(new_token_ids, finish_reason, stop_reason)\n\n        if self.parent_req is None:\n            outputs = [output]\n        else:\n            outputs, finished = self.parent_req.get_outputs(self.request_id, output)\n            if not outputs:\n                return None\n            external_req_id = self.parent_req.external_req_id\n\n        return self._new_request_output(\n            external_req_id,\n            outputs,\n            finished,\n            kv_transfer_params,\n            ec_transfer_params,\n        )\n"
+    },
+    "new_request_output": {
+      "path": "vllm/v1/engine/output_processor.py",
+      "first_line": 352,
+      "last_line": 396,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/engine/output_processor.py#L352-L396",
+      "file_sha256": "e47b86cd69ce1c1e3f53dac655eaa75c32a4057d10f4a1db16bb83a397f2a329",
+      "file_git_blob_sha": "257287243dbd417f7be5b0033e5e4b1c32f2b7d1",
+      "excerpt_sha256": "b7bb2f22823443494d5d9b3394e6c7e1fdfa5d49baf3456dd15369c4a193327e",
+      "source": "    def _new_request_output(\n        self,\n        external_req_id: str,\n        outputs: list[CompletionOutput] | list[PoolingOutput],\n        finished: bool,\n        kv_transfer_params: dict[str, Any] | None = None,\n        ec_transfer_params: dict[str, Any] | None = None,\n    ) -> RequestOutput | PoolingRequestOutput:\n        # If prompt embeds were used, put placeholder prompt token ids\n        prompt_token_ids = self.prompt_token_ids\n        if prompt_token_ids is None and self.prompt_embeds is not None:\n            prompt_token_ids = [0] * len(self.prompt_embeds)\n        assert prompt_token_ids is not None\n\n        first_output = outputs[0]\n        if isinstance(first_output, PoolingOutput):\n            assert len(outputs) == 1\n            return PoolingRequestOutput(\n                request_id=external_req_id,\n                outputs=first_output,\n                num_cached_tokens=self.num_cached_tokens,\n                prompt_token_ids=prompt_token_ids,\n                finished=finished,\n            )\n        assert self.logprobs_processor is not None\n        if self.output_kind == RequestOutputKind.DELTA:\n            # Side effect: logprobs processor forgets prompt logprobs\n            prompt_logprobs = self.logprobs_processor.pop_prompt_logprobs()\n        else:\n            prompt_logprobs = self.logprobs_processor.prompt_logprobs\n\n        return RequestOutput(\n            request_id=external_req_id,  # request_id is what was provided externally\n            lora_request=self.lora_request,\n            prompt=self.prompt,\n            prompt_token_ids=prompt_token_ids,\n            prompt_logprobs=prompt_logprobs,\n            outputs=cast(list[CompletionOutput], outputs),\n            finished=finished,\n            kv_transfer_params=kv_transfer_params,\n            ec_transfer_params=ec_transfer_params,\n            num_cached_tokens=self.num_cached_tokens,\n            num_cache_creation_tokens=self.num_cache_creation_tokens,\n            metrics=self.stats,\n        )\n"
+    },
+    "completion_response_id": {
+      "path": "vllm/entrypoints/openai/completion/serving.py",
+      "first_line": 143,
+      "last_line": 143,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/entrypoints/openai/completion/serving.py#L143-L143",
+      "file_sha256": "75d05ddddf303734a078a3e42fcb173fef58ea56da09bc0b5c7525cb9bbbf527",
+      "file_git_blob_sha": "2fa01478cee60ad7a1d2307b769c136c70fe0f32",
+      "excerpt_sha256": "8d43cb957f19032b4fadc7178d3023939d1dcbbaed435bf6b4eeaa0317e73204",
+      "source": "        request_id = f\"cmpl-{self._base_request_id(raw_request, request.request_id)}\"\n"
+    },
+    "completion_prompt_id": {
+      "path": "vllm/entrypoints/openai/completion/serving.py",
+      "first_line": 179,
+      "last_line": 179,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/entrypoints/openai/completion/serving.py#L179-L179",
+      "file_sha256": "75d05ddddf303734a078a3e42fcb173fef58ea56da09bc0b5c7525cb9bbbf527",
+      "file_git_blob_sha": "2fa01478cee60ad7a1d2307b769c136c70fe0f32",
+      "excerpt_sha256": "7143bb463f801755339ea31a3e2bf38e1c285e1d1b8a99a05a4495925534694c",
+      "source": "            request_id_item = f\"{request_id}-{i}\"\n"
+    },
+    "completion_generate": {
+      "path": "vllm/entrypoints/openai/completion/serving.py",
+      "first_line": 204,
+      "last_line": 214,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/entrypoints/openai/completion/serving.py#L204-L214",
+      "file_sha256": "75d05ddddf303734a078a3e42fcb173fef58ea56da09bc0b5c7525cb9bbbf527",
+      "file_git_blob_sha": "2fa01478cee60ad7a1d2307b769c136c70fe0f32",
+      "excerpt_sha256": "969a26bc796c402e8df02c150401568b9fb7cc56945a9b14164598ae69e1fce0",
+      "source": "            else:\n                generator = self.engine_client.generate(\n                    engine_input,\n                    sampling_params,\n                    request_id_item,\n                    lora_request=lora_request,\n                    trace_headers=trace_headers,\n                    priority=self._get_priority(request, raw_request),\n                    data_parallel_rank=data_parallel_rank,\n                    session_id=session_id,\n                )\n"
+    },
+    "completion_sse": {
+      "path": "vllm/entrypoints/openai/completion/serving.py",
+      "first_line": 402,
+      "last_line": 422,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/entrypoints/openai/completion/serving.py#L402-L422",
+      "file_sha256": "75d05ddddf303734a078a3e42fcb173fef58ea56da09bc0b5c7525cb9bbbf527",
+      "file_git_blob_sha": "2fa01478cee60ad7a1d2307b769c136c70fe0f32",
+      "excerpt_sha256": "c682c76005b92c9b84ec0c26afcd70d4397982cbb2662af6aa4c4f9d9d75e88f",
+      "source": "                    chunk = CompletionStreamResponse(\n                        id=request_id,\n                        object=\"text_completion\",\n                        created=created_time,\n                        model=model_name,\n                        choices=[\n                            CompletionResponseStreamChoice(\n                                index=i,\n                                text=delta_text,\n                                logprobs=logprobs,\n                                finish_reason=finish_reason,\n                                stop_reason=stop_reason,\n                                prompt_token_ids=prompt_token_ids_to_return,\n                                token_ids=(\n                                    as_list(output.token_ids)\n                                    if request.return_token_ids\n                                    else None\n                                ),\n                            )\n                        ],\n                    )\n"
+    },
+    "completion_usage_sse": {
+      "path": "vllm/entrypoints/openai/completion/serving.py",
+      "first_line": 478,
+      "last_line": 486,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/entrypoints/openai/completion/serving.py#L478-L486",
+      "file_sha256": "75d05ddddf303734a078a3e42fcb173fef58ea56da09bc0b5c7525cb9bbbf527",
+      "file_git_blob_sha": "2fa01478cee60ad7a1d2307b769c136c70fe0f32",
+      "excerpt_sha256": "de955b209b1b7baffd169c735875423e0333c1d45cbbccf38d65729a64e2a37c",
+      "source": "                final_usage_chunk = CompletionStreamResponse(\n                    id=request_id,\n                    created=created_time,\n                    model=model_name,\n                    choices=[],\n                    usage=final_usage_info,\n                    system_fingerprint=self.system_fingerprint,\n                    metrics=stream_per_request_metrics,\n                )\n"
+    },
+    "completion_final_response": {
+      "path": "vllm/entrypoints/openai/completion/serving.py",
+      "first_line": 640,
+      "last_line": 650,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/entrypoints/openai/completion/serving.py#L640-L650",
+      "file_sha256": "75d05ddddf303734a078a3e42fcb173fef58ea56da09bc0b5c7525cb9bbbf527",
+      "file_git_blob_sha": "2fa01478cee60ad7a1d2307b769c136c70fe0f32",
+      "excerpt_sha256": "03a509aeb8f57aad2e4dd873cdda4439a4a094839e3a7af689ea6fed02b55a82",
+      "source": "        return CompletionResponse(\n            id=request_id,\n            created=created_time,\n            model=model_name,\n            choices=choices,\n            usage=usage,\n            system_fingerprint=self.system_fingerprint,\n            kv_transfer_params=kv_transfer_params,\n            ec_transfer_params=ec_transfer_params,\n            metrics=per_request_metrics,\n        )\n"
+    },
+    "request_id_default": {
+      "path": "vllm/entrypoints/openai/completion/protocol.py",
+      "first_line": 144,
+      "last_line": 151,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/entrypoints/openai/completion/protocol.py#L144-L151",
+      "file_sha256": "5f7930635fd3924826015211032fb298206b27c7f04cd6cd2224bb128e4a3a50",
+      "file_git_blob_sha": "bf0a94eea7161e6de8ec37006807126b64937417",
+      "excerpt_sha256": "884d118801d9ef5c038e104bc2d2c12b9cb3e6750c3b7ac283f5eecc7efc8a92",
+      "source": "    request_id: str = Field(\n        default_factory=random_uuid,\n        description=(\n            \"The request_id related to this request. If the caller does \"\n            \"not set it, a random_uuid will be generated. This id is used \"\n            \"through out the inference process and return in response.\"\n        ),\n    )\n"
+    },
+    "env_randomization_default": {
+      "path": "vllm/envs.py",
+      "first_line": 225,
+      "last_line": 225,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/envs.py#L225-L225",
+      "file_sha256": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f",
+      "file_git_blob_sha": "6158f86f896b162caed7340f8b3d8b2671fbe773",
+      "excerpt_sha256": "209758df74c69013b752540fed6ccd9efb2fcee78aac6c6baf8163dcf93ac0d4",
+      "source": "    VLLM_DISABLE_REQUEST_ID_RANDOMIZATION: bool = False\n"
+    },
+    "env_randomization_definition": {
+      "path": "vllm/envs.py",
+      "first_line": 1645,
+      "last_line": 1649,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/envs.py#L1645-L1649",
+      "file_sha256": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f",
+      "file_git_blob_sha": "6158f86f896b162caed7340f8b3d8b2671fbe773",
+      "excerpt_sha256": "aa4a3992f61031714bc6672636ffaecf6e7a32865f9ad0d5165497f5f3d4119b",
+      "source": "    # Temporary: skip adding random suffix to internal request IDs. May be\n    # needed for KV connectors that match request IDs across instances.\n    \"VLLM_DISABLE_REQUEST_ID_RANDOMIZATION\": lambda: bool(\n        int(os.getenv(\"VLLM_DISABLE_REQUEST_ID_RANDOMIZATION\", \"0\"))\n    ),\n"
+    },
+    "scheduler_request": {
+      "path": "vllm/v1/request.py",
+      "first_line": 244,
+      "last_line": 244,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/request.py#L244-L244",
+      "file_sha256": "da610d5203e72d2d524adc5fb39df11502a23520f2f31d9a44cf13d343f9c25d",
+      "file_git_blob_sha": "8b453a09069e9fcf2e9c10333e68328548dd19f7",
+      "excerpt_sha256": "db3c87c8cc7e89d9f2d37e0b7cc251f202f54a8d8920fb2d71df89b385fb5e48",
+      "source": "            request_id=request.request_id,\n"
+    },
+    "scheduler_output": {
+      "path": "vllm/v1/core/sched/output.py",
+      "first_line": 61,
+      "last_line": 61,
+      "source_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/v1/core/sched/output.py#L61-L61",
+      "file_sha256": "3a66c8efaefe10c572f6f33cf1f8aa4610758c945130cad62eb9f7331005677c",
+      "file_git_blob_sha": "3a46fa40a71e015e44755b9c4b479fcf9cbc5758",
+      "excerpt_sha256": "9873de7aa41e576b29b0f005ef49cc6ded0a8bb21d2c1ab0efbf40c0ca3b8ac6",
+      "source": "            req_id=request.request_id,\n"
+    }
+  }
+}

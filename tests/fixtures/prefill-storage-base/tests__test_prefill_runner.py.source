@@ -18,8 +18,7 @@ from megartx import prefill_plan as p
 from megartx import prefill_runner as r
 
 
-from prefill_historical_fixture import historical_root
-ROOT = historical_root()
+ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs/prefill"
 DIGEST = "a" * 64
 

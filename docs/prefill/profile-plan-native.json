@@ -1,0 +1,103 @@
+{
+  "binding": {
+    "repository_base_commit": "09341f2ad3f6e4b03e8f264b9e3c59fe5ddb52ed",
+    "source_manifest_sha256": "ab7f83c053a18307034455ce277a113d8494b704ba3ea1484825b8b168571017"
+  },
+  "controls": {
+    "allow_bf16_reduced_precision_reduction": true,
+    "allow_bf16_reduced_precision_reduction_split_k": true,
+    "allow_fp16_reduced_precision_reduction": true,
+    "allow_tf32": false,
+    "attention_backend": "FLASHINFER",
+    "compute_dtype": "bfloat16",
+    "concurrency": 1,
+    "dynamic_batching": false,
+    "enforce_eager": true,
+    "ep": 1,
+    "head_policy": "last_prompt_row",
+    "kv_dtype": "bfloat16",
+    "lane": "original_weights_runtime_layermax_w4a4",
+    "lora": false,
+    "moe_backend": "FLASHINFER_CUTLASS",
+    "output_capacity_tokens": 256,
+    "prefix_cache": false,
+    "routing": "natural_unchanged",
+    "speculation": false,
+    "text_only": true,
+    "tp": 1,
+    "use_fused_finalize": false
+  },
+  "freeze": {
+    "cleanup_receipt_reference": null,
+    "decode_control_commit": null,
+    "eos_policy": null,
+    "g0_acceptance_reference": null,
+    "g1_acceptance_reference": null,
+    "gpu_scope_approval_reference": null,
+    "oracle_contract_sha256": null,
+    "prompt_set_manifest_sha256": null,
+    "resource_bounds_reference": null,
+    "sampling_policy": null,
+    "sole_owner_handoff_reference": null,
+    "target_environment_manifest_sha256": null,
+    "thresholds_reference": null,
+    "tokenizer_template_manifest_sha256": null
+  },
+  "gpu_enabled": false,
+  "resource_bounds": {
+    "max_build_rss_bytes": null,
+    "max_build_seconds": null,
+    "max_extra_scratch_bytes": null,
+    "max_gpu_jobs": 1,
+    "max_requests": null,
+    "max_trace_bytes": null,
+    "max_wall_seconds": null,
+    "memory_reserve_bytes": null
+  },
+  "schema": "megartx-prefill-cpu-plan-v1",
+  "scope": "cpu_preparation",
+  "workloads": [
+    {
+      "chunk_tokens": [
+        255,
+        256,
+        512,
+        1024,
+        2048
+      ],
+      "fit_receipt_sha256": null,
+      "id": "p2048",
+      "prompt_token_ids_sha256": null,
+      "prompt_tokens": 2048,
+      "status": "planned"
+    },
+    {
+      "chunk_tokens": [
+        255,
+        256,
+        512,
+        1024,
+        2048,
+        8192
+      ],
+      "fit_receipt_sha256": null,
+      "id": "p8192",
+      "prompt_token_ids_sha256": null,
+      "prompt_tokens": 8192,
+      "status": "planned"
+    },
+    {
+      "chunk_tokens": [
+        256,
+        1024,
+        8192,
+        32768
+      ],
+      "fit_receipt_sha256": null,
+      "id": "p32768",
+      "prompt_token_ids_sha256": null,
+      "prompt_tokens": 32768,
+      "status": "deferred_fit"
+    }
+  ]
+}

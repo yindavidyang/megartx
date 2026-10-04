@@ -1,0 +1,113 @@
+{
+  "provenance": "Exact public pinned source excerpts. Python/NumPy substitutes execute CPU control-flow and serialization only; no native tensor, numerical, fit or GPU admission.",
+  "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+  "files": {
+    "vllm.v1.worker.gpu.model_runner": "174c93db921c23cf0396eee4764be25b2bd2d4b6a06e9fa41ce3598b884ce8ce",
+    "vllm.v1.worker.gpu.input_batch": "d5dd956eb319bd69dd9e762047833d81ad40b21fce619fcb2133759e73620694",
+    "vllm.v1.worker.gpu.sample.sampler": "832c9945d201a1e730ff9b4b52076aa83bd4a5064e1e4cfea952cf84d4a8d1f0",
+    "vllm.model_executor.models.gemma4": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+    "vllm.model_executor.models.gemma4_mm": "ee77a4f9884524e35219e8230a65f73eef675f2a23540cb267a25bf7029ea9b7",
+    "vllm.model_executor.layers.logits_processor": "6b0603d67b0c756253c2fdc882a3896d2e873a16e9aa2ef877aabca8d36bdb5f",
+    "vllm.model_executor.layers.vocab_parallel_embedding": "d42574ac79bd7d7847548784d2272c7c40cbd93fe6cdadb15e8c2db79d2074d7",
+    "vllm.config.model": "f4168b67cc93ce72ff2a6d4c66974223e32fd0f1fab4c05e44bd68a275e18d69",
+    "vllm.model_executor.layers.linear": "094fdf956c35bcfcb44b924a4ff60bb1768285963e4e1ae27f3022dd7e1e852d"
+  },
+  "excerpts": {
+    "sample": {
+      "module": "vllm.v1.worker.gpu.model_runner",
+      "lines": [
+        1512,
+        1588
+      ],
+      "source": "def sample(\n        self,\n        hidden_states: torch.Tensor,\n        input_batch: InputBatch,\n        grammar_output: GrammarOutput | None,\n    ) -> tuple[SamplerOutput, torch.Tensor, torch.Tensor]:\n        shard_metadata = None\n        global_input_batch = input_batch\n        if self.batch_sharder is not None:\n            # Shard the inputs along the batch dimension to sample in parallel\n            # across TP ranks.\n            input_batch, sorted_logits_indices, grammar_output, shard_metadata = (\n                self.batch_sharder.shard_sampler_inputs(input_batch, grammar_output)\n            )\n            # The hidden states must be gathered in rank-owner-sorted order\n            # before computing the partial-vocab logits, so that the all-to-all\n            # produces full-vocab logits for just the locally-owned requests.\n            sample_hidden_states = hidden_states[sorted_logits_indices]\n            local_logits = self.model.compute_logits_local(sample_hidden_states)\n            logits = all_to_all_logits(local_logits, shard_metadata)\n            logits = logits[:, : self.vocab_size]\n        else:\n            sample_hidden_states = hidden_states[input_batch.logits_indices]\n            logits = self.model.compute_logits(sample_hidden_states)\n\n        if grammar_output is not None:\n            # Apply grammar bitmask to the logits in-place.\n            assert self.structured_outputs_worker is not None\n            self.structured_outputs_worker.apply_grammar_bitmask(\n                logits,\n                input_batch,\n                grammar_output.structured_output_request_ids,\n                grammar_output.grammar_bitmask,\n            )\n\n        sampler_output: SamplerOutput | None\n        if input_batch.num_reqs == 0:\n            # This rank owns no requests this step. It contributes an\n            # all-padding block to the gather below.\n            sampler_output = None\n        elif input_batch.num_draft_tokens == 0 or self.rejection_sampler is None:\n            assert self.sampler is not None\n            sampler_output = self.sampler(logits, input_batch)\n        else:\n            # Rejection sampling for spec decoding.\n            assert self.rejection_sampler is not None\n            assert self.speculator is not None\n            sampler_output = self.rejection_sampler(\n                logits,\n                input_batch,\n                # Draft logits are needed for probabilistic rejection sampling.\n                self.speculator.draft_logits,\n            )\n\n        if shard_metadata is not None:\n            # Gather the sharded sampler outputs from the TP ranks into a single\n            # sampler output.\n            assert self.sampler is not None\n            sampler_output = gather_sampler_output(\n                sampler_output,\n                shard_metadata,\n                device=self.device,\n                global_batch=global_input_batch,\n                local_batch=input_batch,\n                gather_num_nans=self.sampler.compute_nans,\n                logprobs_dims=self.sampler.get_logprobs_dims(\n                    global_input_batch.idx_mapping_np,\n                    # Rejection sampler does not return logprob token ids.\n                    include_token_ids=(\n                        global_input_batch.num_draft_tokens == 0\n                        or self.rejection_sampler is None\n                    ),\n                ),\n            )\n\n        assert sampler_output is not None\n        return sampler_output, sampler_output.num_sampled, sampler_output.num_rejected"
+    },
+    "ordinary_logits_count": {
+      "module": "vllm.v1.worker.gpu.model_runner",
+      "lines": [
+        1297,
+        1306
+      ],
+      "source": "total_num_draft_tokens = 0\ntotal_num_logits = num_reqs\ncu_num_logits_np = np.arange(num_reqs + 1, dtype=np.int32)\ncu_num_logits = torch.arange(\n                num_reqs + 1, device=self.device, dtype=torch.int32\n            )\nexpanded_idx_mapping = idx_mapping\nexpanded_local_pos = torch.zeros(\n                num_reqs, dtype=torch.int32, device=self.device\n            )"
+    },
+    "select_kernel": {
+      "module": "vllm.v1.worker.gpu.input_batch",
+      "lines": [
+        397,
+        454
+      ],
+      "source": "def _combine_sampled_and_draft_tokens_kernel(\n    input_ids_ptr,\n    idx_mapping_ptr,\n    last_sampled_tokens_ptr,\n    query_start_loc_ptr,\n    seq_lens_ptr,\n    prefill_len_ptr,\n    draft_tokens_ptr,\n    draft_tokens_stride,\n    cu_num_logits_ptr,\n    logits_indices_ptr,\n    BLOCK_SIZE: tl.constexpr,\n    NUM_NEW_SAMPLED_TOKENS: tl.constexpr = 1,\n):\n    batch_idx = tl.program_id(0)\n    req_state_idx = tl.load(idx_mapping_ptr + batch_idx)\n\n    # Get the number of logits and draft tokens.\n    cu_num_logits_start = tl.load(cu_num_logits_ptr + batch_idx)\n    cu_num_logits_end = tl.load(cu_num_logits_ptr + batch_idx + 1)\n    num_logits = cu_num_logits_end - cu_num_logits_start\n    num_draft_tokens = num_logits - NUM_NEW_SAMPLED_TOKENS\n\n    # Compute the logits indices.\n    block = tl.arange(0, BLOCK_SIZE)\n    query_end = tl.load(query_start_loc_ptr + batch_idx + 1)\n    logits_start = query_end - num_logits\n    tl.store(\n        logits_indices_ptr + cu_num_logits_start + block,\n        logits_start + block,\n        mask=block < num_logits,\n    )\n\n    seq_len = tl.load(seq_lens_ptr + batch_idx)\n    prefill_len = tl.load(prefill_len_ptr + req_state_idx)\n    if seq_len <= prefill_len:\n        # Handling prefill tokens. No sampled or draft tokens.\n        return\n\n    # Keep prompt-tail slots intact; only rewrite generated-token slots.\n    first_logit_seq_pos = seq_len - num_logits\n    if NUM_NEW_SAMPLED_TOKENS > 0 and first_logit_seq_pos >= prefill_len:\n        # Write the last sampled token ID to input_ids.\n        last_token_id = tl.load(last_sampled_tokens_ptr + req_state_idx)\n        tl.store(input_ids_ptr + logits_start, last_token_id)\n\n    # Write the draft tokens (if any) to input_ids.\n    if num_draft_tokens > 0:\n        mask = block < num_draft_tokens\n        draft_tokens = tl.load(\n            draft_tokens_ptr + req_state_idx * draft_tokens_stride + block,\n            mask=mask,\n        )\n        tl.store(\n            input_ids_ptr + query_end - num_draft_tokens + block,\n            draft_tokens,\n            mask=mask,\n        )"
+    },
+    "counts_kernel": {
+      "module": "vllm.v1.worker.gpu.input_batch",
+      "lines": [
+        503,
+        528
+      ],
+      "source": "def _get_num_sampled_and_rejected_kernel(\n    num_sampled_ptr,\n    num_rejected_ptr,\n    seq_lens_ptr,\n    cu_num_logits_ptr,\n    idx_mapping_ptr,\n    prefill_len_ptr,\n):\n    batch_idx = tl.program_id(0)\n    req_state_idx = tl.load(idx_mapping_ptr + batch_idx)\n\n    seq_len = tl.load(seq_lens_ptr + batch_idx)\n    prefill_len = tl.load(prefill_len_ptr + req_state_idx)\n    is_chunked_prefilling = seq_len < prefill_len\n\n    num_sampled = tl.load(num_sampled_ptr + batch_idx)\n    num_sampled = tl.where(is_chunked_prefilling, 0, num_sampled)\n    tl.store(num_sampled_ptr + batch_idx, num_sampled)\n\n    logits_start = tl.load(cu_num_logits_ptr + batch_idx)\n    logits_end = tl.load(cu_num_logits_ptr + batch_idx + 1)\n    num_logits = logits_end - logits_start\n\n    num_rejected = num_logits - num_sampled\n    num_rejected = tl.where(is_chunked_prefilling, 0, num_rejected)\n    tl.store(num_rejected_ptr + batch_idx, num_rejected)"
+    },
+    "sampler_forward": {
+      "module": "vllm.v1.worker.gpu.sample.sampler",
+      "lines": [
+        122,
+        207
+      ],
+      "source": "def __call__(\n        self,\n        logits: torch.Tensor,\n        input_batch: InputBatch,\n    ) -> SamplerOutput:\n        expanded_idx_mapping = input_batch.expanded_idx_mapping\n        idx_mapping = input_batch.idx_mapping\n        idx_mapping_np = input_batch.idx_mapping_np\n        cu_num_logits_np = input_batch.cu_num_logits_np\n        expanded_local_pos = input_batch.expanded_local_pos\n        pos = input_batch.positions[input_batch.logits_indices]\n        input_ids = input_batch.input_ids[input_batch.logits_indices]\n\n        # NOTE(woosuk): We intentionally compute num_nans before sampling to make clear\n        # that num_nans is computed before applying penalties and temperature.\n        num_nans = get_num_nans(logits) if self.compute_nans else None\n\n        logprobs_dims = self.get_logprobs_dims(idx_mapping_np)\n\n        sampled, processed_logits = self.sample(\n            logits,\n            expanded_idx_mapping,\n            idx_mapping,\n            idx_mapping_np,\n            pos,\n            input_ids,\n            expanded_local_pos,\n            return_logprobs=logprobs_dims is not None,\n        )\n\n        if self.trace_replay_state is not None:\n            # Overwrite sampled tokens with the replay trace up-front so that\n            # computed logprobs reflect the real distribution of the forced token.\n            self.trace_replay_state.apply_trace(sampled, idx_mapping)\n\n        if logprobs_dims is not None:\n            num_logprobs, max_per_req_token_ids = logprobs_dims\n            if self.logprobs_mode in PROCESSED_LOGPROBS_MODES:\n                logits = processed_logits\n            expanded_logits = logits.shape[0] != idx_mapping_np.shape[0]\n            cu_num_logits = cu_num_logits_np.tolist() if expanded_logits else None\n            logprobs_tensors = compute_topk_scores(\n                logits,\n                num_logprobs,\n                sampled,\n                cu_num_logits,\n                logprob_token_ids_state=self.logprob_token_ids_state,\n                expanded_idx_mapping=input_batch.expanded_idx_mapping,\n                max_per_req_token_ids=max_per_req_token_ids,\n                logits_mode=self.logprobs_mode in (\"raw_logits\", \"processed_logits\"),\n            )\n        else:\n            logprobs_tensors = None\n\n        # 1 sampled token per request, except chunked-prefill requests\n        # (seq_len < prefill_len) which aren't done prefilling and produce no\n        # output token. num_rejected is always 0 here (one logit per request).\n        num_sampled, num_rejected = get_num_sampled_and_rejected(\n            input_batch.seq_lens.new_ones(input_batch.num_reqs),\n            input_batch.seq_lens,\n            input_batch.cu_num_logits,\n            input_batch.idx_mapping,\n            self.req_states.prefill_len.gpu,\n        )\n\n        sampling_mask_tensors = None\n        if self.return_sampling_mask:\n            # Size by the validated top_k batch max; wider supports use the bitmask.\n            max_num_kept = int(np.max(self.sampling_states.top_k.np[idx_mapping_np]))\n            sampling_mask_tensors = SamplingMaskTensors.from_logits(\n                processed_logits, num_sampled, max_num_kept\n            )\n\n        # These are GPU tensors.\n        sampler_output = SamplerOutput(\n            # The sampled tokens are expanded to 2D tensor with shape\n            # [num_requests, 1], where each row represents one generated\n            # token per request.\n            sampled_token_ids=sampled.view(-1, 1),\n            logprobs_tensors=logprobs_tensors,\n            num_nans=num_nans,\n            num_sampled=num_sampled,\n            num_rejected=num_rejected,\n            sampling_mask_tensors=sampling_mask_tensors,\n        )\n        return sampler_output"
+    },
+    "conditional_head": {
+      "module": "vllm.model_executor.models.gemma4_mm",
+      "lines": [
+        2153,
+        2173
+      ],
+      "source": "def compute_logits(\n        self,\n        hidden_states: torch.Tensor,\n    ) -> torch.Tensor | None:\n        logits = self.language_model.compute_logits(hidden_states)\n        if logits is not None and self._suppress_token_ids:\n            # Cache a per-device index tensor for the (static) suppressed-token\n            # set and use `index_fill_`, so neither the Python-list indices nor\n            # the scalar fill value take a host roundtrip per call.\n            cache = getattr(self, \"_suppress_token_ids_cache\", None)\n            if cache is None:\n                cache = {}\n                self._suppress_token_ids_cache = cache\n            suppress_idx = cache.get(logits.device)\n            if suppress_idx is None:\n                suppress_idx = async_tensor_h2d(\n                    self._suppress_token_ids, dtype=torch.long, device=logits.device\n                )\n                cache[logits.device] = suppress_idx\n            logits.index_fill_(1, suppress_idx, -float(\"inf\"))\n        return logits"
+    },
+    "language_head": {
+      "module": "vllm.model_executor.models.gemma4",
+      "lines": [
+        1638,
+        1642
+      ],
+      "source": "def compute_logits(\n        self,\n        hidden_states: torch.Tensor,\n    ) -> torch.Tensor | None:\n        return self.logits_processor(self.lm_head, hidden_states)"
+    },
+    "processorforward": {
+      "module": "vllm.model_executor.layers.logits_processor",
+      "lines": [
+        98,
+        120
+      ],
+      "source": "def forward(\n        self,\n        lm_head: VocabParallelEmbedding,\n        hidden_states: torch.Tensor,\n        embedding_bias: torch.Tensor | None = None,\n        skip_gather: bool = False,\n    ) -> torch.Tensor | None:\n        if self.logits_as_input:\n            logits = hidden_states\n        else:\n            # Get the logits for the next tokens.\n            logits = self._get_logits(\n                hidden_states, lm_head, embedding_bias, skip_gather\n            )\n        if logits is not None:\n            if self.soft_cap is not None:\n                logits = logits / self.soft_cap\n                logits = torch.tanh(logits)\n                logits = logits * self.soft_cap\n\n            if self.scale != 1.0:\n                logits *= self.scale\n        return logits"
+    },
+    "processor_get_logits": {
+      "module": "vllm.model_executor.layers.logits_processor",
+      "lines": [
+        180,
+        199
+      ],
+      "source": "def _get_logits(\n        self,\n        hidden_states: torch.Tensor,\n        lm_head: VocabParallelEmbedding,\n        embedding_bias: torch.Tensor | None,\n        skip_gather: bool = False,\n    ) -> torch.Tensor | None:\n        # Get the logits for the next tokens.\n        logits = self._apply_head(lm_head, hidden_states, embedding_bias)\n        if skip_gather:\n            return logits\n\n        # Gather logits for TP\n        if lm_head.tp_size > 1:\n            logits = self._gather_logits(logits)\n\n        # Remove paddings in vocab (if any).\n        if logits is not None:\n            logits = logits[..., : self.org_vocab_size]\n        return logits"
+    },
+    "processor_apply_head": {
+      "module": "vllm.model_executor.layers.logits_processor",
+      "lines": [
+        136,
+        178
+      ],
+      "source": "def _apply_head(\n        self,\n        lm_head: VocabParallelEmbedding,\n        hidden_states: torch.Tensor,\n        embedding_bias: torch.Tensor | None,\n    ) -> torch.Tensor:\n        \"\"\"Project hidden states through the lm_head, honoring head_dtype.\"\"\"\n        if self.head_dtype is None or self.head_dtype == hidden_states.dtype:\n            return lm_head.quant_method.apply(\n                lm_head, hidden_states, bias=embedding_bias\n            )\n\n        # A quant config that excludes lm_head hands out UnquantizedLinearMethod\n        # rather than UnquantizedEmbeddingMethod, so accept both: either way the\n        # weight is plain and `lm_head.weight` can be cast directly.\n        if not isinstance(\n            lm_head.quant_method, (UnquantizedEmbeddingMethod, UnquantizedLinearMethod)\n        ):\n            raise ValueError(\n                \"A head_dtype different from the model dtype is only \"\n                \"supported for an unquantized lm_head.\"\n            )\n        if (\n            self.head_dtype == torch.float32\n            and (current_platform.is_cuda() or current_platform.is_rocm())\n            and hidden_states.is_cuda\n        ):\n            # Accumulate the projection directly into fp32. This avoids\n            # materializing an fp32 copy of the lm_head weight on every step,\n            # unlike casting both operands. `torch.mm(out_dtype=...)` only\n            # supports fp32 output for fp16/bf16 inputs, and is only\n            # implemented for CUDA and ROCm (the latter via the non-Lt GEMM\n            # path); other platforms fall back to the cast path below.\n            flat = hidden_states.reshape(-1, hidden_states.shape[-1])\n            logits = torch.mm(flat, lm_head.weight.t(), out_dtype=self.head_dtype)\n            if embedding_bias is not None:\n                logits = logits + embedding_bias.to(self.head_dtype)\n            return logits.reshape(*hidden_states.shape[:-1], -1)\n        return F.linear(\n            hidden_states.to(self.head_dtype),\n            lm_head.weight.to(self.head_dtype),\n            embedding_bias.to(self.head_dtype) if embedding_bias is not None else None,\n        )"
+    },
+    "head_dtype": {
+      "module": "vllm.config.model",
+      "lines": [
+        1966,
+        1994
+      ],
+      "source": "def head_dtype(self) -> torch.dtype:\n        \"\"\"\n        \"head\" refers to the last Linear layer(s) of an LLM,\n        such as the lm_head in a generation model,\n        or the score or classifier in a classification model.\n\n        - Pooling models default to an fp32 head; use\n          --hf-overrides '{\"head_dtype\": \"model\"}' to disable it.\n        - Generation models default to the model dtype; set\n          --hf-overrides '{\"head_dtype\": \"float32\"}' to run the lm_head in\n          fp32, which is required for RL training-inference consistency\n          (the trainer computes logits in fp32).\n        \"\"\"\n\n        head_dtype = _get_head_dtype(\n            config=self.hf_config, dtype=self.dtype, runner_type=self.runner_type\n        )\n\n        if head_dtype not in current_platform.supported_dtypes:\n            logger.warning_once(\n                \"The current platform does not support [%s] head dtype, \"\n                \"fallback to model dtype [%s].\",\n                head_dtype,\n                self.dtype,\n            )\n            return self.dtype\n\n        logger.debug_once(\"head dtype: %s\", head_dtype)\n        return head_dtype"
+    },
+    "get_head_dtype": {
+      "module": "vllm.config.model",
+      "lines": [
+        2369,
+        2390
+      ],
+      "source": "def _get_head_dtype(\n    config: PretrainedConfig, dtype: torch.dtype, runner_type: str\n) -> torch.dtype:\n    head_dtype: str | torch.dtype | None = getattr(config, \"head_dtype\", None)\n\n    if head_dtype == \"model\":\n        return dtype\n    elif isinstance(head_dtype, str):\n        head_dtype = head_dtype.lower()\n        if head_dtype not in _STR_DTYPE_TO_TORCH_DTYPE:\n            raise ValueError(f\"Unknown dtype: {head_dtype!r}\")\n        return _STR_DTYPE_TO_TORCH_DTYPE[head_dtype]\n    elif isinstance(head_dtype, torch.dtype):\n        return head_dtype\n    elif head_dtype is None:\n        if torch.float32 not in current_platform.supported_dtypes:\n            return dtype\n        if runner_type == \"pooling\":\n            return torch.float32\n        return dtype\n    else:\n        raise ValueError(f\"Unknown dtype: {head_dtype}\")"
+    }
+  }
+}

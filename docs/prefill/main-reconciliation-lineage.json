@@ -1,0 +1,22 @@
+{
+  "common_base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
+  "gpu_execution_verified": false,
+  "main_parent": "ca6c385562aff30e91e8bb6a7f4228c9d766c30d",
+  "numerical_qualified": false,
+  "parent_ledgers": {
+    "docs/evidence/m1-sf-layout-source-pins.json": "ccd75f81c2476c3434f1c500af3a1fbdf37cd6bccf0f1132e86f9739944a191d",
+    "docs/prefill/native-numerical-lineage.json": "97c98a8bc7bd68919f9b1589d160305b34c117c43d82b2fbcaead02791d6b206"
+  },
+  "performance_qualified": false,
+  "prefill_parent": "7aafc35c5d6e16c620184a506b1487b1cd7eb74d",
+  "schema": "megartx-prefill-main-reconciliation-lineage-v1",
+  "scope": "CPU-only source-lineage merge. Preserve both parent ledgers and all numerical evaluators; retain native-overlay and SF-layout negative controls. No native fit or execution approval.",
+  "superseded_sources": [
+    {
+      "current_sha256": "d4ec5336573cb37c07adfdff3fd189c8b22344e5eea0cea1d08c314f3d5755ff",
+      "main_parent_sha256": "0f3dd6d69cec7356f3fb2d9858a9dd1bff0a40b15ce53b7d82c3da518f6f3650",
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "prefill_parent_sha256": "0819eee17aa9237bd5da46c4fb05b4b29a3da660d5d6b83b96073169ddc269cc"
+    }
+  ]
+}

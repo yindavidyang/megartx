@@ -3,7 +3,6 @@ import argparse
 import datetime
 import hashlib
 import json
-import math
 import os
 import pathlib
 import signal
@@ -16,28 +15,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 from megartx.nvfp4_qualification import activation, natural_coverage
 from megartx.m1_execution import synchronous_scheduler_args
 
-
-def verify_owned_process_module(module, project_root, source_hashes, purpose):
-    """Bind the executing purpose-specific helper before any owned operation."""
-    names = {"decode": "m1_owned_processes", "prefill": "prefill_owned_processes"}
-    if purpose not in names:
-        raise RuntimeError("Unknown ownership helper purpose")
-    name = names[purpose]
-    relative = "scripts/" + name + ".py"
-    expected_path = pathlib.Path(project_root).resolve() / relative
-    expected_hash = source_hashes.get(relative)
-    origin = getattr(getattr(module, "__spec__", None), "origin", None)
-    filename = getattr(module, "__file__", None)
-    if (getattr(module, "__name__", None) != name or sys.modules.get(name) is not module
-            or type(filename) is not str or type(origin) is not str
-            or expected_path.is_symlink() or not expected_path.is_file()
-            or pathlib.Path(filename).resolve() != expected_path
-            or pathlib.Path(origin).resolve() != expected_path
-            or type(expected_hash) is not str or len(expected_hash) != 64
-            or hashlib.sha256(expected_path.read_bytes()).hexdigest() != expected_hash):
-        raise RuntimeError("Executing ownership helper origin/source differs: " + purpose)
-
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--backend", default="flashinfer_cutlass")
 parser.add_argument("--kv", default="bfloat16")
@@ -48,13 +25,11 @@ parser.add_argument("--profile", action="store_true")
 parser.add_argument("--m1-decode-profile", action="store_true",
                     help="Untimed four-step CPU/CUDA attribution per 2K lane in the exact one-pair eager pilot")
 parser.add_argument("--mode", choices=("native", "reference", "control", "paired_reference", "gate_only_negative_control"), required=True)
-parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal", "m1-eager-benchmark", "prefill-native", "prefill-storage"), default="quality")
+parser.add_argument("--client", choices=("quality", "benchmark", "controlled", "normal", "m1-eager-benchmark", "prefill-native"), default="quality")
 parser.add_argument("--prefill-native-plan", type=pathlib.Path)
 parser.add_argument("--prefill-native-clearance", type=pathlib.Path)
 parser.add_argument("--m1-eager-benchmark-plan", type=pathlib.Path)
 parser.add_argument("--m1-private-aot", type=pathlib.Path)
-parser.add_argument("--m1-warmed-timing", action="store_true",
-                    help="Prospective all-warmups-complete sampled compiler-quiescent timing; separate from lifetime/profile policies")
 parser.add_argument("--m1-timing-metadata-help", action="store_true",
                     help="Enable only the reviewed hash/identity/argv-bound tileiras --help timing distinction")
 parser.add_argument("--controlled-plan", type=pathlib.Path)
@@ -74,24 +49,20 @@ parser.add_argument("--m1-normal-plan", type=pathlib.Path)
 parser.add_argument("--m1-external-observer", action="store_true",
                     help="Enable the perturbing capture-free launch/output sidecar")
 args = parser.parse_args()
-prefill_storage = args.client == "prefill-storage"
-prefill_native = args.client in {"prefill-native", "prefill-storage"}
+prefill_native = args.client == "prefill-native"
 prefill_plan = None
 prefill_evidence = None
 prefill_deadline = None
 prefill_evidence_failed = False
 if prefill_native:
-    if prefill_storage:
-        from megartx.prefill_storage_plan import load_plan as load_prefill_plan, require_clearance
-    else:
-        from megartx.prefill_diagnostic_plan import load_plan as load_prefill_plan, require_clearance
+    from megartx.prefill_diagnostic_plan import load_plan as load_prefill_plan, require_clearance
     if (args.prefill_native_plan is None or args.prefill_native_clearance is None
             or os.environ.get("LD_PRELOAD")
             or args.mode != "native" or args.trials != 1 or args.prefill_chunk != 256
             or args.kv != "bfloat16" or args.backend != "flashinfer_cutlass"
             or args.m1_preparation is not None or args.m1_bridge is not None
             or args.m1_build_receipt is not None or args.m1_route_controls
-            or args.profile or args.m1_external_observer or args.m1_decode_profile or args.m1_warmed_timing
+            or args.profile or args.m1_external_observer or args.m1_decode_profile
             or args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None
             or args.m1_timing_metadata_help or args.m1_normal_plan is not None
             or args.controlled_plan is not None or args.controlled_path is not None
@@ -101,8 +72,6 @@ if prefill_native:
     project_root = pathlib.Path(__file__).resolve().parents[1]
     prefill_plan = load_prefill_plan(args.prefill_native_plan, project_root)
     require_clearance(args.prefill_native_clearance, prefill_plan)
-    import prefill_owned_processes as prefill_ownership_module
-    verify_owned_process_module(prefill_ownership_module, project_root, prefill_plan["source_hashes"], "prefill")
     if os.environ.get('VLLM_USE_V2_MODEL_RUNNER') is not None:
         parser.error('native prefill requires default runner selection without an inherited override')
     if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=project_root, text=True).strip() != prefill_plan["source_head"]:
@@ -116,7 +85,7 @@ metadata_timing = None
 if eager_benchmark:
     if any(os.environ.get(key) for key in ("FLASHINFER_DISABLE_JIT", "FLASHINFER_DISABLE_VERSION_CHECK")):
         parser.error("private AOT requires ordinary FlashInfer version/JIT policy")
-    from megartx.m1_eager_benchmark import load_plan, require_profile_intent, require_warmed_intent, WARMED_RULE
+    from megartx.m1_eager_benchmark import load_plan, require_profile_intent
     if (args.m1_eager_benchmark_plan is None or args.m1_private_aot is None or args.m1_preparation not in {"stock", "fused"}
             or args.mode != "native" or args.m1_execution != "capture-free"
             or args.m1_bridge is None or args.m1_build_receipt is None
@@ -130,7 +99,6 @@ if eager_benchmark:
     benchmark_plan = load_plan(args.m1_eager_benchmark_plan)
     try:
         require_profile_intent(benchmark_plan, args.m1_decode_profile)
-        require_warmed_intent(benchmark_plan, args.m1_warmed_timing)
     except RuntimeError as error:
         parser.error(str(error))
     if args.m1_timing_metadata_help != benchmark_plan["metadata_help_timing"]:
@@ -159,12 +127,10 @@ if eager_benchmark:
             or any(build.get("source_hashes", {}).get(p) != h
                    for p, h in benchmark_plan["driver_source_hashes"].items())):
         parser.error("eager benchmark build/source identity differs")
-    import m1_owned_processes as decode_ownership_module
-    verify_owned_process_module(decode_ownership_module, project_root, benchmark_plan["driver_source_hashes"], "decode")
     if args.m1_timing_metadata_help:
         from m1_owned_processes import MetadataHelpTiming
         metadata_timing = MetadataHelpTiming(aot_manifest["flashinfer_root"], benchmark_plan["source_head"])
-elif args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None or args.m1_timing_metadata_help or args.m1_decode_profile or args.m1_warmed_timing:
+elif args.m1_eager_benchmark_plan is not None or args.m1_private_aot is not None or args.m1_timing_metadata_help or args.m1_decode_profile:
     parser.error("eager benchmark plan requires --client m1-eager-benchmark")
 normal_plan = None
 if args.client == "normal":
@@ -230,15 +196,11 @@ output.mkdir(parents=True, exist_ok=False)
 env = os.environ.copy()
 for inherited in ("MEGARTX_PREFILL_NATIVE_PLAN", "MEGARTX_PREFILL_NATIVE_DIR",
                   "MEGARTX_PREFILL_NATIVE_DEADLINE", "MEGARTX_PREFILL_NATIVE_SOURCE_ROOT",
-                  "MEGARTX_NATIVE_DIAGNOSTIC", "MEGARTX_PREFILL_STORAGE_CONTROL"):
+                  "MEGARTX_NATIVE_DIAGNOSTIC"):
     env.pop(inherited, None)
 if prefill_native:
-    if prefill_storage:
-        from megartx.prefill_storage_plan import CompactEvidence as Evidence
-        env["MEGARTX_PREFILL_STORAGE_CONTROL"] = "1"
-    else:
-        from megartx.prefill_diagnostic_plan import Evidence
-    prefill_evidence = Evidence(output / ("prefill-storage" if prefill_storage else "prefill-native"))
+    from megartx.prefill_diagnostic_plan import Evidence
+    prefill_evidence = Evidence(output / "prefill-native")
     env.update({"MEGARTX_PREFILL_NATIVE_PLAN": str(args.prefill_native_plan.resolve()),
                 "MEGARTX_PREFILL_NATIVE_DIR": str(prefill_evidence.directory),
                 "MEGARTX_PREFILL_NATIVE_SOURCE_ROOT": str(project),
@@ -332,16 +294,10 @@ else:
     env.pop("MEGARTX_ROUTE_AUDIT_PATH", None)
 env["MAX_JOBS"] = "2"
 env["FLASHINFER_NVCC_THREADS"] = "1"
-# Storage receipts have one budgeted phase/telemetry stream. Startup activation
-# fixtures and console belong to the inherited separately ledgered domain.
-phases = open(os.devnull, "w") if prefill_storage else (output / "server-phases.jsonl").open("a", buffering=1)
+phases = (output / "server-phases.jsonl").open("a", buffering=1)
 
 
-# Preserve the two reviewed lifecycle policies explicitly. Decode retains main's
-# locked monotonic observations and final resource sample; prefill retains its
-# original sampling/clock/report shape and 8MiB/2MiB evidence limits. Its helper
-# is an exact source-bound copy of the 6493 parent, not a trimmed decode report.
-def prefill_phase(name, **fields):
+def phase(name, **fields):
     global prefill_evidence_failed
     primary_error = sys.exc_info()[1]
     row = {"phase": name, "monotonic_ns": time.perf_counter_ns(), "unix_ns": time.time_ns(), "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), **fields}
@@ -355,34 +311,8 @@ def prefill_phase(name, **fields):
             if hasattr(primary_error, "add_note"):
                 primary_error.add_note("Native phase evidence failed: " + str(evidence_error))
     phases.write(json.dumps(row) + "\n")
-    if not prefill_storage:
-        (output / "status.json").write_text(json.dumps(row, indent=2))
-    print(json.dumps(row), flush=True)
-
-
-def phase(name, **fields):
-    if prefill_native:
-        return prefill_phase(name, **fields)
-    row = {"phase": name, "monotonic_ns": time.monotonic_ns(), "unix_ns": time.time_ns(), "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), **fields}
-    phases.write(json.dumps(row) + "\n")
     (output / "status.json").write_text(json.dumps(row, indent=2))
     print(json.dumps(row), flush=True)
-    return row["monotonic_ns"]
-
-
-
-def storage_write(name, value, preserve_cleanup=False):
-    """Do not mask a primary failure or interrupt remaining owned cleanup."""
-    global prefill_evidence_failed
-    primary = sys.exc_info()[1]
-    try:
-        prefill_evidence.write(name, value)
-    except BaseException as error:
-        prefill_evidence_failed = True
-        if primary is not None and hasattr(primary, 'add_note'):
-            primary.add_note('Storage evidence could not be saved: ' + name + ': ' + type(error).__name__)
-        elif not preserve_cleanup:
-            raise
 
 
 def gpu_jobs():
@@ -397,10 +327,7 @@ if gpu_jobs():
     raise SystemExit("Existing GPU compute job present; no server launched")
 
 idle = subprocess.run(["nvidia-smi", "--query-gpu=name,compute_cap,memory.used,memory.free,utilization.gpu,driver_version,power.limit", "--format=csv"], capture_output=True, text=True, timeout=5)
-if prefill_storage:
-    storage_write("gpu-before.json", {"csv": idle.stdout, "exit": idle.returncode})
-else:
-    (output / "gpu-before.csv").write_text(idle.stdout)
+(output / "gpu-before.csv").write_text(idle.stdout)
 phase("idle_checked")
 stop_sample = threading.Event()
 server = None
@@ -432,29 +359,13 @@ def fail_guard(message):
             os.killpg(server.pid, signal.SIGTERM)
 
 
-def prefill_compiler_guard():
-    from prefill_owned_processes import snapshot
+def compiler_guard():
+    from m1_owned_processes import snapshot
     while not stop_guard.is_set():
         try:
             if prefill_native and time.monotonic() >= prefill_deadline:
                 raise RuntimeError("Native diagnostic 1800 second wall budget expired")
             ownership.observe(snapshot(), time.monotonic())
-            if ownership.failure:
-                fail_guard(ownership.failure)
-                return
-        except Exception as error:
-            fail_guard("Owned compiler telemetry failed: " + str(error))
-            return
-        stop_guard.wait(.05)
-
-
-def compiler_guard():
-    if prefill_native:
-        return prefill_compiler_guard()
-    from m1_owned_processes import snapshot
-    while not stop_guard.is_set():
-        try:
-            ownership.sample()
             if ownership.failure:
                 fail_guard(ownership.failure)
                 return
@@ -472,10 +383,10 @@ for termination_signal in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
     signal.signal(termination_signal, interrupted)
 
 
-def prefill_sampler():
+def sampler():
     global guard_failure
     fields = "memory.used,memory.free,utilization.gpu,power.draw,temperature.gpu,clocks.sm,clocks.mem,pstate"
-    with (open(os.devnull, "w") if prefill_storage else (output / "gpu-telemetry.jsonl").open("a", buffering=1)) as logfile:
+    with (output / "gpu-telemetry.jsonl").open("a", buffering=1) as logfile:
         while not stop_sample.is_set():
             try:
                 result = subprocess.run(["nvidia-smi", "--query-gpu=" + fields, "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=5)
@@ -483,7 +394,7 @@ def prefill_sampler():
                 telemetry = {"monotonic_ns": time.perf_counter_ns(), "unix_ns": time.time_ns(), "fields": fields.split(","), "values": values, "exit": result.returncode}
                 if prefill_evidence is not None:
                     prefill_evidence.write("telemetry.jsonl", telemetry, append=True)
-                    from prefill_owned_processes import snapshot
+                    from m1_owned_processes import snapshot
                     owned_now = snapshot()
                     ownership.observe(owned_now, time.monotonic())
                     if any(pid not in owned_now or owned_now[pid].identity not in ownership.remembered for pid in gpu_jobs()):
@@ -503,43 +414,6 @@ def prefill_sampler():
                         fail_guard("Eager benchmark resource telemetry failed: " + str(error))
                     except ProcessLookupError:
                         pass
-            stop_sample.wait(.2)
-
-
-def sampler():
-    if prefill_native:
-        return prefill_sampler()
-    global guard_failure
-    fields = "memory.used,memory.free,utilization.gpu,power.draw,temperature.gpu,clocks.sm,clocks.mem,pstate"
-    with (output / "gpu-telemetry.jsonl").open("a", buffering=1) as logfile:
-        while True:
-            # One final bounded sample after the client returns provides closing
-            # evidence; joining this thread still precedes owned cleanup.
-            final_sample = stop_sample.is_set()
-            try:
-                sample_started_ns = time.monotonic_ns()
-                result = subprocess.run(["nvidia-smi", "--query-gpu=" + fields, "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=5)
-                values = result.stdout.strip().split(", ")
-                available_kib = int(next(l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:")))
-                row = {"sample_started_ns": sample_started_ns, "monotonic_ns": time.monotonic_ns(), "unix_ns": time.time_ns(),
-                       "fields": fields.split(","), "values": values, "exit": result.returncode, "host_available_kib": available_kib}
-                logfile.write(json.dumps(row) + "\n")
-                if eager_benchmark:
-                    from megartx.m1_eager_benchmark import validate_resource_sample
-                    validate_resource_sample(row)
-                if result.returncode == 0 and len(values) >= 2 and float(values[1]) < 2048 and server is not None and server.poll() is None:
-                    fail_guard("GPU free memory fell below the 2 GiB headroom guard")
-                if available_kib < 8 * 1024 * 1024 and server is not None and server.poll() is None:
-                    fail_guard("Host available RAM fell below the 8 GiB headroom guard")
-            except Exception as error:
-                logfile.write(json.dumps({"error": str(error)}) + "\n")
-                if eager_benchmark:
-                    try:
-                        fail_guard("Eager benchmark resource telemetry failed: " + str(error))
-                    except ProcessLookupError:
-                        pass
-            if final_sample:
-                break
             stop_sample.wait(.2)
 
 
@@ -587,11 +461,9 @@ launch_manifest = {
     "backend_requested": args.backend,
     "kv_requested": args.kv,
     "trust_remote_code": False,
-    "trials_per_context": benchmark_plan["trials"] if benchmark_plan else (0 if args.client in {"controlled", "normal", "prefill-native", "prefill-storage"} else args.trials),
+    "trials_per_context": benchmark_plan["trials"] if benchmark_plan else (0 if args.client in {"controlled", "normal", "prefill-native"} else args.trials),
     "eager_benchmark_plan_sha256": benchmark_plan["plan_sha256"] if benchmark_plan else None,
     "m1_decode_profile_requested": args.m1_decode_profile,
-    **({} if prefill_native else {"m1_warmed_timing_requested": args.m1_warmed_timing,
-                                 "timing_admission": benchmark_plan.get("timing_admission") if benchmark_plan else None}),
     "diagnostic_admission": benchmark_plan.get("diagnostic_admission") if benchmark_plan else None,
     "controlled_request_count": 1 if args.client == "controlled" else None,
     "normal_request_count": 2 if normal_plan else None,
@@ -622,37 +494,18 @@ launch_manifest = {
     "m1_process_lifecycle_policy": "actual_spawn_owner_pre_dispatch" if args.m1_external_observer else None,
     "m1_loader": "after_torch_rtld_global" if args.m1_preparation else None,
 }
-if prefill_storage:
-    launch_manifest["evidence_domains"] = {
-        "new_control": "prefill-storage cross-process 8MiB with 2MiB metadata subcap",
-        "startup_reference": ["server.log", "adapter-manifest.jsonl", "activation-proof.json", "activation-forced.json.gz"],
-        "phase_and_telemetry_duplicates": False,
-        "storage_control_is_not_quality_or_performance": True}
-    storage_write("launch-manifest.json", launch_manifest)
-else:
-    (output / "launch-manifest.json").write_text(json.dumps(launch_manifest, indent=2))
+(output / "launch-manifest.json").write_text(json.dumps(launch_manifest, indent=2))
 client = requests.Session()
 client.trust_env = False
 try:
     if eager_benchmark or prefill_native:
-        if prefill_native:
-            from prefill_owned_processes import OwnedProcesses, enable_subreaper, read_process
-        else:
-            from m1_owned_processes import OwnedProcesses, enable_subreaper, read_process
+        from m1_owned_processes import OwnedProcesses, enable_subreaper, read_process
         ownership = OwnedProcesses(enable_subreaper(), metadata_timing=metadata_timing)
-        if not prefill_native and args.m1_warmed_timing:
-            from m1_eager_benchmark_client import WarmedRuntimeFiles
-            ownership.runtime_files = WarmedRuntimeFiles(benchmark_plan, launch_manifest)
         available_kib = int(next(l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemAvailable:")))
         if available_kib < 8 * 1024 * 1024:
             raise RuntimeError("Host available RAM below 8 GiB before launch")
-        if prefill_native:
-            if idle.returncode != 0 or float(idle.stdout.splitlines()[-1].split(",")[3].strip().split()[0]) < 2048:
-                raise RuntimeError("GPU free memory below 2 GiB or preflight unavailable")
-        else:
-            idle_free = float(idle.stdout.splitlines()[-1].split(",")[3].strip().split()[0]) if idle.returncode == 0 else float("nan")
-            if not math.isfinite(idle_free) or idle_free < 2048:
-                raise RuntimeError("GPU free memory below 2 GiB or preflight unavailable")
+        if idle.returncode != 0 or float(idle.stdout.splitlines()[-1].split(",")[3].strip().split()[0]) < 2048:
+            raise RuntimeError("GPU free memory below 2 GiB or preflight unavailable")
     logfile = (output / "server.log").open("w")
     phase("server_launch")
     server = subprocess.Popen(command, env=env, stdout=logfile, stderr=subprocess.STDOUT, start_new_session=True)
@@ -661,10 +514,7 @@ try:
         guard_thread = threading.Thread(target=compiler_guard, daemon=True)
         guard_thread.start()
     sample_thread.start()
-    if prefill_storage:
-        storage_write("owned-server.json", {"pid": server.pid})
-    else:
-        (output / "owned-server.pid").write_text(str(server.pid) + "\n")
+    (output / "owned-server.pid").write_text(str(server.pid) + "\n")
     deadline = min(time.monotonic() + 1200, prefill_deadline) if prefill_native else time.monotonic() + 1200
     ready = False
     while time.monotonic() < deadline:
@@ -681,7 +531,7 @@ try:
         time.sleep(2)
     if not ready:
         raise RuntimeError("Server startup exceeded the bounded 20 minute compile/load limit")
-    server_ready_ns = phase("server_ready")
+    phase("server_ready")
     if args.m1_external_observer:
         from megartx.m1_process_lifecycle import validate_engine_core_registration_before_dispatch
         evidence_dir = output / "m1-process-evidence"
@@ -717,18 +567,9 @@ try:
     # benchmarks if a different compute job appears; never stop that job.
     other = []
     if ownership is not None:
-        if prefill_native:
-            from prefill_owned_processes import snapshot
-            owned_snapshot = snapshot()
-            ownership.observe(owned_snapshot, time.monotonic())
-        else:
-            from m1_owned_processes import snapshot
-            with ownership.lock:
-                sample_started_ns = time.monotonic_ns()
-                owned_snapshot = snapshot()
-                sample_finished_ns = time.monotonic_ns()
-                ownership.observe(owned_snapshot, sample_finished_ns / 1e9,
-                                  sampled_start_ns=sample_started_ns, observed_ns=sample_finished_ns)
+        from m1_owned_processes import snapshot
+        owned_snapshot = snapshot()
+        ownership.observe(owned_snapshot, time.monotonic())
     for pid in gpu_jobs():
         try:
             if ((ownership is not None and (pid not in owned_snapshot or owned_snapshot[pid].identity not in ownership.remembered))
@@ -740,13 +581,10 @@ try:
         raise RuntimeError("Another GPU compute job appeared; benchmark not started")
     require_resources()
     if prefill_native:
-        if prefill_storage:
-            from megartx.prefill_storage_plan import validate_binding
-        else:
-            from megartx.prefill_runner_binding import validate_binding
+        from megartx.prefill_runner_binding import validate_binding
         binding = validate_binding(prefill_plan, prefill_evidence.directory, ownership.remembered)
         phase('native_observer_runner_gate_passed', runner_policy=binding['runner_policy'])
-        bench_command = [str(base / ".venv/bin/python"), str(project / ("scripts/prefill_storage_client.py" if prefill_storage else "scripts/prefill_diagnostic_client.py")),
+        bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/prefill_diagnostic_client.py"),
                          "--plan", str(args.prefill_native_plan), "--output", str(output)]
     elif eager_benchmark:
         bench_command = [str(base / ".venv/bin/python"), str(project / "scripts/m1_eager_benchmark_client.py"),
@@ -765,29 +603,10 @@ try:
         bench_command.append("--activation-only")
     if args.routing_diagnostic:
         bench_command.append("--routing-diagnostic")
-    if prefill_native:
-        phase("client_launch", command=bench_command)
-        if prefill_storage:
-            from megartx.prefill_storage_process import run_bounded_client
-            result = run_bounded_client(bench_command, env, prefill_deadline, prefill_evidence)
-        else:
-            with (output / "client.log").open("w") as bench_log:
-                result = subprocess.run(bench_command, env=env, stdout=bench_log, stderr=subprocess.STDOUT, timeout=max(1, prefill_deadline-time.monotonic()) if prefill_native else 3600)
-            (output / "benchmark.exit").write_text(str(result.returncode) + "\n")
-    else:
-        if eager_benchmark and args.m1_warmed_timing:
-            bench_command.append("--m1-warmed-timing")
-        client_launch_ns = phase("client_launch", command=bench_command)
-        with (output / "client.log").open("w") as bench_log:
-            result = subprocess.run(bench_command, env=env, stdout=bench_log, stderr=subprocess.STDOUT, timeout=3600)
-        client_returned_ns = time.monotonic_ns()
-        if eager_benchmark and args.m1_warmed_timing:
-            with (output / "warmed-launch-boundaries.json").open("x") as stream:
-                json.dump({"schema": "megartx-m1-warmed-launch-boundaries-v1",
-                           "timing_admission": WARMED_RULE, "plan_sha256": benchmark_plan["plan_sha256"],
-                           "server_ready_ns": server_ready_ns, "client_launch_ns": client_launch_ns,
-                           "client_returned_ns": client_returned_ns}, stream, indent=2)
-        (output / "benchmark.exit").write_text(str(result.returncode) + "\n")
+    phase("client_launch", command=bench_command)
+    with (output / "client.log").open("w") as bench_log:
+        result = subprocess.run(bench_command, env=env, stdout=bench_log, stderr=subprocess.STDOUT, timeout=max(1, prefill_deadline-time.monotonic()) if prefill_native else 3600)
+    (output / "benchmark.exit").write_text(str(result.returncode) + "\n")
     require_resources()
     if result.returncode:
         raise RuntimeError("Host-local client failed; see client.log")
@@ -814,7 +633,7 @@ try:
     elif args.client == "quality":
         natural_coverage(output, args.mode)
         phase("natural_correction_coverage_verified")
-    phase("diagnostic_complete" if args.router_score_only or args.client in {"controlled","normal","prefill-native","prefill-storage"} else "benchmark_complete")
+    phase("diagnostic_complete" if args.router_score_only or args.client in {"controlled","normal","prefill-native"} else "benchmark_complete")
     (output / "run.exit").write_text("0\n")
 except Exception as error:
     phase("failed", error=str(error))
@@ -826,41 +645,16 @@ finally:
     stop_guard.set()
     if guard_thread is not None:
         guard_thread.join(timeout=10)
-        if not prefill_native and guard_thread.is_alive() and ownership is not None:
-            ownership.fail("Owned compiler guard did not stop")
     stop_sample.set()
     if sample_thread.ident is not None:
         sample_thread.join(timeout=10)
-        if not prefill_native and sample_thread.is_alive() and ownership is not None:
-            ownership.fail("Owned resource sampler did not stop")
     if ownership is not None:
         ownership_report = ownership.cleanup(gpu_jobs, server.poll if server is not None else lambda: None)
-        if prefill_native:
-            metadata_final = ownership.finalize_metadata()
-            if metadata_final is not None:
-                (output / "timing-metadata-final.json").write_text(json.dumps(metadata_final, indent=2))
-                ownership_report.update(ownership.report())
-            if prefill_storage:
-                storage_write("owned-processes.json", ownership_report, preserve_cleanup=True)
-            else:
-                (output / "owned-processes.json").write_text(json.dumps(ownership_report, indent=2))
-        else:
-            if ownership.runtime_files is not None:
-                try:
-                    runtime_final = ownership.runtime_files.finalize()
-                    if not runtime_final["passed"]:
-                        ownership.fail(runtime_final["errors"][0])
-                except Exception as error:
-                    ownership.fail("Warmed final source/AOT verification failed: " + str(error))
-            try:
-                metadata_final = ownership.finalize_metadata()
-            except Exception as error:
-                ownership.fail("Final metadata verification failed: " + str(error))
-                metadata_final = None
-            if metadata_final is not None:
-                (output / "timing-metadata-final.json").write_text(json.dumps(metadata_final, indent=2))
+        metadata_final = ownership.finalize_metadata()
+        if metadata_final is not None:
+            (output / "timing-metadata-final.json").write_text(json.dumps(metadata_final, indent=2))
             ownership_report.update(ownership.report())
-            (output / "owned-processes.json").write_text(json.dumps(ownership_report, indent=2))
+        (output / "owned-processes.json").write_text(json.dumps(ownership_report, indent=2))
     if server is not None and ownership is None:
         phase("owned_server_stop")
         # The session/group was created solely for this Popen. Workers can
@@ -930,20 +724,15 @@ finally:
         if ownership is not None:
             cleanup.update(ownership_report)
         cleanup_path = output / "prefill-native-cleanup.json" if prefill_native else (output / "eager-benchmark-cleanup.json" if eager_benchmark else output / "m1-process-evidence" / "cleanup.json")
-        if prefill_storage:
-            storage_write("cleanup.json", cleanup, preserve_cleanup=True)
-        else:
-            cleanup_path.write_text(json.dumps(cleanup, indent=2))
+        cleanup_path.write_text(
+            json.dumps(cleanup, indent=2))
         if not cleanup_complete:
             (output / "run.exit").write_text("1\n")
             phase("cleanup_incomplete", **cleanup)
     phase("cleanup_complete" if cleanup_complete else "cleanup_incomplete")
     phases.close()
     if not cleanup_complete:
-        if prefill_native:
-            from prefill_owned_processes import preserve_primary
-        else:
-            from m1_owned_processes import preserve_primary
+        from m1_owned_processes import preserve_primary
         preserve_primary(sys.exc_info()[1], "Owned M1 server cleanup did not complete")
     if eager_benchmark and cleanup_complete and sys.exc_info()[1] is None:
         try:
@@ -954,12 +743,6 @@ finally:
                 receipt = validate_profile_run(output, benchmark_plan, ownership_report)
                 with (output / "decode-diagnostic-admission.json").open("x") as stream:
                     json.dump(receipt, stream, indent=2)
-            elif args.m1_warmed_timing:
-                from m1_eager_benchmark_client import validate_warmed_run, summarize_run
-                receipt = validate_warmed_run(output, benchmark_plan, ownership_report)
-                with (output / "warmed-timing-admission.json").open("x") as stream:
-                    json.dump(receipt, stream, indent=2)
-                summarize_run(output)
             else:
                 ownership.require_compiler_quiescence()
                 from m1_eager_benchmark_client import summarize_run
@@ -971,10 +754,7 @@ finally:
     if prefill_native and cleanup_complete and sys.exc_info()[1] is None:
         try:
             require_resources()
-            if prefill_storage:
-                from megartx.prefill_storage_plan import publish_storage as publish_fit, load_plan as reload_prefill_plan, remaining
-            else:
-                from megartx.prefill_diagnostic_plan import publish_fit, load_plan as reload_prefill_plan, remaining
+            from megartx.prefill_diagnostic_plan import publish_fit, load_plan as reload_prefill_plan, remaining
             remaining(prefill_deadline)
             reload_prefill_plan(args.prefill_native_plan, project)
             publish_fit(prefill_evidence, prefill_plan, ownership_report)

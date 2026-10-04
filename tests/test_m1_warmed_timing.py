@@ -485,7 +485,7 @@ class WarmedResourceEvidenceTests(unittest.TestCase):
                 env={"output":Path(directory),"stop_sample":stop,"subprocess":SimpleNamespace(run=Mock(
                     return_value=SimpleNamespace(returncode=0,stdout=values))),"json":json,
                     "time":SimpleNamespace(monotonic_ns=Mock(side_effect=[1,2,3,4]),time_ns=lambda:1),
-                    "eager_benchmark":True,"server":SimpleNamespace(poll=lambda:None),"fail_guard":fail,
+                    "prefill_native":False,"eager_benchmark":True,"server":SimpleNamespace(poll=lambda:None),"fail_guard":fail,
                     "pathlib":__import__("pathlib")}
                 with patch.object(Path,"read_text",return_value=f"MemAvailable: {host} kB\n"):
                     exec(sampler_code,env);env["sampler"]()
@@ -498,7 +498,8 @@ class WarmedResourceEvidenceTests(unittest.TestCase):
 
     def test_actual_preflight_rejects_nonfinite_negative_or_unavailable_gpu_headroom(self):
         import ast, math
-        block=RUN.body[0].body
+        from test_shared_launcher_composition import SelectPurpose
+        block=SelectPurpose(False).visit(copy.deepcopy(RUN)).body[0].body
         i=next(i for i,n in enumerate(block) if isinstance(n,ast.Assign) and ast.unparse(n.targets[0])=="idle_free")
         preflight=code(block[i:i+2])
         for value,status in (("NaN",0),("Infinity",0),("-1",0),("2047",0),("9000",1)):
