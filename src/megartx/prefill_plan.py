@@ -183,6 +183,66 @@ def verify_source_binding(plan, manifest_path, root):
         for name, expected in overlay["repo_files"].items():
             _sha(expected, name)
         candidates.append({**files, **overlay["repo_files"]})
+    native = manifest.get("native_source_overlay")
+    composition = manifest.get("native_composition_overlay")
+    if native is not None:
+        _keys(native, {"source_base", "review_scope", "repo_files", "evidence_reference", "evidence_sha256"}, "native source overlay")
+        _equal(native["source_base"], "cf656d6632b9f1b08019a527a9269a9ed0fb0a26", "native source base")
+        _equal(native["review_scope"], "exact_cpu_source_compatibility_only", "native overlay scope")
+        _equal(native["evidence_reference"], "docs/prefill/native-source-reconciliation.json", "native overlay reference")
+        inventory = pair | {"scripts/run_scale_validation.py"}
+        _keys(native["repo_files"], inventory, "exact native controller/plugin/launcher vector")
+        evidence = root / native["evidence_reference"]
+        if evidence.is_symlink() or not evidence.is_file() or hashlib.sha256(evidence.read_bytes()).hexdigest() != native["evidence_sha256"]:
+            raise ValueError("Native source reconciliation digest changed")
+        review = read_json(evidence)
+        _equal(review["base"], native["source_base"], "native review base")
+        _equal(review["repo_files"], native["repo_files"], "native exact source vector")
+        for flag in ("gpu_executed", "fit_qualified", "numerical_qualified", "performance_qualified"):
+            _equal(review[flag], False, "native pending " + flag)
+        for name, expected in native["repo_files"].items():
+            _sha(expected, name)
+            if composition is not None:
+                continue  # Preserve the parent vector; admit only the complete composition below.
+            source = root / name
+            if any((root / Path(*Path(name).parts[:i])).is_symlink() for i in range(1,len(Path(name).parts)+1)) or not source.is_file() or hashlib.sha256(source.read_bytes()).hexdigest() != expected:
+                raise ValueError("Source drift: native atomic plugin/launcher vector " + name)
+        if composition is None:
+            candidates.append({**files, **{name: expected for name, expected in native["repo_files"].items() if name in files}})
+    if composition is not None:
+        if native is None:
+            raise ValueError("Composition requires the unchanged native parent overlay")
+        _keys(composition, {"prefill_parent", "dspark_parent", "review_scope", "repo_files",
+                            "evidence_reference", "evidence_sha256"}, "native composition overlay")
+        for key, expected in (("prefill_parent", "418e1ecf5af0b5974ecf767a50c6d54f5578bee0"),
+                ("dspark_parent", "8027588365ed4b23c6ccbc73de2c8f710e2e166f"),
+                ("review_scope", "exact_cpu_source_compatibility_only"),
+                ("evidence_reference", "docs/prefill/native-composition-lineage.json")):
+            _equal(composition[key], expected, "composition " + key)
+        inventory = set(native["repo_files"]) | {"src/megartx/native_diagnostic_composition.py"}
+        _keys(composition["repo_files"], inventory, "exact composed plugin/launcher/helper vector")
+        _sha(composition["evidence_sha256"], "composition evidence")
+        evidence = root / composition["evidence_reference"]
+        if evidence.is_symlink() or not evidence.is_file() or hashlib.sha256(evidence.read_bytes()).hexdigest() != composition["evidence_sha256"]:
+            raise ValueError("Native composition lineage digest changed")
+        review = read_json(evidence)
+        _equal(review["schema"], "megartx-native-v2-composition-lineage-v1", "composition schema")
+        for key in ("prefill_parent", "dspark_parent"):
+            _equal(review[key], composition[key], "composition review " + key)
+        _equal(review["shared_repo_files"], composition["repo_files"], "composition exact source vector")
+        _equal(review["previous_shared_repo_files"], native["repo_files"], "composition parent source vector")
+        _equal(review["parent_ledgers"].get(native["evidence_reference"]),
+               native["evidence_sha256"], "composition native parent ledger")
+        for flag in ("gpu_executed", "fit_qualified", "numerical_qualified", "performance_qualified"):
+            _equal(review[flag], False, "composition pending " + flag)
+        for name, expected in composition["repo_files"].items():
+            _sha(expected, name)
+            source = root / name
+            if (any((root / Path(*Path(name).parts[:i])).is_symlink() for i in range(1, len(Path(name).parts)+1))
+                    or not source.is_file() or source.stat().st_size > 2**20
+                    or hashlib.sha256(source.read_bytes()).hexdigest() != expected):
+                raise ValueError("Source drift: native atomic composition vector " + name)
+        candidates.append({**files, **{name: expected for name, expected in composition["repo_files"].items() if name in files}})
     if actual not in candidates:
         changed = sorted(name for name in files if actual[name] != files[name])
         raise ValueError("Source drift: " + ", ".join(changed))

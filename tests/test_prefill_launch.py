@@ -185,6 +185,7 @@ class AdmissionTests(unittest.TestCase):
             packet = json.loads(packet_path.read_text())
             binding = json.loads(binding_path.read_text())
             old = json.loads((docs / "live-binding.json").read_text())
+            old["immutable_inputs"] = {"docs/prefill/"+new:old["immutable_inputs"]["docs/prefill/"+old_name] for old_name,new in {'profile-plan.json': 'profile-plan-native.json', 'source-binding.json': 'source-binding-native.json', 'runner-plan.json': 'runner-plan-native.json', 'runner-binding.json': 'runner-binding-native.json'}.items()}
             names = sorted(binding["immutable_inputs"])
 
             def replace_binding(value):
@@ -222,7 +223,7 @@ class AdmissionTests(unittest.TestCase):
                     l.load_packet(root)
                 (docs / missing).write_bytes(originals[missing])
             for name in l.CURRENT_CATALOG: (docs / name).unlink()
-            with self.assertRaisesRegex(ValueError, "Live source drift"):
+            with self.assertRaisesRegex(ValueError, "input inventory"):
                 l.load_packet(root)
 
     def test_cli_does_not_import_native_stack_and_gpu_flag_rejects(self):

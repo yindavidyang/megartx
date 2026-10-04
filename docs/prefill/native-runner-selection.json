@@ -1,0 +1,79 @@
+{
+  "accepted_decode_observed_runner": "vllm.v1.worker.gpu.model_runner.GPUModelRunner",
+  "actual_v2_bindings": [
+    "per-step InputBatch original I32 input_ids/I64 positions and request-state index",
+    "prepare_attn incumbent gathered kernel tables and writer slots",
+    "CommonAttentionMetadata actual gathered table object and ForwardContext",
+    "manager/kernel integer ratio and allocation placement strides",
+    "actual sample result and sampled/rejected tensor identities"
+  ],
+  "baseline_equivalence_claimed": false,
+  "bound_callback_correction_sha256": "2e45e78dd0cad8adf2242c3903fd339bb911db6cbdaaff98c24483de5c626d07",
+  "dspark_exposure": "legacy native collector targets V1; independently reviewed client must reject resolved V2 before make_client until its runner path is reviewed",
+  "explicit_v1_override_admitted": false,
+  "fit_qualified": false,
+  "fixture_path": "tests/fixtures/prefill-native-runner-selection.json",
+  "fixture_sha256": "c3415eb6fd4134e742c3906f1a5c9757fed3677ea702197fe4aeada50391e1ca",
+  "gpu_executed": false,
+  "guards": [
+    "source/env/config before runner construction",
+    "owned live worker binding before HTTP POST",
+    "execute_model admission before scheduled forwards",
+    "active model callback presence",
+    "hook identity on active frames",
+    "zero-token housekeeping unchanged",
+    "actual bound owner/function identity and poison on rejection",
+    "current attention-group ownership, exact getter dispatch and complete selected-builder reconciliation before metadata work"
+  ],
+  "installed_v2_sources": {
+    "vllm.config.vllm": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+    "vllm.envs": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f",
+    "vllm.v1.core.kv_cache_utils": "2666c9f113584e52e7521058efd2c0d9598544559dc942d3a3da87001a3fedf2",
+    "vllm.v1.kv_cache_interface": "1cf202f1a44d5bc5c3832b70b41507687ecceea3784e67a4f003bc0210d6eecb",
+    "vllm.v1.worker.gpu.attn_utils": "b9b81e59dda2720b1f9c434471381f879228832443e52756e469b4ad4905888f",
+    "vllm.v1.worker.gpu.block_table": "61c004315d5af7e7eae4e2a9e6be92ea82c520327690a7f55a73bb9ce95f520a",
+    "vllm.v1.worker.gpu.input_batch": "d5dd956eb319bd69dd9e762047833d81ad40b21fce619fcb2133759e73620694",
+    "vllm.v1.worker.gpu.model_runner": "174c93db921c23cf0396eee4764be25b2bd2d4b6a06e9fa41ce3598b884ce8ce",
+    "vllm.v1.worker.gpu.model_states": "07815d0b788fc88185772f581bbf892a675259f9288375571f29887622f8d93c",
+    "vllm.v1.worker.gpu.model_states.default": "bb614f814780f052e869f9acf31dfbfa68718ee7dc6252eefa901b5730ee8a2a",
+    "vllm.v1.worker.gpu.model_states.interface": "5675b6fedc7403a9ab410b1e5565974e78fac23c42ab4253ae1da52d6e09b594",
+    "vllm.v1.worker.gpu.sample.output": "d6e298c0f197d487a8faaf7200f500fa83df1d7a4bbf4339cadd6a18008f7f9c",
+    "vllm.v1.worker.gpu.sample.sampler": "832c9945d201a1e730ff9b4b52076aa83bd4a5064e1e4cfea952cf84d4a8d1f0",
+    "vllm.v1.worker.gpu.states": "99418f5df43ca612ded72609fee011620b065b2cab2f249ccb387096bf4ae71a",
+    "vllm.v1.worker.gpu_model_runner": "87c29d08c0bbf66993d8b984811e7325e35e6436242a773feb55ec88f16b2c51",
+    "vllm.v1.worker.gpu_worker": "6994436e4547c0996ab555b3e814e8ccea26b650dfc1b378b97d640745309347",
+    "vllm.v1.worker.utils": "0ca3ec6bf4d20076145b7fe64e564962adebedc8f75a856b517ba0b2f2d77acf"
+  },
+  "numerical_qualified": false,
+  "performance_qualified": false,
+  "policy": {
+    "resolved_v2": true,
+    "runner_class": "GPUModelRunner",
+    "runner_module": "vllm.v1.worker.gpu.model_runner",
+    "selection_override_injected": false,
+    "selector_env": null
+  },
+  "prior_failed_attempt_preserved": {
+    "actual_emitted_token_correspondence_verified": false,
+    "actual_runner": "vllm.v1.worker.gpu.model_runner.GPUModelRunner",
+    "attempt_and_release_sha256": "094dc5bbff586aea7b6fe0818179606e1e9d88bed77696066944350a516a970b",
+    "clearance_consumed": true,
+    "fit_receipt_present": false,
+    "gpu_slot_released": true,
+    "legacy_hook_runner": "vllm.v1.worker.gpu_model_runner.GPUModelRunner",
+    "observer_receipt_present": false,
+    "owned_cleanup_verified": true,
+    "source_head": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
+    "status": "failed_observer_runner_binding"
+  },
+  "runtime_commit": "fff74b93b5ce8b1f9f8f6c4ff32fca5e66af85ed",
+  "schema": "megartx-prefill-native-runner-source-v1",
+  "selected_builder_correction_reference": "docs/prefill/native-selected-builder-correction.json",
+  "selected_builder_correction_sha256": "2e94d745ff8f98b0c34680dd8e38ca4a9777532121f4f5e575b7660703f598b7",
+  "selection_decision": "bind_actual_default_v2_to_preserve_accepted_decode_baseline",
+  "selection_sources": {
+    "vllm.config.vllm": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+    "vllm.envs": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f",
+    "vllm.v1.worker.gpu_worker": "6994436e4547c0996ab555b3e814e8ccea26b650dfc1b378b97d640745309347"
+  }
+}

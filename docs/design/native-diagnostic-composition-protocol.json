@@ -1,0 +1,46 @@
+{
+  "schema": "megartx-native-diagnostic-composition-v1",
+  "v2": {
+    "source_parents": [
+      "418e1ecf5af0b5974ecf767a50c6d54f5578bee0",
+      "8027588365ed4b23c6ccbc73de2c8f710e2e166f"
+    ],
+    "protocol": "docs/design/native-diagnostic-composition-protocol.json",
+    "launcher_client": "native-v2-receipt",
+    "registration": [
+      "megartx.speculative_native_v2_lifecycle.install_native_v2_diagnostic",
+      "megartx.speculative_native_evidence.install_native_v2_receipt_evidence"
+    ],
+    "environment": {
+      "MEGARTX_NATIVE_V2_DIAGNOSTIC": "1",
+      "MEGARTX_NATIVE_V2_RECEIPT_EVIDENCE": "1"
+    },
+    "worker_extension_cls": "megartx.speculative_native_v2_lifecycle.NativeV2DiagnosticWorkerExtension",
+    "resolved_runner_required": "vllm.v1.worker.gpu.model_runner.GPUModelRunner",
+    "prefill_observation_grants_mutation_lease": false,
+    "target_probe_authorized": false,
+    "drafter_authorized": false
+  },
+  "exclusive_modes": [
+    "prefill-read-only",
+    "v1-legacy-zero-forward-receipt",
+    "v2-zero-forward-receipt",
+    "native-m1"
+  ],
+  "registration_order": "lifecycle then private evidence, before adapter idempotence return; source-verified duplicate/foreign utilities fail closed",
+  "client_delegation": "run_scale_validation.py delegates to speculative_native_receipt_client.py before HTTP/environment/output/server acquisition; the dedicated supervisor and child independently reconstruct source and authorization",
+  "lifecycle": "fresh EMPTY EngineCore; await pause_scheduler(keep, false); V2 reservation/receipt; drain/release; owned shutdown; never resume or serve",
+  "runner_selection": "resolved use_v2_model_runner is exactly True before EngineCoreClient.make_client; actual loaded V2 owner checked independently; no selector override",
+  "legacy": "V1 registration is distinct; historical V1 preflight blockers are retained and cannot be waived",
+  "bounds": "unchanged 8 MiB canonical serialized receipt and targeted records; one native allocator-counter acquisition has unknown host peak; monitored 8 GiB host reserve is not a hard native heap bound",
+  "fit_admitted": false,
+  "gpu_authorized": false,
+  "target_probe_authorized": false,
+  "drafter_authorized": false,
+  "later_gates": [
+    "FFI_argument_exchange_allocator_coverage_unverified",
+    "M1_M2_M256_original_lane_temporary_bound_unresolved",
+    "external_CUDA_allocation_bound_unresolved",
+    "V2_verifier_and_drafter_interfaces_not_admitted"
+  ]
+}

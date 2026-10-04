@@ -1,0 +1,95 @@
+{
+  "schema": "megartx-pinned-vllm-preparation-source-evidence-v1",
+  "upstream_commit": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+  "scope": "Public source only. No installed-target equivalence assertion, runtime import, plugin execution or device query.",
+  "files": [
+    {
+      "path": "vllm/envs.py",
+      "bytes": 113452,
+      "sha256": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f",
+      "source_url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/envs.py"
+    },
+    {
+      "path": "vllm/utils/network_utils.py",
+      "bytes": 12459,
+      "sha256": "383648e9374a6f2304fec91bd6a54aeb0301c009e69c267bcdc4dfbed38e20e9",
+      "source_url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/utils/network_utils.py"
+    },
+    {
+      "path": "vllm/plugins/__init__.py",
+      "bytes": 5943,
+      "sha256": "fb6e6ee432c5a4ae207aaffe4b546aca9381f56ee8498b0a3e0d9af2d289d023",
+      "source_url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/plugins/__init__.py"
+    },
+    {
+      "path": "vllm/model_executor/model_loader/weight_utils.py",
+      "bytes": 60910,
+      "sha256": "7443e55184777dcc99f621b0d97d9149d52c2ea8b4304c6621eb4902e1c8ba5b",
+      "git_blob_sha1": "abe24fa06ecafaf81597a9b75c3d93b4bda5cb0d",
+      "source_url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/model_loader/weight_utils.py"
+    },
+    {
+      "path": "vllm/model_executor/model_loader/default_loader.py",
+      "bytes": 18754,
+      "sha256": "9c9d54b1b650bf5affc924ebb8b8c73711e187ae7486cadd9f737bb1279cc7b8",
+      "git_blob_sha1": "039a577f80d1c4b13e935ffe1bce8bc92f6ca0ff",
+      "source_url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/model_loader/default_loader.py"
+    },
+    {
+      "path": "vllm/transformers_utils/repo_utils.py",
+      "bytes": 12490,
+      "sha256": "e49f14267604cf7e5a9b95e09c7be2801cf4364e06ea9b3fe7226d6654731793",
+      "git_blob_sha1": "ca20390aad51a535d4e958f72b6a64a73c691c48",
+      "source_url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/transformers_utils/repo_utils.py"
+    },
+    {
+      "path": "vllm/config/load.py",
+      "bytes": 7090,
+      "sha256": "bd6431c22e078362d749a56a2c84145432ebf2605d8bcfa2ac679182d18ed630",
+      "git_blob_sha1": "5e24a617ba85567b69dfdd1c20f6ef9f5e9cede6",
+      "source_url": "https://raw.githubusercontent.com/vllm-project/vllm/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/config/load.py"
+    }
+  ],
+  "ipc": {
+    "source_path": "vllm/utils/network_utils.py",
+    "symbol": "get_open_zmq_ipc_path",
+    "expression": "ipc://{envs.VLLM_RPC_BASE_PATH}/{uuid4()}",
+    "base_override": "VLLM_RPC_BASE_PATH",
+    "suffix_utf8_bytes": 37,
+    "socket_budget_excludes_uri_scheme": true,
+    "other_temp_path_symbol": "get_file_store_init_method",
+    "other_temp_path_expression": "file://{tempfile.gettempdir()}/vllm_dist_{uuid4().hex}",
+    "configuration_default": "VLLM_RPC_BASE_PATH defaults to tempfile.gettempdir() in envs.py"
+  },
+  "entrypoint": {
+    "source_path": "vllm/plugins/__init__.py",
+    "symbols": [
+      "load_plugins_by_group",
+      "load_general_plugins"
+    ],
+    "metadata_discovery": "importlib.metadata.entry_points(group=group)",
+    "general_plugin_group": "vllm.general_plugins",
+    "selection": "VLLM_PLUGINS contains an exact plugin-name allowlist. Unset permits all discovered plugins; empty selects none.",
+    "task_requirement": "Expose real pip --target wheel metadata on PYTHONPATH with committed source ahead of copied wheel code. No synthetic dist-info or entrypoint replacement."
+  },
+  "path_override_controls": {
+    "VLLM_CACHE_ROOT": "Own override; default XDG_CACHE_HOME/vllm",
+    "VLLM_CONFIG_ROOT": "Own override; default XDG_CONFIG_HOME/vllm",
+    "VLLM_RPC_BASE_PATH": "Own override; default tempfile.gettempdir()",
+    "VLLM_ASSETS_CACHE": "Own override; default XDG_CACHE_HOME/vllm/assets",
+    "VLLM_XLA_CACHE_PATH": "Own override; default XDG_CACHE_HOME/vllm/xla_cache",
+    "VLLM_MEDIA_CACHE": "Independent explicit cache directory; defaults empty",
+    "VLLM_FLASHINFER_AUTOTUNE_CACHE_DIR": "Independent explicit autotune cache directory; defaults None",
+    "VLLM_TUNED_CONFIG_FOLDER": "Independent external tuned-kernel config read location",
+    "VLLM_LOGGING_CONFIG_PATH": "Independent external logging configuration source"
+  },
+  "isolation_caveat": "Setting XDG_CACHE_HOME, VLLM_CACHE_ROOT and TMPDIR does not neutralize inherited independent override variables. Remove or explicitly bind them in the child environment; preserve necessary pinned toolchain/runtime paths and source-bind the environment policy.",
+  "loader_selection": {
+    "default": "load_format auto; unchanged EngineArgs",
+    "source": "config/load.py, default_loader.py, weight_utils.py, transformers_utils/repo_utils.py",
+    "conflicting_pattern": "consolidated*.safetensors",
+    "search": "recursive local regular/file-symlink discovery, matching basenames with fnmatch",
+    "effect": "a match switches auto loader to mistral with consolidated.safetensors.index.json, bypassing the pinned HF index",
+    "preflight": "reject matching files before and after hashing; preserve unrelated directories and HF-index-filtered extra files"
+  }
+}

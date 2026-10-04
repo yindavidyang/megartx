@@ -1,0 +1,67 @@
+{
+  "execution": "CPU-only extracted methods with explicit fixtures; never native admission",
+  "license": "Apache-2.0; Copyright contributors to the vLLM project",
+  "methods": [
+    {
+      "class": "GPUModelRunner",
+      "extracted_source_sha256": "31a9c5569ed0aea929ffa4386d97d795b57f64c1c925adb6e0b8d0098139a8e4",
+      "first_line": 536,
+      "installed_source_sha256": "174c93db921c23cf0396eee4764be25b2bd2d4b6a06e9fa41ce3598b884ce8ce",
+      "last_line": 537,
+      "method": "get_model",
+      "path": "vllm/v1/worker/gpu/model_runner.py",
+      "source": "    def get_model(self) -> nn.Module:\n        return self.model\n"
+    },
+    {
+      "class": "AttentionGroup",
+      "extracted_source_sha256": "8540979559a215950a978dd9d4fe83a303ba97cc1452fb4731e926ba9117a68b",
+      "first_line": 314,
+      "installed_source_sha256": "0ca3ec6bf4d20076145b7fe64e564962adebedc8f75a856b517ba0b2f2d77acf",
+      "last_line": 316,
+      "method": "get_metadata_builder",
+      "path": "vllm/v1/worker/utils.py",
+      "source": "    def get_metadata_builder(self, ubatch_id: int = 0) -> AttentionMetadataBuilder:\n        assert len(self.metadata_builders) > ubatch_id\n        return self.metadata_builders[ubatch_id]\n"
+    },
+    {
+      "class": "RequestState",
+      "extracted_source_sha256": "71c1ab225b7da07d077f92f0e5d3e2be8bffdbf07ef4799971387f2545d9615e",
+      "first_line": 87,
+      "installed_source_sha256": "99418f5df43ca612ded72609fee011620b065b2cab2f249ccb387096bf4ae71a",
+      "last_line": 89,
+      "method": "num_reqs",
+      "path": "vllm/v1/worker/gpu/states.py",
+      "source": "    @property\n    def num_reqs(self) -> int:\n        return len(self.req_id_to_index)\n"
+    },
+    {
+      "class": "VllmConfig",
+      "extracted_source_sha256": "a8ce64d037a86096c8e3a103bd3cf53130953c591e8d3e2a03c0b62e94716d71",
+      "first_line": 674,
+      "installed_source_sha256": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+      "last_line": 723,
+      "method": "use_v2_model_runner",
+      "path": "vllm/config/vllm.py",
+      "source": "    @property\n    def use_v2_model_runner(self) -> bool:\n        if self.attention_config.hisparse_config is not None:\n            if envs.VLLM_USE_V2_MODEL_RUNNER is False:\n                raise ValueError(\n                    \"HiSparse requires Model Runner V2; remove \"\n                    \"VLLM_USE_V2_MODEL_RUNNER=0.\"\n                )\n            return True\n\n        if getattr(self, \"watermark_config\", None) is not None:\n            if envs.VLLM_USE_V2_MODEL_RUNNER is False:\n                logger.info_once(\n                    \"Watermarking requires Model Runner V2 and overrides \"\n                    \"VLLM_USE_V2_MODEL_RUNNER=0.\"\n                )\n            return True\n\n        use_v2_model_runner = envs.VLLM_USE_V2_MODEL_RUNNER\n        if use_v2_model_runner is not None:\n            return use_v2_model_runner\n\n        from vllm.platforms import current_platform\n\n        model_config = self.model_config\n        if model_config is not None and current_platform.is_rocm():\n            architectures = getattr(model_config, \"architectures\", ())\n            if any(arch in ROCM_DEFAULT_MRV1_ARCHITECTURES for arch in architectures):\n                logger.warning_once(\n                    \"Defaulting to V1 model runner on ROCm for model architectures: %s\",\n                    \", \".join(architectures),\n                )\n                return False\n\n        if not HAS_TRITON:\n            logger.warning_once(\n                \"Model Runner V2 requires Triton; using the V1 model runner instead.\"\n            )\n            return False\n\n        unsupported = self._get_v2_model_runner_unsupported_features()\n        if unsupported:\n            logger.warning_once(\n                \"Model Runner V2 does not yet support %s; using the V1 model \"\n                \"runner instead.\",\n                \", \".join(unsupported),\n            )\n            return False\n\n        return True\n"
+    },
+    {
+      "class": "BlockPool",
+      "extracted_source_sha256": "6888cbb60aa07f07b7544b5bd83ee8613119ba8e0a632fb5b1ca12d0b4fb19e0",
+      "first_line": 664,
+      "installed_source_sha256": "34c2fd67148cecb7763ff49ad694a57073759b0fa67572a4270dc995b4acf8fc",
+      "last_line": 697,
+      "method": "get_new_blocks",
+      "path": "vllm/v1/core/block_pool.py",
+      "source": "    def get_new_blocks(self, num_blocks: int) -> list[KVCacheBlock]:\n        \"\"\"Get new blocks from the free block pool.\n\n        Note that we do not check block cache in this function.\n\n        Args:\n            num_blocks: The number of blocks to allocate.\n\n        Returns:\n            A list of new block.\n        \"\"\"\n        if num_blocks > self.get_num_free_blocks():\n            raise ValueError(f\"Cannot get {num_blocks} free blocks from the pool\")\n\n        ret: list[KVCacheBlock] = self.free_block_queue.popleft_n(num_blocks)\n\n        if self._reuse_watchers:\n            self._notify_reuse(ret)\n\n        # In order to only iterate the list once, we duplicated code a bit\n        if self.enable_caching:\n            for block in ret:\n                self._maybe_evict_cached_block(block)\n                assert block.ref_cnt == 0\n                block.ref_cnt += 1\n                if self.metrics_collector:\n                    self.metrics_collector.on_block_allocated(block)\n        else:\n            for block in ret:\n                assert block.ref_cnt == 0\n                block.ref_cnt += 1\n                if self.metrics_collector:\n                    self.metrics_collector.on_block_allocated(block)\n        return ret\n"
+    },
+    {
+      "class": "BlockPool",
+      "extracted_source_sha256": "4dfde8c8169f99c571f2f828b318982bc459fbd5fe49a221f226a2bb485e4f68",
+      "first_line": 770,
+      "installed_source_sha256": "34c2fd67148cecb7763ff49ad694a57073759b0fa67572a4270dc995b4acf8fc",
+      "last_line": 800,
+      "method": "free_blocks",
+      "path": "vllm/v1/core/block_pool.py",
+      "source": "    def free_blocks(self, ordered_blocks: Iterable[KVCacheBlock]) -> None:\n        \"\"\"Free a list of blocks. The blocks should be ordered by their\n        eviction priority, where the first block will be evicted first.\n\n        Args:\n            ordered_blocks: A list of blocks to free ordered by their eviction\n                priority.\n        \"\"\"\n        # Identify blocks with hash (LRU cache) and without it (never match APC)\n        blocks_to_evict_last = []\n        blocks_to_evict_first = []\n        other_pools: dict[BlockPool, list[KVCacheBlock]] = {}\n        for block in ordered_blocks:\n            if block.pool is not None and block.pool is not self:\n                other_pools.setdefault(block.pool, []).append(block)\n                continue\n            block.ref_cnt -= 1\n            if block.ref_cnt == 0 and not block.is_null:\n                if block.block_hash is None or not self.enable_caching:\n                    # LIFO reuse of non-cached blocks for better GPU locality.\n                    blocks_to_evict_first.append(block)\n                else:\n                    # FIFO reuse of cached blocks for LRU eviction behavior.\n                    blocks_to_evict_last.append(block)\n\n        # Blocks to reuse first are prepended to the front of the free queue.\n        self.free_block_queue.prepend_n(blocks_to_evict_first)\n        # Blocks to reuse last are appended to the end of the free queue.\n        self.free_block_queue.append_n(blocks_to_evict_last)\n        for pool, blocks in other_pools.items():\n            pool.free_blocks(blocks)\n"
+    }
+  ],
+  "schema": "megartx-v2-extracted-installed-source-controls-v1"
+}

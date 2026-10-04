@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "megartx-native-v2-receipt-authorization-v1",
+  "title": "Separate exact-source V2 receipt authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "purpose",
+    "plan_sha256",
+    "source_head",
+    "independent_review_clear",
+    "exact_head_ci_green",
+    "parent_source_protocol_accepted",
+    "gpu_slot_assigned",
+    "owned_lifecycle_verified",
+    "parent_slot",
+    "parent_acceptance_reference",
+    "independent_review_reference",
+    "ci_reference",
+    "runner_lane",
+    "v2_owner_plan_sha256",
+    "target_probe_authorized",
+    "drafter_authorized"
+  ],
+  "properties": {
+    "schema": {
+      "const": "megartx-native-v2-receipt-authorization-v1"
+    },
+    "purpose": {
+      "const": "first_v2_zero_forward_layout_workspace_measurement"
+    },
+    "plan_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "independent_review_clear": {
+      "const": true
+    },
+    "exact_head_ci_green": {
+      "const": true
+    },
+    "parent_source_protocol_accepted": {
+      "const": true
+    },
+    "gpu_slot_assigned": {
+      "const": true
+    },
+    "owned_lifecycle_verified": {
+      "const": true
+    },
+    "parent_slot": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "parent_acceptance_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "independent_review_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "ci_reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "runner_lane": {
+      "const": "v2"
+    },
+    "v2_owner_plan_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "target_probe_authorized": {
+      "const": false
+    },
+    "drafter_authorized": {
+      "const": false
+    }
+  },
+  "$comment": "Values record real external approvals; producing a document grants no approval. Unresolved source blockers cannot be overridden."
+}

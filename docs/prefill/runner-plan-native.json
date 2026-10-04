@@ -1,0 +1,42 @@
+{
+  "cache_layout": {
+    "layout_sha256": null,
+    "local_storage_policy": null,
+    "page_tokens": null
+  },
+  "gpu_enabled": false,
+  "launcher": {
+    "contract": "megartx-prefill-launcher-adapter-v1",
+    "pr15_final_commit": null,
+    "source_manifest_sha256": null,
+    "stream_provider_sha256": null,
+    "supported_chunk_tokens": []
+  },
+  "observer_sites": {
+    "attention": null,
+    "dense": null,
+    "expert": null,
+    "head": null
+  },
+  "plan_sha256": "f9df7837ac748181a86772652365597c898b2bf3ab0a7b12dd060ab6f91aa044",
+  "receipts": {
+    "cleanup": null,
+    "decode_control": null,
+    "dispatch": null,
+    "fit_p2048": null,
+    "fit_p8192": null,
+    "g0": null,
+    "g1": null,
+    "gpu_scope": null,
+    "launcher_review": null,
+    "natural_correction_coverage": null,
+    "numerical": null,
+    "ownership": null,
+    "resource": null,
+    "source_review": null
+  },
+  "repository_base_commit": "5a32504b5ccb209a779b8a110eb2ebc56d72e373",
+  "run_namespace": null,
+  "runner_binding_sha256": "d9999f84aab4b6de6d4ee565bbdcbf3a8c31f779c055a832bcf2e6aa67ddf275",
+  "schema": "megartx-prefill-runner-v1"
+}

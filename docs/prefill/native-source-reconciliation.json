@@ -1,0 +1,77 @@
+{
+  "base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
+  "bound_callback_correction_sha256": "2e45e78dd0cad8adf2242c3903fd339bb911db6cbdaaff98c24483de5c626d07",
+  "cpu_review_pending": true,
+  "fit_qualified": false,
+  "gpu_executed": false,
+  "main_reconciliation_commit": "cca7410205222dc25993124a8e9302aba309bca2",
+  "numerical_qualified": false,
+  "performance_qualified": false,
+  "previous_runtime_commit": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
+  "prior_failed_attempt_preserved": {
+    "actual_emitted_token_correspondence_verified": false,
+    "actual_runner": "vllm.v1.worker.gpu.model_runner.GPUModelRunner",
+    "attempt_and_release_sha256": "094dc5bbff586aea7b6fe0818179606e1e9d88bed77696066944350a516a970b",
+    "clearance_consumed": true,
+    "fit_receipt_present": false,
+    "gpu_slot_released": true,
+    "legacy_hook_runner": "vllm.v1.worker.gpu_model_runner.GPUModelRunner",
+    "observer_receipt_present": false,
+    "owned_cleanup_verified": true,
+    "source_head": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
+    "status": "failed_observer_runner_binding"
+  },
+  "prior_repo_files": {
+    "scripts/run_scale_validation.py": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/vllm_scale_plugin.py": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
+  },
+  "purpose_hooks": [
+    "runner_constructor",
+    "initialize_kv_cache",
+    "execute_model",
+    "prepare_inputs",
+    "prepare_attn",
+    "sample",
+    "metadata_build",
+    "model_forward",
+    "compute_logits"
+  ],
+  "repo_files": {
+    "scripts/run_scale_validation.py": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
+  },
+  "review_repairs": [
+    "required retained query mappings",
+    "prepare/build BaseException poison",
+    "aggregate GPU scratch domains",
+    "actual imported adapter origins and bytes",
+    "preserve run-wide allocated/reserved peaks across global counter resets",
+    "missing-plan admission before HTTP runtime import; python -S regression",
+    "bound actual4,977,046byte checkpoint index as CPU input below8MiB; independent host domain",
+    "active default V2 bindings, owned live pre-POST receipt, scheduled-forward hook guard, historical I64 helper unchanged",
+    "F5 actual bound runner/model/builder callbacks and direct guard poisoning; class checks retained",
+    "F6 current selected-builder and attention-group ownership admission; cached callbacks alone are insufficient"
+  ],
+  "runner_policy": {
+    "resolved_v2": true,
+    "runner_class": "GPUModelRunner",
+    "runner_module": "vllm.v1.worker.gpu.model_runner",
+    "selection_override_injected": false,
+    "selector_env": null
+  },
+  "runner_selection_sha256": "be5f7048524c316de1c073db825f16caa0d337cd3a5171cc681e600e1130e942",
+  "runtime_commit": "fff74b93b5ce8b1f9f8f6c4ff32fca5e66af85ed",
+  "runtime_tree": "1bfb4a291b08badbbb65cb5ff52d5e3dcf89060a",
+  "schema": "megartx-prefill-native-source-reconciliation-v1",
+  "scope": "exact_cpu_source_compatibility_only",
+  "selected_builder_correction_reference": "docs/prefill/native-selected-builder-correction.json",
+  "selected_builder_correction_sha256": "2e94d745ff8f98b0c34680dd8e38ca4a9777532121f4f5e575b7660703f598b7",
+  "unchanged": [
+    "nvfp4_runtime.py",
+    "nvfp4_integration.py",
+    "controlled_kv_capture.py",
+    "m1_live.py"
+  ]
+}

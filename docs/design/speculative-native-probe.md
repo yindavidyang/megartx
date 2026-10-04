@@ -179,33 +179,27 @@ a 300-second limit; the reviewed launcher must enforce it, not an environment
 label supplied to the worker. Startup, whole-run deadline and cleanup remain
 owned lifecycle responsibilities, with one GPU job and no package/system changes.
 
-## Smallest remaining launcher exposure
+## Registered lifecycle and remaining admission
 
-No shared files are edited or hooks registered by this patch. The existing
-`run_scale_validation.py` owns process/resource startup and cleanup; bypassing it
-with a standalone model loader would weaken that contract. The only public
-command here is CPU-only source/protocol freeze:
+The exclusive utility/worker extension is now implemented in
+[`speculative_native_lifecycle.py`](../../src/megartx/speculative_native_lifecycle.py).
+The new [zero-forward protocol](speculative-native-zero-forward-protocol.json)
+and [integration contract](speculative-native-lifecycle.md) replace the previous
+unregistered exposure proposal. The shared plugin and launcher remain with their
+owner; they must call the default-off registration callback before constructing
+EngineCore and select the new worker-extension class. The standalone CLI remains
+CPU-only and has no native launch option.
 
-```sh
-python3 -S scripts/run_speculative_native_probe.py
-python3 -S scripts/run_speculative_native_probe.py --installed-root /path/to/site-packages --output /private/new-freeze.json
-PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_speculative_native_probe.py' -v
-```
+The first runtime phase produces a layout/workspace/resource receipt without
+calling the diagnostic target. Existing startup is separately owned and counted.
+The current collector cannot establish original-lane M1/M2/M256 transitive
+workspace or residual external allocation bounds, so its live decision remains
+unadmitted. A parent review boolean or supplied zero bound cannot override it.
+The engine remains paused and its reservations are explicitly drained/revoked
+and released before owned shutdown, or retained on uncertainty.
 
-The parent must review two explicit exposure changes before launch: configure
-`--worker-extension-cls megartx.speculative_native_probe.NativeProbeWorkerExtension`
-in the owned startup branch; and register one default-off EngineCore utility
-`megartx_owned_native_probe` delegating to `run_engine_core_probe(..., enabled=True)`.
-The latter runs through the existing EngineCoreProc synchronous utility handler
-after `initialize_from_config` and an EMPTY fresh engine's
-`pause_scheduler(mode="keep", clear_cache=False)`. No request/batch/transfer/DBO
-work may coexist; the utility loop remains blocked during Worker RPC and the
-engine stays paused until shutdown. This registration belongs in the shared
-plugin/lifecycle owner, with the utility called through the existing utility
-client. The model, allocator and runner interfaces are already available; this
-is the concrete missing exposure, not a replacement mock provider.
-
-Independent source/CPU review, exact-head green CI, parent source/protocol
-acceptance, source-bound allocation coverage and an assigned sole-GPU slot remain
-necessary. No CUDA import, model load, GPU job, training, download or remote
-mutation occurred in this task.
+Independent source/CPU review, exact-head green CI, explicit shared-owner
+reconciliation, parent source/protocol acceptance and a sole-GPU slot are still
+required even for the zero-forward runtime receipt. The later 85-call native
+comparison additionally needs a concrete separately reviewed fit implementation.
+No CUDA/model import or GPU job has run in this integration task.

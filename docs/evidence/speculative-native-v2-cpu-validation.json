@@ -1,0 +1,51 @@
+{
+  "checks": {
+    "CPU_minus_S_import_audit": true,
+    "V2_adversarial_tests": 17,
+    "compileall": true,
+    "contracts": 8,
+    "diff_check": true,
+    "existing_skips": 1,
+    "extraction_full_file_comparison": true,
+    "full_installed_source_files": 36,
+    "installed_method_extractions": 6,
+    "numerical_reference_tests": 513,
+    "scaffold_tests": 438
+  },
+  "evidence_log_sha256": {
+    "contracts": "7329f1ea7e9c26154ff9bf505cf885d85a56c1f11b0a29fe8ee8dbbc02ca0263",
+    "numerical": "6356d4659692903e6e1fd81939e2dd343849e3b0c9adee2d3fa364a53bc34bd2",
+    "scaffold": "1a80b7a4d3dd56f30d7ca2d7715d4d918c389a22f41342667936e5b587108a4c"
+  },
+  "module_and_protocol_sha256": {
+    "docs/design/speculative-native-v2-zero-forward-protocol.json": "9ab0c900fcb3e16301b9cc4a8446106293df9996c2365e4f93422ae3e1e4efd2",
+    "src/megartx/speculative_native_lifecycle.py": "cd48364f4fcffc4acbd9b770db80f5677e51b8be4ed6f2e0d3bb0fc05d4ab425",
+    "src/megartx/speculative_native_v2.py": "ab85d1c0483c13468053f87fa97c0243db886415be86c7c4fe2a877b5f2f4775",
+    "src/megartx/speculative_native_v2_lifecycle.py": "bc9d5d60c8a781748fc429fe4860a02bd3d7a965a93d934b0460c8365284f846",
+    "src/megartx/speculative_native_v2_receipt.py": "fbbfb8d13b3793f31770dfe53afd65013f24578875b616296a237691842054ea",
+    "tests/fixtures/speculative_v2_installed_methods.json": "a3417c28b0478ac769ace846dd2dda600c7abb968fed9ef17394fea9303bbff1",
+    "tests/test_speculative_native_v2.py": "37137195847da029449f71ad4454297f3a76d4d25a2b9b33103037a0e26df7ac"
+  },
+  "qualification": {
+    "device_queries": false,
+    "drafter_admitted": false,
+    "fit_verified": false,
+    "installed_runtime_imports": false,
+    "model_GPU_work_performed": false,
+    "native_runtime_observed": false,
+    "shared_files_edited": false,
+    "target_probe_admitted": false,
+    "training": false,
+    "weights_downloaded": false
+  },
+  "remaining": [
+    "independent exact-source CPU review",
+    "shared V2 plugin/client/evidence composition and review",
+    "parent source/protocol acceptance and sole GPU slot",
+    "actual layout/fit and external/FFI/temporary bounds",
+    "separate persistent drafter weights/KV and feature budget plus native acceptance validation"
+  ],
+  "schema": "megartx-native-v2-cpu-validation-v1",
+  "source_base": "c50ba1410a5c35cd470139f2cf5e90984d7c88f2",
+  "status": "CPU_source_controls_only_independent_review_pending"
+}

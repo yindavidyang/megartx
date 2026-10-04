@@ -1,0 +1,73 @@
+{
+  "controls_source_sha256": {
+    "tests/test_prefill_native_safety.py": "a0de9edad310d5e3eea14476304b06539205ea72484add8b4b2393b7140e50ab",
+    "tests/test_prefill_native_v2.py": "25bdc3301fb6ec0aaf4dcc6816ddd4659bd410eb00aaf9da7deb3d588d46c7cd"
+  },
+  "cpu_review_pending": true,
+  "finding": "F5",
+  "fit_qualified": false,
+  "gpu_executed": false,
+  "implemented_checks": [
+    "actual bound MethodType owner and function identity for all runner/model/owned-builder hooks",
+    "retained class checks and actual loaded-model identity",
+    "nonempty owned builder set with original builder identity",
+    "provider creation plus every active admission",
+    "guard rejection/interruption poisons and aborts; same primary preserved on abort failure"
+  ],
+  "independent_review_sha256": "7ca6f0e1f5097a73b9928b0084706dac006de5d737c399792a708ee1f134c8a5",
+  "main_reconciliation_commit": "cca7410205222dc25993124a8e9302aba309bca2",
+  "numerical_qualified": false,
+  "performance_qualified": false,
+  "preserved_prefill_head": "7aafc35c5d6e16c620184a506b1487b1cd7eb74d",
+  "preserved_shared_head": "2cc69b6c53221750d1194a2c6e6f98b57174b40c",
+  "previous_runtime_commit": "1e5f33b7631afd72a20218d8dd874a42f0f283f9",
+  "previous_runtime_source_hashes": {
+    "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
+    "scripts/prefill_diagnostic_client.py": "4d0e3a57927ccf9d920ffc73438d45ed7591a689ba3e74104bb209cb5ca0b233",
+    "scripts/run_scale_validation.py": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
+    "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
+    "src/megartx/loaded_engine_access.py": "2e46661c037c3356f619b8a965a60a2fcaac49851bad8e37c586f4851d81a10e",
+    "src/megartx/m1_execution.py": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
+    "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
+    "src/megartx/prefill_collect.py": "be60fbb3233d025e543e4cad5af27c766ca1f4c228971ecd0ef53e66c2532afd",
+    "src/megartx/prefill_diagnostic_plan.py": "c0b632d5f813439d0ccc0fadc85e1b8a3620f3eae986e6509a8a5dc1c9e1d8a6",
+    "src/megartx/prefill_kv.py": "99bf4c047d45425cdc0c840dadb64057603bf7a25f45321889a9728a77a1bafd",
+    "src/megartx/prefill_native.py": "d91eccb83b9574b81ff0994f8aaf3b1b4a523a1abf275fe618dff3fa25a5dedf",
+    "src/megartx/prefill_plan.py": "90a90e5af9fada13da2fa696840373af8210157475505d0586d5926707a2d68c",
+    "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
+    "src/megartx/prefill_runner_binding.py": "33894126b93e64cc74c429009b622434f8c10be0a2080c43963bbf7715ca6f86",
+    "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
+  },
+  "runtime_changes": [
+    "src/megartx/prefill_native.py"
+  ],
+  "runtime_commit": "83d06cc0d04093fb29070cc81fc447ae0bf4feeb",
+  "runtime_source_hashes": {
+    "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
+    "scripts/prefill_diagnostic_client.py": "4d0e3a57927ccf9d920ffc73438d45ed7591a689ba3e74104bb209cb5ca0b233",
+    "scripts/run_scale_validation.py": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
+    "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
+    "src/megartx/loaded_engine_access.py": "2e46661c037c3356f619b8a965a60a2fcaac49851bad8e37c586f4851d81a10e",
+    "src/megartx/m1_execution.py": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
+    "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
+    "src/megartx/prefill_collect.py": "be60fbb3233d025e543e4cad5af27c766ca1f4c228971ecd0ef53e66c2532afd",
+    "src/megartx/prefill_diagnostic_plan.py": "c0b632d5f813439d0ccc0fadc85e1b8a3620f3eae986e6509a8a5dc1c9e1d8a6",
+    "src/megartx/prefill_kv.py": "99bf4c047d45425cdc0c840dadb64057603bf7a25f45321889a9728a77a1bafd",
+    "src/megartx/prefill_native.py": "78c7492917373a568c264ec576b07f740ef39467b023cfe9ae73c3a6079f0331",
+    "src/megartx/prefill_plan.py": "90a90e5af9fada13da2fa696840373af8210157475505d0586d5926707a2d68c",
+    "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
+    "src/megartx/prefill_runner_binding.py": "33894126b93e64cc74c429009b622434f8c10be0a2080c43963bbf7715ca6f86",
+    "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
+  },
+  "runtime_tree": "d0cf7b583b24d702598b41d9a032d4d8f245bc9d",
+  "schema": "megartx-prefill-bound-callback-correction-v1",
+  "unchanged_parent_ledgers": {
+    "docs/evidence/m1-sf-layout-source-pins.json": "ccd75f81c2476c3434f1c500af3a1fbdf37cd6bccf0f1132e86f9739944a191d",
+    "docs/prefill/main-reconciliation-lineage.json": "644b1ab27a77427ef7a1d1ea36534fbd6b397bf2f61c0244546233071beef757",
+    "docs/prefill/native-numerical-lineage.json": "97c98a8bc7bd68919f9b1589d160305b34c117c43d82b2fbcaead02791d6b206"
+  }
+}

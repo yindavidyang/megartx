@@ -1,0 +1,119 @@
+{
+  "added_source_hashes": {
+    "src/megartx/native_diagnostic_composition.py": "25c232d627a9eb11e9bb0ed0a15c99948081be7ae12c294b448fd6926656fb0e"
+  },
+  "cpu_review_pending": true,
+  "dspark_parent": "8027588365ed4b23c6ccbc73de2c8f710e2e166f",
+  "fit_qualified": false,
+  "gpu_executed": false,
+  "historical_catalogs": {
+    "docs/prefill/live-attribution-binding.json": "115b289bd5721527daf6d0abf3a73770b2e9bdc1aa0988870035d21a88e72826",
+    "docs/prefill/live-attribution-plan.json": "be5f0d78b255a324ec0bcddb6989eccd8419b1ceca7273c16baa7b4b4bedd5fa",
+    "docs/prefill/live-binding.json": "3f248451bbb47027066f38ebf672cbb4676c8993deeb25a5ea88b38b06cd4ab1",
+    "docs/prefill/live-plan.json": "bd90bc12847eb60abe681088e6803e80a87d865d1306836c35a7dd0a9c785ca2",
+    "docs/prefill/profile-plan.json": "264aceb2d2247731041a80eb96563bb816ec9394d441bceabeef386ae77afd28",
+    "docs/prefill/runner-binding.json": "a2020354a707d1419e08c4e3576ec032c19bfe191bde204cbbc9f1188d0c5547",
+    "docs/prefill/runner-plan.json": "45e43c7a420112b6b81e527bb4173eb8eb2c9bd20a9ec0ca4421c43f7f9b7a96",
+    "docs/prefill/source-binding.json": "953991a313d808069f52e8e75b64c826f1450cef8be09018bd5f689b34560fc6"
+  },
+  "historical_source_fixtures": {
+    "tests/fixtures/prefill-native-base/run_scale_validation.source": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8",
+    "tests/fixtures/prefill-native-base/vllm_scale_plugin.source": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
+  },
+  "main_parent": "ca6c385562aff30e91e8bb6a7f4228c9d766c30d",
+  "numerical_qualified": false,
+  "parent_ledgers": {
+    "docs/evidence/m1-sf-layout-source-pins.json": "ccd75f81c2476c3434f1c500af3a1fbdf37cd6bccf0f1132e86f9739944a191d",
+    "docs/prefill/main-reconciliation-lineage.json": "644b1ab27a77427ef7a1d1ea36534fbd6b397bf2f61c0244546233071beef757",
+    "docs/prefill/native-bound-callback-correction.json": "2e45e78dd0cad8adf2242c3903fd339bb911db6cbdaaff98c24483de5c626d07",
+    "docs/prefill/native-diagnostic-binding.json": "d33963624fe0926cfa51a3cd5dc52a9e5cfb8129ceb068f18162097d0d8c441c",
+    "docs/prefill/native-numerical-lineage.json": "97c98a8bc7bd68919f9b1589d160305b34c117c43d82b2fbcaead02791d6b206",
+    "docs/prefill/native-selected-builder-correction.json": "2e94d745ff8f98b0c34680dd8e38ca4a9777532121f4f5e575b7660703f598b7",
+    "docs/prefill/native-source-reconciliation.json": "f0efbc5019e001e91245267cc5a964871a84a0fc3478e13deadefc6511f0410b"
+  },
+  "performance_qualified": false,
+  "prefill_parent": "418e1ecf5af0b5974ecf767a50c6d54f5578bee0",
+  "prefill_runtime_source_hashes": {
+    "scripts/m1_owned_processes.py": "df01a29a8089db09530eef3d36efc04d2871033b4fa6b357eb73a0aca99dae4b",
+    "scripts/prefill_diagnostic_client.py": "4d0e3a57927ccf9d920ffc73438d45ed7591a689ba3e74104bb209cb5ca0b233",
+    "scripts/run_scale_validation.py": "cd3280a5f9e7660e8dfe877d55c07cab2d616336b5cdc81b1c9077f0495dde97",
+    "src/megartx/controlled_kv_capture.py": "997363491230c809569c0d729b9be50299599f84bf191b3bbd9d47a1bf020590",
+    "src/megartx/loaded_engine_access.py": "5e7cc68049e33ed1e41f8ec4006dd1a5bcf711d134dc22934552f627d31875c6",
+    "src/megartx/m1_execution.py": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/native_diagnostic_composition.py": "25c232d627a9eb11e9bb0ed0a15c99948081be7ae12c294b448fd6926656fb0e",
+    "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
+    "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962",
+    "src/megartx/prefill_collect.py": "be60fbb3233d025e543e4cad5af27c766ca1f4c228971ecd0ef53e66c2532afd",
+    "src/megartx/prefill_diagnostic_plan.py": "8b0b9e17444709c2bf8ef4d9ef635b76d47b536e91244c4d6e0ef7e4a7b98192",
+    "src/megartx/prefill_kv.py": "99bf4c047d45425cdc0c840dadb64057603bf7a25f45321889a9728a77a1bafd",
+    "src/megartx/prefill_native.py": "468526651fe2cb68ba07fdb65093535fc20b2da81597bcf61f26d2352717e940",
+    "src/megartx/prefill_plan.py": "010e3308e3cef5f1b1dd41d4e61eb0facee34a07709867594d45e767abbe2cc5",
+    "src/megartx/prefill_runner.py": "851424938375fd5b4e77930fa0c8f4f88e88532b050f25e9052b0ed838525d93",
+    "src/megartx/prefill_runner_binding.py": "33894126b93e64cc74c429009b622434f8c10be0a2080c43963bbf7715ca6f86",
+    "src/megartx/vllm_scale_plugin.py": "2a04e37af7e679cd88b58a28488cca357081da90222221cc4beec2eb0d30b82e"
+  },
+  "previous_current_catalogs": {
+    "docs/prefill/live-native-binding.json": "f1b762444aa73b554e2b696c0619c81a061392821df8e4dc1b4281bb31aed099",
+    "docs/prefill/live-native-plan.json": "601d5424aedbbd44a71602b6d1a1606d1fd6047bfe08bf6e376950f9fbc7921d",
+    "docs/prefill/profile-plan-native.json": "b3dc1f365f4addc34b70b3ee9bf172fd301844dd27d3357acc40661b1a9b9d24",
+    "docs/prefill/runner-binding-native.json": "eabb6c48b8057b319862205ea51cfddd08be6cccd6d9454ef7346c8deaf7646d",
+    "docs/prefill/runner-plan-native.json": "396f70bc9b61e41cbfc784991843ab2a0355bf226414084ce068d98c75a38726",
+    "docs/prefill/source-binding-native.json": "ab7f83c053a18307034455ce277a113d8494b704ba3ea1484825b8b168571017"
+  },
+  "previous_shared_repo_files": {
+    "scripts/run_scale_validation.py": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/vllm_scale_plugin.py": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
+  },
+  "schema": "megartx-native-v2-composition-lineage-v1",
+  "scope": "Additive CPU-only shared diagnostic source composition; preserve both exact parent heads, every historical ledger, ca6 SF proof, and arithmetic evaluators. Source compatibility is not execution or fit approval.",
+  "shared_repo_files": {
+    "scripts/run_scale_validation.py": "cd3280a5f9e7660e8dfe877d55c07cab2d616336b5cdc81b1c9077f0495dde97",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/native_diagnostic_composition.py": "25c232d627a9eb11e9bb0ed0a15c99948081be7ae12c294b448fd6926656fb0e",
+    "src/megartx/vllm_scale_plugin.py": "2a04e37af7e679cd88b58a28488cca357081da90222221cc4beec2eb0d30b82e"
+  },
+  "superseded_sources": [
+    {
+      "current_sha256": "2a04e37af7e679cd88b58a28488cca357081da90222221cc4beec2eb0d30b82e",
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "prior_sha256": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1"
+    },
+    {
+      "current_sha256": "cd3280a5f9e7660e8dfe877d55c07cab2d616336b5cdc81b1c9077f0495dde97",
+      "path": "scripts/run_scale_validation.py",
+      "prior_sha256": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d"
+    },
+    {
+      "current_sha256": "010e3308e3cef5f1b1dd41d4e61eb0facee34a07709867594d45e767abbe2cc5",
+      "path": "src/megartx/prefill_plan.py",
+      "prior_sha256": "90a90e5af9fada13da2fa696840373af8210157475505d0586d5926707a2d68c"
+    },
+    {
+      "current_sha256": "8b0b9e17444709c2bf8ef4d9ef635b76d47b536e91244c4d6e0ef7e4a7b98192",
+      "path": "src/megartx/prefill_diagnostic_plan.py",
+      "prior_sha256": "c0b632d5f813439d0ccc0fadc85e1b8a3620f3eae986e6509a8a5dc1c9e1d8a6"
+    },
+    {
+      "current_sha256": "ed6f5855d4a41401efff5de131dc98bb35e5065da55dcbecfb7452e6d7bde31d",
+      "path": "tests/test_prefill_plan.py",
+      "prior_sha256": "b973792f5b6768dc715c022b6085866d9cb390e3a90df46b9355a84fea1a967c"
+    },
+    {
+      "current_sha256": "c1e6aece9755641740cec5b84fb5f1411d302af7b52ad1c54db29cfc22d4e559",
+      "path": "tests/test_prefill_runner.py",
+      "prior_sha256": "0629b62b1c4aad031b36d6cf381765309917aeab44ccb91fee60d4b90d5b06a7"
+    },
+    {
+      "current_sha256": "b77d4c6b31abfbc43e18d4ddd186dec386b77cfb929e87f286ad60ea4a3741ed",
+      "path": "tests/test_prefill_native_reconciliation.py",
+      "prior_sha256": "40ee0efab698e0e878775846978055dae92271d136e2bb87d2ee22ce7a33b5e8"
+    },
+    {
+      "current_sha256": "55968189e422538cdb85185f6391f879aa8b598ef0a36875e3ad2b05ccee459b",
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "prior_sha256": "d4ec5336573cb37c07adfdff3fd189c8b22344e5eea0cea1d08c314f3d5755ff"
+    }
+  ]
+}

@@ -13,6 +13,8 @@ from .m1_execution import profile_scope
 
 
 def install():
+    from .native_diagnostic_composition import diagnostic_mode, install_diagnostic_hooks
+    selected_diagnostic = diagnostic_mode(os.environ)
     mode = os.environ.get("MEGARTX_SCALE_MODE")
     if mode is None:
         return  # Ordinary installations remain inactive unless explicitly enabled.
@@ -32,6 +34,7 @@ def install():
     for name, version in expected.items():
         if importlib.metadata.version(name).split("+")[0] != version:
             raise RuntimeError(f"Unsupported adapter package {name}; required {version}")
+    install_diagnostic_hooks(selected_diagnostic)
     import torch
     from vllm.model_executor.layers.quantization.modelopt import ModelOptNvFp4FusedMoE
     from vllm.model_executor.layers.fused_moe.routed_experts import RoutedExperts
@@ -363,3 +366,8 @@ def install():
 
     Gemma4ForConditionalGeneration.forward = model_forward
     Gemma4ForConditionalGeneration.compute_logits = logits_forward
+
+    # Purpose-specific default-off observation; historical callbacks stay intact.
+    if os.environ.get("MEGARTX_PREFILL_NATIVE_PLAN") or os.environ.get("MEGARTX_PREFILL_NATIVE_DIR"):
+        from .prefill_native import install_native_observer
+        install_native_observer(torch, Gemma4ForConditionalGeneration)
