@@ -29,7 +29,7 @@ def profile_plan():
     return validate_plan(p)
 
 
-def synthetic_trace(lane):
+def synthetic_trace(lane, *, descriptor_contract=False):
     events, correlation = [], 0
     def cpu(name, start, duration, category="user_annotation", args=None):
         e = dict(ph="X", cat=category, name=name, ts=start, dur=duration, pid=100, tid=100, args=args or {})
@@ -55,11 +55,12 @@ def synthetic_trace(lane):
             cpu(f"megartx::m1_preparation_{lane}::language_model.model.layers.{layer}.moe.experts", begin, 5_000)
             cpu(f"megartx::m1_routed_{lane}", begin-10, 8_000)
             if layer < 6: cpu("megartx::correction_selection", begin+8_200, 10)
-            for i, size in enumerate([32,3072,2560,*[1024]*5,3072,2560,*[1024]*5]):
+            for i, size in enumerate([32] if descriptor_contract else [32,3072,2560,*[1024]*5,3072,2560,*[1024]*5]):
                 device("synthetic DtoH", "gpu_memcpy", begin+10+i*10, size)
             for i in range(7 if lane == "stock" else 6):
                 device("synthetic preparation kernel " + str(i), "kernel", begin+200+i*10)
-            for i in range(3): cpu("cudaStreamSynchronize", begin+300+i*10, 1, "cuda_runtime")
+            for i in range(1 if descriptor_contract else 3): cpu("cudaStreamSynchronize", begin+300+i*10, 1, "cuda_runtime")
+            if descriptor_contract: cpu("cudaPeekAtLastError",begin+350,1,"cuda_runtime")
             for i in range(10): cpu("cudaPointerGetAttributes", begin+400+i*10, 1, "cuda_runtime")
         for i in range(950): device("synthetic dense/head/sampler", "kernel", base+400_000+i*10)
     return {"deviceProperties":[dict(id=0,name="NVIDIA GeForce RTX 5090",computeMajor=12,computeMinor=0)], "traceEvents": events}
@@ -99,12 +100,12 @@ def write_profile_packet(root):
     traces = {}
     for lane in ("stock","fused"):
         traces[lane] = synthetic_trace(lane)
-        write(profile / (lane + ".json"), traces[lane])
+        write(profile / (lane + ".json"), synthetic_trace(lane,descriptor_contract=True))
         row = next(r for r in p["schedule"] if r["phase"]=="measurement" and r["case"]=="2048" and r["lane"]==lane)
         write(profile / (lane + "-scalars.json"), dict(lane=lane,decode_steps=4,request_id=row["id"],
               positions_relative_to_context=[0,1,2,3],source_head=p["source_head"],plan_sha256=p["plan_sha256"],timing_qualified=False,
               host_phases={k:dict(count=v,nanoseconds=123) for k,v in dict(native_runner=120,map_eligibility=0,map_dispatch=120,
-                    descriptor_readback_fence=240,descriptor_validation_enumeration=240).items()}))
+                    descriptor_readback_fence=0,descriptor_validation_enumeration=0).items()}))
     return p, {lane:diagnostic.operation_digest([e for e in t["traceEvents"] if e["cat"] in ("kernel","gpu_memcpy")])
                for lane,t in traces.items()}
 
@@ -173,8 +174,31 @@ class ProfileEvidenceTests(unittest.TestCase):
         result=self.admit();self.assertTrue(result["diagnostic_admission_passed"])
         for field in ("timing_qualified","performance_gate_passed","quality_qualified","graphs_qualified"):self.assertIs(result[field],False)
         self.assertEqual(result["compiler_unknown_or_work_identities"],1)
-        self.assertEqual(result["lanes"]["fused"]["preparation_d2h_copies"],1800)
+        self.assertEqual(result["lanes"]["fused"]["preparation_d2h_copies"],120)
         self.assertNotIn("nanoseconds",json.dumps(result));self.assertNotIn("elapsed",json.dumps(result))
+    def test_legacy_replay_is_unchanged_and_cannot_admit_candidate_counts(self):
+        for lane in ("stock","fused"):
+            legacy=synthetic_trace(lane)
+            result=diagnostic.validate_trace(legacy,lane)
+            self.assertEqual(result["preparation_d2h_copies"],1800)
+            self.assertEqual(result["preparation_stream_fences"],360)
+            with self.assertRaises(RuntimeError):
+                diagnostic.validate_trace(legacy,lane,descriptor_contract=True)
+            candidate=synthetic_trace(lane,descriptor_contract=True)
+            with self.assertRaises(RuntimeError):diagnostic.validate_trace(candidate,lane)
+            result=diagnostic.validate_trace(candidate,lane,descriptor_contract=True)
+            self.assertEqual(result["preparation_d2h_copies"],120)
+            self.assertEqual(result["preparation_stream_fences"],120)
+            self.assertEqual(result["preparation_pointer_queries"],1200)
+    def test_candidate_rejects_extra_copy_fence_or_missing_error_check(self):
+        for name in ("cudaMemcpyAsync","cudaStreamSynchronize","cudaPeekAtLastError"):
+            trace=synthetic_trace("stock",descriptor_contract=True)
+            e=next(e for e in trace["traceEvents"] if e["name"]==name)
+            if name=="cudaPeekAtLastError":trace["traceEvents"].remove(e)
+            else:
+                extra=copy.deepcopy(e);extra["args"]={};trace["traceEvents"].append(extra)
+            with self.subTest(name=name),self.assertRaises(RuntimeError):
+                diagnostic.validate_trace(trace,"stock",descriptor_contract=True)
     def test_resource_metadata_cleanup_or_old_failed_run_never_admits(self):
         for key,value in (("failure","latched resource breach"),("sampled_peak_compiler_rss_bytes",(2<<30)+1),
                 ("shared_compiler_elapsed_seconds",301),("compiler_rss_limit_bytes",4<<30),

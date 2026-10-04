@@ -429,11 +429,35 @@ class M1PreparationTests(unittest.TestCase):
             "docs/m1-warmed-timing-policy.md", "numerical_reference/test_m1_preparation_reference.py"})
         for path, expected in clock_resource["preserved_historical_ledgers"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),expected,path)
+        descriptor_path = root / "docs/evidence/m1-tma-descriptor-source-pins.json"
+        descriptor = json.loads(descriptor_path.read_text())
+        self.assertEqual(descriptor["schema"], "megartx-m1-tma-descriptor-source-pins-v1")
+        self.assertEqual(descriptor["parent_head"], "a135a11dc1669734059fd90d6bcb83b556d77e8d")
+        self.assertEqual(descriptor["parent_tree"], "7e699ebcf6412496fd14c8bd8b742cd30651a34b")
+        self.assertEqual(descriptor["parent_ledger_sha256"], hashlib.sha256(
+            (root / "docs/evidence/m1-warmed-evidence-source-pins.json").read_bytes()).hexdigest())
+        descriptor_changes = {r["path"]: r for r in descriptor["superseded_sources"]}
+        self.assertEqual(len(descriptor_changes),len(descriptor["superseded_sources"]))
+        self.assertEqual(set(descriptor_changes), {"probes/m1_live_bridge.cu", "scripts/build_m1_live_bridge.py",
+            "scripts/m1_decode_profile.py", "tests/test_m1_profile_admission.py",
+            "numerical_reference/test_m1_preparation_reference.py", "numerical_reference/test_m1_sf_layout_contract.py"})
+        self.assertEqual(set(descriptor["added_source_hashes"]), {"numerical_reference/test_m1_tma_descriptor_contract.py",
+            "probes/m1_tma_descriptor_flow_test.cpp", "numerical_reference/test_m1_tma_source_proof.py",
+            "docs/m1-tma-descriptor-contract.md", "docs/evidence/m1-tma-descriptor-cpu-proof.json"})
+        for field in ("native_build_verified", "gpu_execution_verified", "quality_qualified", "graphs_qualified", "performance_qualified"):
+            self.assertIs(descriptor[field],False)
+        for path, expected in descriptor["preserved_historical_ledgers"].items():
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(),expected,path)
+        def descriptor_current(path, previous):
+            if path in descriptor_changes:
+                self.assertEqual(descriptor_changes[path]["prior_sha256"],previous,path)
+                return descriptor_changes[path]["current_sha256"]
+            return previous
         def clock_resource_current(path, previous):
             if path in clock_resource_changes:
                 self.assertEqual(clock_resource_changes[path]["prior_sha256"],previous,path)
-                return clock_resource_changes[path]["current_sha256"]
-            return previous
+                previous = clock_resource_changes[path]["current_sha256"]
+            return descriptor_current(path,previous)
         def warmed_current(path, previous):
             if path in warmed_changes:
                 self.assertEqual(warmed_changes[path]["prior_sha256"],previous,path)
@@ -538,7 +562,30 @@ class M1PreparationTests(unittest.TestCase):
         for path, expected in warmed["added_source_hashes"].items():
             self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),clock_resource_current(path,expected),path)
         for path, record in clock_resource_changes.items():
-            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),record["current_sha256"],path)
+            self.assertEqual(hashlib.sha256((root / path).read_bytes()).hexdigest(),descriptor_current(path,record["current_sha256"]),path)
+        for path, record in descriptor_changes.items():
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(),record["current_sha256"],path)
+        for path, expected in descriptor["added_source_hashes"].items():
+            self.assertEqual(hashlib.sha256((root/path).read_bytes()).hexdigest(),expected,path)
+
+    def test_descriptor_overlay_rejects_mixed_source_history_and_unknown_files(self):
+        root=Path(__file__).resolve().parents[1]
+        ledger=root/"docs/evidence/m1-tma-descriptor-source-pins.json"
+        read_text=Path.read_text
+        for mutation in ("prior_sha256","current_sha256","parent_ledger_sha256","unknown_source","removed_source"):
+            def changed_text(path,*args,**kwargs):
+                data=read_text(path,*args,**kwargs)
+                if path==ledger:
+                    value=json.loads(data)
+                    if mutation in ("prior_sha256","current_sha256"):
+                        next(r for r in value["superseded_sources"] if r["path"]=="probes/m1_live_bridge.cu")[mutation]="0"*64
+                    elif mutation=="parent_ledger_sha256":value[mutation]="0"*64
+                    elif mutation=="unknown_source":value["added_source_hashes"]["unknown.cuh"]="0"*64
+                    elif mutation=="removed_source":value["superseded_sources"].pop()
+                    return json.dumps(value)
+                return data
+            with self.subTest(mutation=mutation),patch.object(Path,"read_text",changed_text),self.assertRaises(AssertionError):
+                self.test_committed_source_pins_match_exact_base_evidence()
 
     def test_warmed_evidence_overlay_cannot_relabel_prior_or_current_source(self):
         root = Path(__file__).resolve().parents[1]

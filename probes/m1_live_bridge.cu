@@ -488,12 +488,103 @@ template<> __attribute__((visibility("default"))) std::pair<Desc,Desc> Runner::s
       __nv_fp4_e2m1 const*,__nv_fp4_e2m1 const*,QuantParams,__nv_bfloat16 const*,
       __nv_bfloat16 const*,bool,MoeMinLatencyParams&,bool,int,MOEParallelismConfig,bool,cudaStream_t);
   auto original=reinterpret_cast<Original>(stock_symbol(M1_TMA_SETUP_SYMBOL));
+  // BEGIN M1 SOURCE-BOUND TMA INPUT CONTRACT
+  Desc expected_tables[2];
+  auto check_tables=[&](Desc const& d,int stage,bool prepared) {
+    auto const& e=expected_tables[stage];
+    require(d.shape_info.num_groups==128 && !d.shape_info.host_problem_shapes &&
+        d.shape_info.problem_shapes==e.shape_info.problem_shapes &&
+        d.stride_act==e.stride_act && d.stride_weight==e.stride_weight &&
+        d.ptr_act==e.ptr_act && d.ptr_weight==e.ptr_weight &&
+        d.stride_d==e.stride_d && d.ptr_d==e.ptr_d &&
+        d.alpha_scale_ptr_array==e.alpha_scale_ptr_array &&
+        d.fpX_block_scaling_factors_act==e.fpX_block_scaling_factors_act &&
+        d.fpX_block_scaling_factors_weight==e.fpX_block_scaling_factors_weight &&
+        d.fpX_block_scaling_factors_stride_act==e.fpX_block_scaling_factors_stride_act &&
+        d.fpX_block_scaling_factors_stride_weight==e.fpX_block_scaling_factors_stride_weight &&
+        d.ptr_c==(prepared?nullptr:e.ptr_c) && d.stride_c==(prepared?nullptr:e.stride_c) &&
+        d.gemm_workspace==e.gemm_workspace && d.gemm_workspace_size==e.gemm_workspace_size &&
+        !d.precomputed_scheduler_workspace && !d.precomputed_scheduler_workspace_size,
+        "actual TMA table bindings differ from retained stage workspace");
+  };
+  if(invocation && lease.qualified) {
+    require(pinned_callsite(__builtin_return_address(0)),"TMA setup caller is not pinned");
+    require(lease.expand_seen && stream==lease.stream,"consumer setup precedes preparation");
+    auto const& b=invocation->call.buffers;
+    auto const& q=invocation->call.quant;
+    require(rows==1 && expanded_rows==8 && hidden==2816 && unpadded==2816 &&
+        inter==704 && expert_count==128 && activation==ActivationType::Geglu &&
+        !bias1 && !bias2 && !minlat && !lora && !start && !pdl &&
+        parallel.tp_size==1 && parallel.ep_size==1 && parallel.cluster_size==1 &&
+        !parallel.tp_rank && !parallel.ep_rank && !parallel.cluster_rank &&
+        !quant.groupwise.fc1.act_scales && !quant.groupwise.fc2.act_scales &&
+        !quant.mxfp8_mxfp4.fc1.weight_block_scale && !quant.mxfp8_mxfp4.fc2.weight_block_scale &&
+        !quant.mxfp8_mxfp8.fc1.weight_block_scale && !quant.mxfp8_mxfp8.fc2.weight_block_scale &&
+        gemm1_config_ && gemm2_config_ && gemm1_config_->toString()==live_tactic &&
+        gemm2_config_->toString()==live_tactic,
+        "actual TMA setup geometry or mode differs");
+    require(input==b.aq && sf==b.sf && output==lease.views[4].pointer &&
+        w1==lease.views[7].pointer && w2==lease.views[8].pointer &&
+        quant.fp4.fc1.act_global_scale==q.fp4.fc1.act_global_scale &&
+        quant.fp4.fc1.weight_block_scale==q.fp4.fc1.weight_block_scale &&
+        quant.fp4.fc1.global_scale==q.fp4.fc1.global_scale &&
+        quant.fp4.fc2.act_global_scale==q.fp4.fc2.act_global_scale &&
+        quant.fp4.fc2.weight_block_scale==q.fp4.fc2.weight_block_scale &&
+        quant.fp4.fc2.global_scale==q.fp4.fc2.global_scale &&
+        quant.fp4.fc1.use_per_expert_act_scale==q.fp4.fc1.use_per_expert_act_scale &&
+        quant.fp4.fc2.use_per_expert_act_scale==q.fp4.fc2.use_per_expert_act_scale,
+        "actual TMA setup operands differ from retained owners");
+    auto region=[&](char const* name,size_t bytes) {
+      auto r=invocation->regions.at(name);
+      require(r.second<=lease.views[5].bytes && r.first<=lease.views[5].bytes-r.second &&
+          bytes<=r.first,"TMA workspace region exceeds retained owner");
+      return static_cast<unsigned char*>(lease.views[5].pointer)+r.second;
+    };
+    auto scratch=region("gemm_workspace",1);
+    for(int stage=0;stage<2;++stage) {
+      auto tables=region(stage?"tma_ws_gemm2_workspace":"tma_ws_gemm1_workspace",
+          Desc::workspaceSize(128,Desc::FpXBlockScalingType::NVFP4));
+      // This pinned host routine only partitions addresses. It neither reads nor
+      // writes device memory; every result belongs to this fresh retained lease.
+      expected_tables[stage].configureWorkspace(reinterpret_cast<int8_t*>(tables),128,
+          scratch,invocation->regions.at("gemm_workspace").first,nullptr,0,
+          Desc::FpXBlockScalingType::NVFP4);
+      check_tables(stage?tma_ws_grouped_gemm2_input_:tma_ws_grouped_gemm1_input_,stage,false);
+    }
+    auto inputs=region("overlapped_gemm1_gemm2_inputs",8*1408);
+    auto outputs=region("overlapped_gemm1_gemm2_outputs",8*2816*2);
+    require(permuted_data_==reinterpret_cast<__nv_fp4_e2m1*>(inputs) &&
+        fc1_result_==reinterpret_cast<__nv_fp4_e2m1*>(inputs) &&
+        glu_inter_result_==outputs && fc2_result_==outputs &&
+        expert_first_token_offset_==b.offsets &&
+        fc1_fp4_act_scale_==b.expanded_sf && fc2_fp4_act_scale_==b.expanded_sf,
+        "actual TMA producer workspace bindings differ");
+  }
+  // END M1 SOURCE-BOUND TMA INPUT CONTRACT
   auto result=original(this,rows,expanded_rows,activation,hidden,unpadded,inter,expert_count,
       input,sf,output,w1,w2,quant,bias1,bias2,minlat,mp,lora,start,parallel,pdl,stream);
   if(!invocation || !lease.qualified)return result;
   require(pinned_callsite(__builtin_return_address(0)),"TMA setup caller is not pinned");
   require(lease.expand_seen && stream==lease.stream,"consumer setup precedes preparation");
-  // Descriptor checks remain mandatory in both execution modes. These D2H
+  // BEGIN M1 SOURCE-BOUND TMA OUTPUT CONTRACT
+  // The provider's device entries are trusted only in observer-off execution.
+  // This is not a device-completion check. Prior/pending launch errors still
+  // propagate before GEMM; asynchronous faults may surface at a later boundary.
+  mx::require_cuda_success(cudaPeekAtLastError(),"native TMA setup launch");
+  for(int stage=0;stage<2;++stage) {
+    auto const& d=stage?result.second:result.first;
+    check_tables(d,stage,true);
+    require(d.fpX_block_scaling_type==Desc::FpXBlockScalingType::NVFP4 &&
+        d.fusion==Desc::EpilogueFusion::NONE && !d.enable_pdl && !d.swap_ab &&
+        !d.int4_groupwise_params.enabled && !d.int4_groupwise_params.use_wfp4a16 &&
+        d.shape_info.num_groups==128 &&
+        !d.shape_info.host_problem_shapes && d.precomputed_scheduler_total_routed_tokens==8,
+        "unqualified actual TMA host descriptor");
+
+  }
+  if(!lease.capture_enabled && !lease.observer)return result;
+  // END M1 SOURCE-BOUND TMA OUTPUT CONTRACT
+  // Diagnostic descriptor checks remain mandatory. These D2H
   // copies and fences stay fresh. Only the source-invariant dense-layout proof
   // is reused; captured/observer diagnostics also enumerate each actual layout.
   using Shape=Desc::ProblemShape::UnderlyingProblemShape;
