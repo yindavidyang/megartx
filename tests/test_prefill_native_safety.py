@@ -119,7 +119,11 @@ class FrameReview(unittest.TestCase):
 
 class Provider:
     def __init__(self,runner,*unused):
-        self.access=NS(_runner=runner,model=runner.model,builders={id(runner.builder):(runner.builder,0,())})
+        from megartx.loaded_engine_access import MetadataBuilderOwnership
+        ownership=MetadataBuilderOwnership(runner)
+        records={id(group.metadata_builders[0]):(group.metadata_builders[0],gid,tuple(group.layer_names))
+                 for gid,members in enumerate(runner.attn_groups) for group in members}
+        self.access=NS(_runner=runner,model=runner.model,builders=records,builder_ownership=ownership)
         self.failed=False;self.log=[];self.scratch=NS(scope=lambda phase:nullcontext())
     def prepare_inputs(self,result): self.log.append('prepare')
     def prepare_attn(self,*args):self.log.append('attention')
@@ -130,6 +134,12 @@ class Provider:
     def abort(self): self.failed=True;self.log.append('abort')
 
 def hook_fixture():
+    class AttentionGroup:
+        def __init__(self, builder):
+            self.metadata_builders, self.layer_names = [builder], ['layer-0']
+            self.kv_cache_group_id = 0
+        def get_metadata_builder(self, ubatch_id=0):
+            return self.metadata_builders[ubatch_id]
     class Builder:
         def build(self,*a,**kw):
             if getattr(self,'error',None): raise self.error
@@ -142,6 +152,7 @@ def hook_fixture():
     class Runner:
         def __init__(self,vllm_config):
             self.model,self.builder,self.vllm_config=Model(),Builder(),vllm_config
+            self.attn_groups = [[AttentionGroup(self.builder)]]
         def initialize_kv_cache(self,*a,**kw): return 'initialized'
         def get_model(self): return self.model
         def execute_model(self,*a,**kw):return object()
@@ -156,11 +167,12 @@ def hook_fixture():
             return output,output.num_sampled,output.num_rejected
     modules={}
     for name in ('vllm','vllm.v1','vllm.v1.worker','vllm.v1.worker.gpu','vllm.v1.worker.gpu.model_runner','vllm.v1.worker.gpu_model_runner',
-                 'vllm.v1.attention','vllm.v1.attention.backends','vllm.v1.attention.backends.flashinfer'):
+                 'vllm.v1.attention','vllm.v1.attention.backends','vllm.v1.attention.backends.flashinfer','vllm.v1.worker.utils'):
         modules[name]=ModuleType(name)
     modules['vllm.v1.worker.gpu.model_runner'].GPUModelRunner=Runner
     modules['vllm.v1.worker.gpu_model_runner'].GPUModelRunner=type('RejectedRunner',(),{})
     modules['vllm.v1.attention.backends.flashinfer'].FlashInferMetadataBuilder=Builder
+    modules['vllm.v1.worker.utils'].AttentionGroup=AttentionGroup
     return modules,Runner,Model
 
 class HookReview(unittest.TestCase):

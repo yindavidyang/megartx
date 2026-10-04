@@ -97,6 +97,13 @@ function identity for every runner hook, the loaded model's forward/head and
 every retained owned metadata builder. Class checks remain in force; the runner
 must still return the original loaded model and the owned builder set cannot be
 empty. These checks run during provider creation and every active admission.
+The selected-builder follow-up also retains the actual attention-group tree,
+ordered group identities, group IDs and layer membership, singleton builder
+lists, and source-bound getter callbacks. Admission reconciles the runner's
+current selections with the complete retained builder set before dispatch;
+replacement, removal, addition, reordering and getter/mapping drift fail before
+metadata work. A replaced getter is rejected without being invoked. This closes
+the case where an intact cached builder concealed a different selected builder.
 Any rejection or interruption poisons and aborts the provider while preserving
 the primary error, including when abort fails. CPU replacements are rejection
 controls only; the corrected guard still requires independent final review.

@@ -4,6 +4,7 @@ import inspect
 import os
 from pathlib import Path
 import sys
+from types import MethodType
 
 from .controlled_kv_capture import CONFIG_SHA256, SOURCE_HASHES
 from .prefill_diagnostic_plan import INSTALLED, REVISION, file_sha, checkpoint_identity, digest
@@ -67,6 +68,75 @@ def reject_page_alias(regions):
         previous = current
 
 
+class MetadataBuilderOwnership:
+    """Retain the exact eager dispatch structure, not just a builder cache."""
+    def __init__(self, runner):
+        from vllm.v1.worker.utils import AttentionGroup
+        self.group_type, self.getter = AttentionGroup, AttentionGroup.get_metadata_builder
+        self.root = runner.attn_groups
+        if type(self.root) is not list or not self.root:
+            raise RuntimeError("Actual attention-group ownership is absent")
+        groups, seen_groups, seen_builders, seen_layers = [], set(), set(), set()
+        for gid, members in enumerate(self.root):
+            if type(members) is not list:
+                raise RuntimeError("Actual attention-group members must be a list")
+            retained = []
+            for group in members:
+                if type(group) is not AttentionGroup or id(group) in seen_groups:
+                    raise RuntimeError("Unknown or repeated actual attention group")
+                callback = getattr(group, 'get_metadata_builder', None)
+                builders, layers = group.metadata_builders, group.layer_names
+                if (type(callback) is not MethodType or callback.__self__ is not group
+                        or callback.__func__ is not self.getter
+                        or type(group.kv_cache_group_id) is not int or group.kv_cache_group_id != gid
+                        or type(builders) is not list or len(builders) != 1
+                        or type(layers) is not list or not layers
+                        or any(type(name) is not str or not name for name in layers)
+                        or len(set(layers)) != len(layers) or seen_layers.intersection(layers)):
+                    raise RuntimeError("Actual metadata-builder selection is unsupported")
+                builder = builders[0]
+                if callback(0) is not builder or id(builder) in seen_builders:
+                    raise RuntimeError("Repeated or changed selected metadata builder")
+                retained.append((group, builders, builder, layers, tuple(layers)))
+                seen_groups.add(id(group)); seen_builders.add(id(builder)); seen_layers.update(layers)
+            groups.append((members, tuple(retained)))
+        if not seen_builders:
+            raise RuntimeError("Selected metadata-builder ownership is empty")
+        self.groups = tuple(groups)
+        self.builder_ids = frozenset(seen_builders)
+
+    def matches(self, runner, builders):
+        """Reject owner/mapping/getter drift before executing metadata work."""
+        if (runner.attn_groups is not self.root or type(self.root) is not list
+                or len(self.root) != len(self.groups)
+                or self.group_type.get_metadata_builder is not self.getter
+                or type(builders) is not dict or set(builders) != self.builder_ids):
+            return False
+        for gid, (members, retained) in enumerate(self.groups):
+            if self.root[gid] is not members or type(members) is not list or len(members) != len(retained):
+                return False
+            for index, (group, selected, builder, layers, names) in enumerate(retained):
+                callback = getattr(group, 'get_metadata_builder', None)
+                if (members[index] is not group or type(group) is not self.group_type
+                        or type(group.kv_cache_group_id) is not int or group.kv_cache_group_id != gid
+                        or group.metadata_builders is not selected or type(selected) is not list
+                        or len(selected) != 1 or selected[0] is not builder
+                        or group.layer_names is not layers or type(layers) is not list
+                        or tuple(layers) != names
+                        or type(callback) is not MethodType or callback.__self__ is not group
+                        or callback.__func__ is not self.getter):
+                    return False
+                # Invoke only the unchanged source-bound getter, never an
+                # instance replacement, and reconcile its actual selection.
+                if callback(0) is not builder:
+                    return False
+                record = builders[id(builder)]
+                if (type(record) is not tuple or len(record) != 3 or record[0] is not builder
+                        or type(record[1]) is not int or record[1] != gid or record[2] != names):
+                    return False
+        return True
+
+
 class LoadedEngineAccess:
     """Checked loaded runner identity/metadata, with no allocation or lease API."""
     def __init__(self, runner, model, torch_module):
@@ -119,6 +189,7 @@ class LoadedEngineAccess:
             raise RuntimeError("Native observation requires exact synchronous eager configuration")
         self.registry = config.compilation_config.static_forward_context
         self.groups, self.builders, self.common = {}, {}, {}
+        self.builder_ownership = MetadataBuilderOwnership(runner)
         self.input_batch, self.block_tables, self.slot_mappings = None, None, None
         for gid, group in enumerate(runner.kv_cache_config.kv_cache_groups):
             if group.host_resident or group.is_eagle_group:

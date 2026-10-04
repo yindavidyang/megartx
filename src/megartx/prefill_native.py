@@ -702,6 +702,7 @@ def install_native_observer(torch, model_cls):
         'sample': lambda p: GPUModelRunner.sample is sampled
             and bound(p.access._runner, 'sample', sampled),
         'metadata_build': lambda p: FlashInferMetadataBuilder.build is built
+            and p.access.builder_ownership.matches(p.access._runner, p.access.builders)
             and bool(p.access.builders) and all(id(record[0]) == key
                 and bound(record[0], 'build', built) for key, record in p.access.builders.items()),
         'model_forward': lambda p: model_cls.forward is forward and owned_model(p)

@@ -161,18 +161,28 @@ class DispatchGate(unittest.TestCase):
 
 class BoundHookIdentityTests(unittest.TestCase):
     @contextmanager
-    def fixture(self, before_cache=None, records=None):
+    def fixture(self, before_cache=None, records=None, metadata_dispatch=None, metadata_getter=None):
         # Actual installer/guards; substituted model and cache boundaries only.
         modules, runner_cls, model_cls = hook_fixture()
         effects = []
         model_cls.forward = lambda self, *args: effects.append('model-work')
-        runner_cls.execute_model = lambda self, output: self.model.forward([], [])
+        if metadata_getter is not None:
+            modules['vllm.v1.worker.utils'].AttentionGroup.get_metadata_builder = metadata_getter
+        if metadata_dispatch is not None:
+            modules['vllm.v1.attention.backends.flashinfer'].FlashInferMetadataBuilder.build = \
+                lambda self, *args, **kwargs: effects.append('metadata-work') or object()
+        def execute(runner, output):
+            if metadata_dispatch is not None:
+                metadata_dispatch(runner)
+            return runner.model.forward([], [])
+        runner_cls.execute_model = execute
         records = [] if records is None else records
         class BoundaryProvider(Provider):
             require_hooks = NativeProvider.require_hooks
             active = NativeProvider.active
             def __init__(self, runner, plan, directory, torch, checks):
                 super().__init__(runner)
+                self.access.record_metadata = lambda *args: self.log.append('record-metadata')
                 self.plan, self.directory, self.hook_checks = plan, Path(directory), checks
                 self.adapter_sources = {}
                 self.deadline = time.time() + 30
