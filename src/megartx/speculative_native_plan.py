@@ -26,7 +26,17 @@ COLLECTOR_GUARD = {
     "independent_review_reference": "task-5/review-bounded-summary.json; exact b9f8 correction",
     "parent_scope_acceptance_reference": "parent-thread:01a0f166-1f28-7799-9a66-c30c5c758028; prospective monitored native counter query; no hard heap bound or GPU authorization"}
 PREFLIGHT_BLOCKERS = ["shared_plugin_registration_and_evidence_hook_not_integrated",
-                      "collector_distribution_runtime_version_contract_pending_committed_correction"]
+                      "collector_distribution_runtime_version_contract_pending_committed_correction",
+                      "active_runner_selection_requires_reviewed_V1_binding_without_silent_override"]
+RUNNER_SELECTION_SOURCES = {
+    "vllm/config/vllm.py": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+    "vllm/envs.py": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f"}
+RUNNER_BINDING = {
+    "expected_model_runner_class": "vllm.v1.worker.gpu_model_runner.GPUModelRunner",
+    "resolved_config_requirement": "use_v2_model_runner_is_False_before_EngineCoreClient_make_client",
+    "runner_environment_override": None, "actual_loaded_runner_identity": None,
+    "automatic_selection_source": "V2_when_Triton_and_no_unsupported_features",
+    "selection_source_sha256": RUNNER_SELECTION_SOURCES}
 TORCH_VERSION_SOURCE_SHA256 = "d7662da37d4b8b037c81e7ae20381a43893b379facf17988a6d4f17a93265140"
 BASE = Path("/home/yyang/projects/megartx-baseline-20260930")
 PYTHON = str(BASE / ".venv/bin/python")
@@ -194,6 +204,7 @@ def freeze(project, *, client_mode="async"):
               "installed_client_sources": CLIENT_SOURCES, "checkpoint_revision": REVISION,
               "python": PYTHON, "installed_root": str(SITE), "model": MODEL,
               "client_mode": client_mode, "engine_kwargs": engine_kwargs(), "engine_argv": engine_argv(),
+              "runner_binding": RUNNER_BINDING,
               "limits": LIMITS, "gpu_authorized": False, "target_probe_authorized": False,
               "collector_materialization_guard": COLLECTOR_GUARD,
               "preflight_blockers": PREFLIGHT_BLOCKERS}
@@ -207,7 +218,7 @@ def validate_plan(plan, project):
     if set(plan) != {"schema", "purpose", "reviewed_lifecycle_commit", "source_head", "source_sha256",
                     "installed_client_sources", "checkpoint_revision", "python", "installed_root", "model",
                     "client_mode", "engine_kwargs", "engine_argv", "limits", "gpu_authorized",
-                    "target_probe_authorized", "collector_materialization_guard", "preflight_blockers", "plan_sha256"}:
+                    "target_probe_authorized", "collector_materialization_guard", "preflight_blockers", "plan_sha256", "runner_binding"}:
         raise ProbeError("Unexpected plan field")
     expected = freeze(project, client_mode=plan["client_mode"])
     if plan != expected:
@@ -219,7 +230,7 @@ def installed_preflight(root):
     from .speculative_native_probe import inspect_sources
     from .speculative_native_receipt import FFI_SOURCES, TORCH_MEMORY_SOURCE_SHA256
     result = inspect_sources(root)
-    for path, expected in {**CLIENT_SOURCES, **FFI_SOURCES, "torch/cuda/memory.py": TORCH_MEMORY_SOURCE_SHA256}.items():
+    for path, expected in {**CLIENT_SOURCES, **FFI_SOURCES, **RUNNER_SELECTION_SOURCES, "torch/cuda/memory.py": TORCH_MEMORY_SOURCE_SHA256}.items():
         actual = hash_file(Path(root) / path, 1 << 20)
         if actual != expected:
             raise ProbeError("Installed source changed: " + path)

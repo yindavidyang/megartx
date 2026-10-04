@@ -23,7 +23,8 @@
     "target_probe_authorized",
     "collector_materialization_guard",
     "preflight_blockers",
-    "plan_sha256"
+    "plan_sha256",
+    "runner_binding"
   ],
   "properties": {
     "schema": {
@@ -300,12 +301,26 @@
     "preflight_blockers": {
       "const": [
         "shared_plugin_registration_and_evidence_hook_not_integrated",
-        "collector_distribution_runtime_version_contract_pending_committed_correction"
+        "collector_distribution_runtime_version_contract_pending_committed_correction",
+        "active_runner_selection_requires_reviewed_V1_binding_without_silent_override"
       ]
     },
     "plan_sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "runner_binding": {
+      "const": {
+        "expected_model_runner_class": "vllm.v1.worker.gpu_model_runner.GPUModelRunner",
+        "resolved_config_requirement": "use_v2_model_runner_is_False_before_EngineCoreClient_make_client",
+        "runner_environment_override": null,
+        "actual_loaded_runner_identity": null,
+        "automatic_selection_source": "V2_when_Triton_and_no_unsupported_features",
+        "selection_source_sha256": {
+          "vllm/config/vllm.py": "956b812e5a719bcbfa3a3958801361b38b9c928c96b8c073311bbb96376dfb7a",
+          "vllm/envs.py": "fbd370b2f56ff798d373e85705c9e044ccae893ef974f2800eec4ef6f2b4fb7f"
+        }
+      }
     }
   },
   "$comment": "Python validation additionally requires exact committed clean source, reviewed lifecycle ancestry and canonical plan digest; this schema conveys no execution approval."

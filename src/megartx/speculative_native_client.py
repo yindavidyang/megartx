@@ -156,17 +156,28 @@ class ReceiptSession:
             self._shutdown(primary)
 
 
+def validate_actual_config(config):
+    """Observe resolved selection; never select/override another runner."""
+    selected = config.use_v2_model_runner
+    if selected is not False:
+        raise ProbeError("Resolved V2/unknown runner is outside the pinned V1 receipt; no runner override applied")
+    if (config.scheduler_config.async_scheduling is not False
+            or config.parallel_config.world_size != 1
+            or config.cache_config.enable_prefix_caching
+            or config.speculative_config is not None):
+        raise ProbeError("Resolved actual EngineCore configuration differs")
+    return {"use_v2_model_runner": False,
+            "expected_runner_class": "vllm.v1.worker.gpu_model_runner.GPUModelRunner",
+            "actual_loaded_runner_identity": None}
+
+
 def make_actual_client(plan):
     """Runtime-only. The supervisor must admit resources BEFORE this call."""
     from vllm.engine.arg_utils import EngineArgs
     from vllm.v1.executor.abstract import Executor
     from vllm.v1.engine.core_client import EngineCoreClient, SyncMPClient, AsyncMPClient
     config = EngineArgs(**plan["engine_kwargs"]).create_engine_config()
-    if (config.scheduler_config.async_scheduling is not False
-            or config.parallel_config.world_size != 1
-            or config.cache_config.enable_prefix_caching
-            or config.speculative_config is not None):
-        raise ProbeError("Resolved actual EngineCore configuration differs")
+    validate_actual_config(config)
     client = EngineCoreClient.make_client(multiprocess_mode=True,
         asyncio_mode=plan["client_mode"] == "async", vllm_config=config,
         executor_class=Executor.get_class(config), log_stats=False, renderer=None)

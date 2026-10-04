@@ -525,7 +525,8 @@ class SourceAndOperationalControls(unittest.TestCase):
         from megartx import speculative_native_plan as plan
         from megartx import speculative_native_probe as probe
         from megartx.speculative_native_receipt import TORCH_MEMORY_SOURCE_SHA256
-        hashes = {**CLIENT_SOURCES, **FFI_SOURCES, "torch/cuda/memory.py": TORCH_MEMORY_SOURCE_SHA256}
+        hashes = {**CLIENT_SOURCES, **FFI_SOURCES, **plan.RUNNER_SELECTION_SOURCES,
+                  "torch/cuda/memory.py": TORCH_MEMORY_SOURCE_SHA256}
         def file_hash(path, cap):
             return next(value for name, value in hashes.items() if str(path).endswith(name))
         dist = [NS(metadata={"Name": name}, version=version) for name, version in
@@ -539,6 +540,39 @@ class SourceAndOperationalControls(unittest.TestCase):
             dist.append(NS(metadata={"Name": "torch"}, version="2.13.0"))
             with self.assertRaisesRegex(ProbeError, "metadata differs"):
                 plan.installed_preflight(Path("fixture-site"))
+
+    def test_resolved_runner_unknown_or_V2_rejected_without_override(self):
+        from megartx.speculative_native_client import validate_actual_config
+        config = NS(scheduler_config=NS(async_scheduling=False), parallel_config=NS(world_size=1),
+                    cache_config=NS(enable_prefix_caching=False), speculative_config=None)
+        for value in (True, None, 0):
+            config.use_v2_model_runner = value
+            with self.assertRaisesRegex(ProbeError, "no runner override applied"):
+                validate_actual_config(config)
+            self.assertIs(config.use_v2_model_runner, value)
+        config.use_v2_model_runner = False
+        observed = validate_actual_config(config)
+        self.assertIsNone(observed["actual_loaded_runner_identity"])
+
+    def test_runner_guard_precedes_actual_engine_constructor(self):
+        import ast
+        source = (ROOT / "src/megartx/speculative_native_client.py").read_text()
+        tree = ast.parse(source)
+        factory = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "make_actual_client")
+        calls = [node for node in ast.walk(factory) if isinstance(node, ast.Call)]
+        guard = next(node for node in calls if isinstance(node.func, ast.Name) and node.func.id == "validate_actual_config")
+        creator = next(node for node in calls if isinstance(node.func, ast.Attribute) and node.func.attr == "make_client")
+        self.assertLess(guard.lineno, creator.lineno)
+        env = environment(ROOT, Path("/tmp/private-receipt"))
+        self.assertNotIn("VLLM_USE_V2_MODEL_RUNNER", env)
+        from megartx.speculative_native_plan import RUNNER_BINDING
+        self.assertIsNone(RUNNER_BINDING["runner_environment_override"])
+
+    def test_plan_schema_freezes_active_runner_policy_and_new_observations(self):
+        from megartx.speculative_native_plan import RUNNER_BINDING, RUNNER_SELECTION_SOURCES
+        schema = read_json(ROOT / "schemas/speculative-native-receipt-client-plan.schema.json", 256 << 10)
+        self.assertEqual(schema["properties"]["runner_binding"]["const"], RUNNER_BINDING)
+        self.assertEqual(len(RUNNER_SELECTION_SOURCES), 2)
 
 
 def private_fixture():

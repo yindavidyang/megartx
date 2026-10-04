@@ -80,6 +80,21 @@ are frozen in `speculative_native_plan.CLIENT_SOURCES`; no runtime imports were
 used to obtain them. The asynchronous frontend transport still uses
 `async_scheduling=False` in the actual EngineCore configuration.
 
+Read-only inspection after the prefill startup finding identified a separate
+runner-selection requirement. The installed `VllmConfig.use_v2_model_runner`
+property defaults to V2 when Triton and supported features are present;
+`Worker` then constructs `vllm.v1.worker.gpu.model_runner.GPUModelRunner`.
+The pinned native receipt binds the older
+`vllm.v1.worker.gpu_model_runner.GPUModelRunner`. This client observes the
+resolved property and rejects V2/unknown selection **before**
+`EngineCoreClient.make_client`, rather than waiting for receipt entry after
+model startup. It does not set `VLLM_USE_V2_MODEL_RUNNER=0` or force another
+runner. `runner_binding` freezes this requirement and the newly inspected
+selection-source hashes separately from historical native source pins. Actual
+loaded runner identity remains unavailable before startup. Active runner
+selection/source admission requires review before any live receipt; the prefill
+failure is not treated as proof this distinct worker extension is broken.
+
 The only admitted utility sequence is:
 
 ```python
@@ -211,9 +226,9 @@ The child applies an 8 MiB kernel per-file bound to startup evidence before
 imports. A 64 MiB run evidence disk reserve is separate from these RAM/GPU limits
 and is not an allocation-coverage claim.
 
-The shared registration/evidence-hook integration and a committed collector
-distribution/runtime-version distinction are the remaining frozen source
-blockers in this branch. Read-only installed metadata reports Torch distribution
+The shared registration/evidence-hook integration, a committed collector
+distribution/runtime-version distinction, and reviewed active runner selection
+are the remaining frozen source blockers in this branch. Read-only installed metadata reports Torch distribution
 `2.13.0`; the pinned `torch/version.py` reports runtime `2.13.0+cu130` and CUDA
 `13.0`. The new preflight checks both domains independently without importing
 Torch. The original collector metadata check expects the runtime tag in
