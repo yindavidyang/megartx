@@ -13,7 +13,7 @@
     "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962"
   },
   "previous_runtime_commit": "090dcc5fcdd42d32eb4005683a26a4932a98380b",
-  "runtime_commit": "da89187e3fb1752a01d27b678c67b41b23dd9ff5",
+  "runtime_commit": "b28c4387bf2fbcd6f49905540750e6a4c5818e7c",
   "schema": "megartx-prefill-native-numerical-lineage-v1",
   "scope": "CPU source lineage extension only; numerical oracle behavior unchanged",
   "superseded_sources": [

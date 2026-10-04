@@ -27,10 +27,11 @@
     "required retained query mappings",
     "prepare/build BaseException poison",
     "aggregate GPU scratch domains",
-    "actual imported adapter origins and bytes"
+    "actual imported adapter origins and bytes",
+    "preserve run-wide allocated/reserved peaks across global counter resets"
   ],
-  "runtime_commit": "da89187e3fb1752a01d27b678c67b41b23dd9ff5",
-  "runtime_tree": "e148cc712f137a1921f3218c4a6a84efdb811248",
+  "runtime_commit": "b28c4387bf2fbcd6f49905540750e6a4c5818e7c",
+  "runtime_tree": "47427af376524ba692d583f346b3a2a5eac1422b",
   "schema": "megartx-prefill-native-source-reconciliation-v1",
   "scope": "exact_cpu_source_compatibility_only",
   "unchanged": [

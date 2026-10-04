@@ -116,8 +116,15 @@ is the only explicitly allocated observer GPU tensor (at most32768bytes for
 two rows, eight KV heads and global K/V dimension1024). Aggregate simultaneous
 managed tensor reservations are checked before allocation. Each callback first
 synchronizes, captures incumbent allocated bytes and resets CUDA allocator peak
-counters; after synchronization its incremental peak, including framework
-temporaries, is checked against8MiB. A measured overflow fails the diagnostic
+counters. These are process/device-global counters: before every reset, after
+each callback, at each memory receipt and after the final sampler, the provider
+preserves both allocated and reserved maxima in an explicit run-wide ledger.
+The maximum across all prior startup/model/sampler phases and observer scopes
+is retained even when a later scope's current allocation is smaller or raises.
+The receipt reports this preservation policy; original CUDA global counters
+have been reset, so this mode is exclusive of other profiling/peak consumers.
+After synchronization each scope's allocated and reserved increments, including
+framework temporaries and new cached pool growth, are checked against8MiB. A measured overflow fails the diagnostic
 and prevents fit publication. This counter instrumentation cannot provide a
 performance baseline. Native model/cache/hidden/logit allocations already live
 at callback entry are the separately recorded incumbent baseline. The head
