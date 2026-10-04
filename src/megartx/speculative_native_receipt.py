@@ -15,7 +15,7 @@ import sys
 
 from .speculative_native_probe import (CONFIG_HASH, GPU_CAP, GPU_FREE, HOST_FREE,
     P, REVISION, ProbeError, _class_source, _host_free, _integer, _process_start,
-    allocation_lower_bound, digest, inspect_sources)
+    allocation_lower_bound, check_torch_build, digest, inspect_sources)
 
 FFI_SOURCES = {
     "tvm_ffi/include/dlpack/dlpack.h": "62052bef24bd69bb7b52e95428f9e99bd7951783850c36c5f2a41e71fd63c2fc",
@@ -398,10 +398,11 @@ def collect_receipt(runner, ticket, admission):
     if digest(site_root / "torch/cuda/memory.py") != TORCH_MEMORY_SOURCE_SHA256:
         raise ProbeError("Installed allocator counter source differs")
     import importlib.metadata
-    for package, version in (("vllm", "0.30.0"), ("flashinfer-python", "0.6.18.post1"), ("torch", "2.13.0+cu130")):
+    for package, version in (("vllm", "0.30.0"), ("flashinfer-python", "0.6.18.post1")):
         if importlib.metadata.version(package) != version:
             raise ProbeError("Installed package differs: " + package)
     import torch
+    torch_build = check_torch_build(site_root, torch)
     if (not torch.is_inference_mode_enabled() or runner.input_batch.num_reqs
             or not runner.model_config.enforce_eager or runner.parallel_config.world_size != 1
             or runner.cache_config.cache_dtype != "bfloat16"):
@@ -499,6 +500,7 @@ def collect_receipt(runner, ticket, admission):
         "workspaces": existing_workspaces(runner, torch), "ffi_allocator": ffi_allocator_identity(torch, site_root),
         "allocation_lower_bound": allocation, "allocator": allocator,
         "allocator_counter_source_sha256": TORCH_MEMORY_SOURCE_SHA256,
+        "torch_build_identity": torch_build,
         "metadata_acquisition_limits": dict(RECEIPT_LIMITS),
         "gpu_free_bytes": gpu_free, "gpu_total_bytes": gpu_total, "host_free_bytes": _host_free(),
         "external_gpu_workspace_bound_bytes": None,
