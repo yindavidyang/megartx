@@ -1,0 +1,31 @@
+{
+  "schema": "megartx-native-receipt-client-cpu-validation-v1",
+  "reviewed_lifecycle_base": "95f31095f94d254b79c6620a046ccdffce712941",
+  "collector_correction_to_compose": "b9f8e95e9483daa7be263e3a02a1b6a63ab09844",
+  "collector_correction_review": "pending_independent_review",
+  "focused_cpu_tests": 55,
+  "full_cpu_tests": 394,
+  "full_cpu_skipped": 1,
+  "independent_reference_tests": 513,
+  "installed_client_source_observations": {
+    "vllm/v1/engine/core_client.py": "fd6ca0cb7499b3086eef2fc57674b7ace56ef1c648f09e92e144b255b79018f8",
+    "vllm/engine/arg_utils.py": "ead004ca266419cd25f54a7aefc0e20e1eb046f363b7f5cc977e14f52ee44bb1",
+    "vllm/v1/executor/abstract.py": "97791426b549e4447c967f8b8e668c2e376c6a75fa7091fd9df11bc9dafb65f7"
+  },
+  "validation": [
+    "CPU fault and receipt metadata tests",
+    "full repository CPU unittest suite",
+    "independent numerical reference suite",
+    "configuration validation",
+    "compileall",
+    "python -S import and CLI help controls",
+    "git whitespace checks"
+  ],
+  "native_executed": false,
+  "diagnostic_target_forwards": 0,
+  "model_runtime_imports": 0,
+  "GPU_queries_or_jobs": 0,
+  "shared_plugin_launcher_edited": false,
+  "publication": "code/docs and sanitized CPU scalar evidence only",
+  "claim_limit": "CPU fixtures and installed-source inspection only; no native owner, fit, allocation coverage, correctness, quality or speed admission. Shared integration, collector correction review and parent GPU slot remain closed."
+}

@@ -1,0 +1,298 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "megartx-native-receipt-client-plan-v1",
+  "title": "Source-bound first zero-forward receipt proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "purpose",
+    "reviewed_lifecycle_commit",
+    "source_head",
+    "source_sha256",
+    "installed_client_sources",
+    "checkpoint_revision",
+    "python",
+    "installed_root",
+    "model",
+    "client_mode",
+    "engine_kwargs",
+    "engine_argv",
+    "limits",
+    "gpu_authorized",
+    "target_probe_authorized",
+    "collector_materialization_guard",
+    "preflight_blockers",
+    "plan_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "megartx-native-receipt-client-plan-v1"
+    },
+    "purpose": {
+      "const": "first_zero_forward_layout_workspace_measurement"
+    },
+    "reviewed_lifecycle_commit": {
+      "const": "95f31095f94d254b79c6620a046ccdffce712941"
+    },
+    "source_head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "source_sha256": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "src/megartx/speculative_native_plan.py",
+        "src/megartx/speculative_native_client.py",
+        "src/megartx/speculative_native_evidence.py",
+        "src/megartx/speculative_native_compare.py",
+        "scripts/speculative_native_receipt_client.py",
+        "scripts/speculative_native_receipt_preflight.py",
+        "scripts/speculative_native_receipt_compare.py",
+        "scripts/m1_owned_processes.py",
+        "src/megartx/speculative_native_lifecycle.py",
+        "src/megartx/speculative_native_receipt.py",
+        "src/megartx/speculative_native_probe.py",
+        "pyproject.toml",
+        "docs/design/speculative-native-zero-forward-protocol.json",
+        "docs/design/speculative-native-protocol.json",
+        "docs/evidence/speculative-native-source-binding.json",
+        "schemas/speculative-native-receipt-client-plan.schema.json",
+        "schemas/speculative-native-receipt-authorization.schema.json",
+        "src/megartx/vllm_scale_plugin.py",
+        "src/megartx/nvfp4_integration.py",
+        "src/megartx/nvfp4_runtime.py",
+        "src/megartx/nvfp4_activation.py"
+      ],
+      "properties": {
+        "src/megartx/speculative_native_plan.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/speculative_native_client.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/speculative_native_evidence.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/speculative_native_compare.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scripts/speculative_native_receipt_client.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scripts/speculative_native_receipt_preflight.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scripts/speculative_native_receipt_compare.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scripts/m1_owned_processes.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/speculative_native_lifecycle.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/speculative_native_receipt.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/speculative_native_probe.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "pyproject.toml": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "docs/design/speculative-native-zero-forward-protocol.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "docs/design/speculative-native-protocol.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "docs/evidence/speculative-native-source-binding.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "schemas/speculative-native-receipt-client-plan.schema.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "schemas/speculative-native-receipt-authorization.schema.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/vllm_scale_plugin.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/nvfp4_integration.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/nvfp4_runtime.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "src/megartx/nvfp4_activation.py": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "installed_client_sources": {
+      "const": {
+        "vllm/v1/engine/core_client.py": "fd6ca0cb7499b3086eef2fc57674b7ace56ef1c648f09e92e144b255b79018f8",
+        "vllm/engine/arg_utils.py": "ead004ca266419cd25f54a7aefc0e20e1eb046f363b7f5cc977e14f52ee44bb1",
+        "vllm/v1/executor/abstract.py": "97791426b549e4447c967f8b8e668c2e376c6a75fa7091fd9df11bc9dafb65f7"
+      }
+    },
+    "checkpoint_revision": {
+      "const": "a19cfe00be84568a6867111c9a68c9c44fdcffe6"
+    },
+    "python": {
+      "const": "/home/yyang/projects/megartx-baseline-20260930/.venv/bin/python"
+    },
+    "installed_root": {
+      "const": "/home/yyang/projects/megartx-baseline-20260930/.venv/lib/python3.12/site-packages"
+    },
+    "model": {
+      "const": "/home/yyang/projects/megartx-baseline-20260930/models/gemma4-nvfp4"
+    },
+    "client_mode": {
+      "enum": [
+        "sync",
+        "async"
+      ]
+    },
+    "engine_kwargs": {
+      "const": {
+        "model": "/home/yyang/projects/megartx-baseline-20260930/models/gemma4-nvfp4",
+        "revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+        "tokenizer_revision": "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+        "dtype": "bfloat16",
+        "max_model_len": 8448,
+        "max_num_seqs": 1,
+        "max_num_batched_tokens": 256,
+        "gpu_memory_utilization": 0.84,
+        "kv_cache_memory_bytes": 2147483648,
+        "kv_cache_dtype": "bfloat16",
+        "moe_backend": "flashinfer_cutlass",
+        "attention_backend": "FLASHINFER",
+        "enable_prefix_caching": false,
+        "language_model_only": true,
+        "generation_config": "vllm",
+        "seed": 1234,
+        "enforce_eager": true,
+        "worker_extension_cls": "megartx.speculative_native_lifecycle.NativeDiagnosticWorkerExtension",
+        "async_scheduling": false,
+        "enable_dbo": false,
+        "distributed_executor_backend": "uni",
+        "tensor_parallel_size": 1,
+        "pipeline_parallel_size": 1,
+        "data_parallel_size": 1,
+        "trust_remote_code": false
+      }
+    },
+    "engine_argv": {
+      "const": [
+        "--model",
+        "/home/yyang/projects/megartx-baseline-20260930/models/gemma4-nvfp4",
+        "--revision",
+        "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+        "--tokenizer-revision",
+        "a19cfe00be84568a6867111c9a68c9c44fdcffe6",
+        "--dtype",
+        "bfloat16",
+        "--max-model-len",
+        "8448",
+        "--max-num-seqs",
+        "1",
+        "--max-num-batched-tokens",
+        "256",
+        "--gpu-memory-utilization",
+        "0.84",
+        "--kv-cache-memory-bytes",
+        "2147483648",
+        "--kv-cache-dtype",
+        "bfloat16",
+        "--moe-backend",
+        "flashinfer_cutlass",
+        "--attention-backend",
+        "FLASHINFER",
+        "--no-enable-prefix-caching",
+        "--language-model-only",
+        "--generation-config",
+        "vllm",
+        "--seed",
+        "1234",
+        "--enforce-eager",
+        "--worker-extension-cls",
+        "megartx.speculative_native_lifecycle.NativeDiagnosticWorkerExtension",
+        "--no-async-scheduling",
+        "--distributed-executor-backend",
+        "uni",
+        "--tensor-parallel-size",
+        "1",
+        "--pipeline-parallel-size",
+        "1",
+        "--data-parallel-size",
+        "1"
+      ]
+    },
+    "limits": {
+      "const": {
+        "incremental_verifier_gpu_bytes": 8388608,
+        "minimum_gpu_free_bytes": 2147483648,
+        "minimum_host_free_bytes": 8589934592,
+        "compiler_shared_host_bytes": 2147483648,
+        "compiler_seconds": 300,
+        "wall_seconds_including_cleanup": 1800,
+        "startup_seconds": 900,
+        "cleanup_seconds": 60,
+        "receipt_host_metadata_bytes": 8388608,
+        "plan_bytes": 262144,
+        "authorization_bytes": 65536,
+        "private_log_bytes": 8388608,
+        "private_run_evidence_bytes": 67108864,
+        "max_gpu_jobs": 1,
+        "max_fresh_engine_leases": 1,
+        "diagnostic_target_forwards": 0,
+        "startup_target_forwards": 11,
+        "forced_expert_fixture_pairs": 6
+      }
+    },
+    "gpu_authorized": {
+      "const": false
+    },
+    "target_probe_authorized": {
+      "const": false
+    },
+    "collector_materialization_guard": {
+      "type": "null"
+    },
+    "preflight_blockers": {
+      "const": [
+        "collector_snapshot_and_digest_preallocation_bound_unresolved",
+        "shared_plugin_registration_and_evidence_hook_not_integrated"
+      ]
+    },
+    "plan_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "$comment": "Python validation additionally requires exact committed clean source, reviewed lifecycle ancestry and canonical plan digest; this schema conveys no execution approval."
+}
