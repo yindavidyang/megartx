@@ -45,7 +45,7 @@ class LauncherResourceTests(unittest.TestCase):
         self.events = []
         self.env = {"ownership":self.owner,"guard_failure":None,"time":time,"os":__import__("os"),
                     "sys":sys,"signal":signal,"json":json,"output":self.output,
-                    "eager_benchmark":True,"args":SimpleNamespace(client="m1-eager-benchmark",
+                    "eager_benchmark":True,"prefill_native":False,"prefill_storage":False,"args":SimpleNamespace(client="m1-eager-benchmark",
                     m1_external_observer=False,m1_eager_benchmark_plan=Path("private-plan"),
                     profile=False,m1_decode_profile=False,m1_warmed_timing=False,activation_only=False,routing_diagnostic=False,router_score_only=False),
                     "base":Path("private-runtime"),"project":LAUNCHER.parents[1],"env":{},
@@ -77,7 +77,7 @@ class LauncherResourceTests(unittest.TestCase):
 
     def test_post_client_rejects_retained_breach_before_completion(self):
         self.owner.fail("Owned compiler breach with stalled watchdog")
-        nodes = RUN.body[index("benchmark.exit"):]
+        nodes = RUN.body[index("benchmark.exit")+1:]  # New purpose branch contains the already-finished client call
         with self.assertRaisesRegex(RuntimeError, "compiler breach"):
             exec(code([ast.Try(body=nodes,handlers=RUN.handlers,orelse=[],finalbody=[])]), self.env)
         self.assertEqual((self.output / "run.exit").read_text(), "1\n")

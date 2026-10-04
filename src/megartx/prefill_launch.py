@@ -26,7 +26,7 @@ REQUIRED = {"source_review", "launcher_review", "gpu_scope", "ownership", "clean
 FILES = {"src/megartx/prefill_collect.py", "src/megartx/prefill_kv.py", "src/megartx/prefill_observe.py",
          "src/megartx/prefill_launch.py", "tests/test_prefill_collect.py", "tests/test_prefill_launch.py",
          "docs/prefill/live-protocol.md", "docs/prefill/runtime-sites.json"}
-CURRENT_CATALOG = ("live-attribution-plan.json", "live-attribution-binding.json")
+CURRENT_CATALOG = ("live-native-plan.json", "live-native-binding.json")
 
 
 class LifecycleProvider(Protocol):
@@ -62,8 +62,8 @@ def load_packet(root, plan_path=None, binding_path=None):
             if not all(path.is_file() for path in current):
                 raise ValueError("Current live catalog must contain both plan and binding")
             plan_path, binding_path = current
-    manifest, plan = runner.load_inputs(docs / "runner-plan.json", docs / "profile-plan.json",
-        docs / "source-binding.json", docs / "runner-binding.json", root)
+    manifest, plan = runner.load_inputs(docs / "runner-plan-native.json", docs / "profile-plan-native.json",
+        docs / "source-binding-native.json", docs / "runner-binding-native.json", root)
     packet_path = plan_path or docs / "live-plan.json"
     binding_path = binding_path or docs / "live-binding.json"
     packet = runner.plan_contract.read_json(packet_path)
@@ -89,8 +89,8 @@ def load_packet(root, plan_path=None, binding_path=None):
     runner.equal(binding["schema"], "megartx-prefill-live-source-v1", "live binding schema")
     runner.equal(binding["repository_base_commit"], BASE, "live binding base")
     runner.keys(binding["repo_files"], FILES, "live source inventory")
-    runner.keys(binding["immutable_inputs"], {"docs/prefill/runner-plan.json", "docs/prefill/profile-plan.json",
-        "docs/prefill/source-binding.json", "docs/prefill/runner-binding.json"}, "immutable PR19/20 input inventory")
+    runner.keys(binding["immutable_inputs"], {"docs/prefill/runner-plan-native.json", "docs/prefill/profile-plan-native.json",
+        "docs/prefill/source-binding-native.json", "docs/prefill/runner-binding-native.json"}, "immutable PR19/20 input inventory")
     for name, expected in {**binding["repo_files"], **binding["immutable_inputs"]}.items():
         runner.sha(expected, name)
         relative = Path(name)

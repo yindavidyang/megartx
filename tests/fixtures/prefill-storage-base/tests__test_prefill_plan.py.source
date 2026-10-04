@@ -10,8 +10,7 @@ from pathlib import Path
 from megartx import prefill_plan as prefill
 
 
-from prefill_historical_fixture import historical_root
-ROOT = historical_root()
+ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "docs/prefill/profile-plan-native.json"
 MANIFEST = ROOT / "docs/prefill/source-binding-native.json"
 

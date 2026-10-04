@@ -1,0 +1,67 @@
+{
+  "base": "cf656d6632b9f1b08019a527a9269a9ed0fb0a26",
+  "cpu_review_pending": true,
+  "gpu_execution_verified": false,
+  "numerical_qualified": false,
+  "parent_ledger_sha256": "4e7ac0e132d0e6d5f3181d2d9e81a2b84914b0a54cadbd2818d5623d7b14c74c",
+  "performance_qualified": false,
+  "preserved_source_hashes": {
+    "kernels/m1_installed_preparation.cuh": "6d1b656baf8972ecb3a56b1ede6a3edf832f7a30eeb86ca2b0ddc9fcb1bd3415",
+    "probes/m1_live_bridge.cu": "428cef5dd354994141ee73e155b92bafd4b8a61195c918f7908792ed34411e0a",
+    "src/megartx/m1_live.py": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+    "src/megartx/nvfp4_integration.py": "29ce89ed825ce8e694c8be0779a78839ee25b0f55d3e0afcc4e63dbf144b1757",
+    "src/megartx/nvfp4_runtime.py": "809634e76e665f25c48adf4c29e3923c0e2206c5293c0837956d4e36becea962"
+  },
+  "previous_runtime_commit": "15c9d37b50a9977bbec9098f70dd60bb946594ef",
+  "runner_selection_sha256": "500905124e669d059671d749e7799e9cde8f70ee8b1d498d1433aada65fc833d",
+  "runtime_commit": "1e5f33b7631afd72a20218d8dd874a42f0f283f9",
+  "schema": "megartx-prefill-native-numerical-lineage-v1",
+  "scope": "CPU source lineage extension only; numerical oracle behavior unchanged",
+  "superseded_sources": [
+    {
+      "current_sha256": "478f48bd537e3ff984c162b5d5ab1fa0073f5a1d3077210e5ac865cf51f081f1",
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "prior_sha256": "ab69e448d0a2908261f891131707048e85f7c3bc83c8aafdd7fe7622ffaf1486"
+    },
+    {
+      "current_sha256": "1dde3e973fe28b0f7d54bbc72729e00f4806689b1236d216e3378c122cec045d",
+      "path": "scripts/run_scale_validation.py",
+      "prior_sha256": "1667c63cfc6d81871fd1adb0df15a8c077a2b19cc2142d57153afe6077faddd8"
+    },
+    {
+      "current_sha256": "5f816f91c5314a6a9473f4a1fddfbc172547b74bb646a3777e841376bd687e46",
+      "path": "tests/test_m1_launcher_resources.py",
+      "prior_sha256": "eb42025f4df25001a912ddc389beebc9e2f6ea64d0225da2c875e12875ac86e2"
+    },
+    {
+      "current_sha256": "0819eee17aa9237bd5da46c4fb05b4b29a3da660d5d6b83b96073169ddc269cc",
+      "path": "numerical_reference/test_m1_preparation_reference.py",
+      "prior_sha256": "877c53197e30eb322864a70b7f25027fc5649661ff88893ecaf78c75764717e0"
+    },
+    {
+      "current_sha256": "90a90e5af9fada13da2fa696840373af8210157475505d0586d5926707a2d68c",
+      "path": "src/megartx/prefill_plan.py",
+      "prior_sha256": "a1bdcc9d4c57effdc2f08241e66e1e50a62c6a8d3bbe44bc66e708b44f2bbcd8"
+    },
+    {
+      "current_sha256": "55fb921f0af76d0104b7f327cf13d73680a668b91a0b322280b41a6be0904777",
+      "path": "src/megartx/prefill_launch.py",
+      "prior_sha256": "b139883e1f12b6c91f8d3467b2870ce1c32b49849b1324629b1573b5b576b7c9"
+    },
+    {
+      "current_sha256": "b973792f5b6768dc715c022b6085866d9cb390e3a90df46b9355a84fea1a967c",
+      "path": "tests/test_prefill_plan.py",
+      "prior_sha256": "c72d99943b9a3034bfe192a764150b049efb998b804a97431c27bb563cad5665"
+    },
+    {
+      "current_sha256": "ddee944db06b7cbcb39f897e3f8a803353538e5cf3c921e2bbbd299424d18b3d",
+      "path": "tests/test_prefill_launch.py",
+      "prior_sha256": "1d3ea31f5337af36ffa6ebe4a28ac123f28ee3806b579b12c4c30c16ab187778"
+    },
+    {
+      "current_sha256": "0629b62b1c4aad031b36d6cf381765309917aeab44ccb91fee60d4b90d5b06a7",
+      "path": "tests/test_prefill_runner.py",
+      "prior_sha256": "5f3c73510cd43fbc3fa2397caced10cad6562209db9070d47d98fef253bb36b2"
+    }
+  ]
+}
