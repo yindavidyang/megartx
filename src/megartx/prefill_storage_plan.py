@@ -15,7 +15,7 @@ import stat
 from . import prefill_diagnostic_plan as legacy
 from . import m1_map_borrow_lineage as map_borrow
 from . import prefill_attention_lineage as attention_lineage
-ATTENTION_HELPER_SHA256 = '6ddcf45d7ad75888e63d374119a0c11c887361752b15c5ef308c30370b6d9dfa'
+ATTENTION_HELPER_SHA256 = '45152a558c6bd097be75ce12fbb92dcc9fbae87a4e23eda74aab2659eabc5ab2'
 
 BASE = legacy.BASE
 BOUNDS = legacy.BOUNDS

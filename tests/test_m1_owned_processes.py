@@ -126,10 +126,28 @@ class OwnershipTests(unittest.TestCase):
         for name in ("tileiras","python"):
             with self.subTest(name=name), patch.object(Path,"read_text",return_value="30 (tool) " + " ".join(fields)), \
                  patch("m1_owned_processes.os.readlink", return_value="/bin/" + name), \
+                 patch.object(Path,"stat",side_effect=FileNotFoundError), \
                  patch.object(Path,"read_bytes",return_value=b"/bin/tileiras\0--help\0") as read:
                 process = read_process(30, uptime=100)
             self.assertEqual(read.call_count, int(name=="tileiras"))
             self.assertEqual(process.compiler_argv, ("/bin/tileiras","--help") if name=="tileiras" else None)
+
+    def test_existing_compiler_pid_rechecks_argv_without_reading_other_process_arguments(self):
+        # Both /proc states are synthetic: a real host PID 30 must not change
+        # which source branch this privacy/identity regression exercises.
+        fields = ["S", "20"] + ["0"] * 21
+        fields[19] = "30"; fields[21] = "1"
+        version = os.stat_result((0, 1, 1, 1, 1, 1, 4096, 1, 1, 1))
+        for name in ("tileiras", "python"):
+            with self.subTest(name=name), patch.object(Path, "read_text", return_value="30 (tool) " + " ".join(fields)), \
+                 patch("m1_owned_processes.os.readlink", return_value="/bin/" + name), \
+                 patch.object(Path, "stat", return_value=version) as stat, \
+                 patch.object(Path, "read_bytes", return_value=b"/bin/tileiras\0--help\0") as read:
+                process = read_process(30, uptime=100)
+            self.assertEqual(read.call_count, 2 * int(name == "tileiras"))
+            self.assertEqual(stat.call_count, 2 * int(name == "tileiras"))
+            self.assertEqual(process.compiler_identity_verified, name == "tileiras")
+            self.assertEqual(process.compiler_argv, ("/bin/tileiras", "--help") if name == "tileiras" else None)
 
     def test_tileiras_unknown_or_extra_arguments_are_conservative(self):
         for argv in (None, (), ("tileiras","input.tileir"), ("tileiras","--help","input.tileir")):

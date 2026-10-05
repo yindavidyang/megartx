@@ -13,7 +13,7 @@ import sys
 CATALOG_SOURCE = 'docs/prefill/native-attention-source-reconciliation.json'
 HELPER_SOURCE = 'src/megartx/prefill_attention_lineage.py'
 VALIDATOR_SOURCE = 'src/megartx/prefill_storage_plan.py'
-CATALOG_SHA256 = 'f5aed85bb0c5ac8653bd4d05ffb1770f00d6b8420d272e31c818f5f28301d211'
+CATALOG_SHA256 = 'a46e406548c4f12aeacf396b727494e1f4fa3b80b337e60160463c18892d274c'
 PARENT_VALIDATOR_SHA256 = 'e9a82a14bd3d44416cbdfffad5f2a520f165aec7d10b06215cbb8545d95f0a66'
 MAP_HELPER_SHA256 = '7e4f093d9d0dc0c9a1cd9640ce3d59e3a2092144255326af3d02677f1d8233e7'
 MAP_CATALOG_SOURCE = 'docs/evidence/m1-map-borrow-main-composition.json'
