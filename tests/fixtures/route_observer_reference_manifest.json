@@ -1,0 +1,339 @@
+{
+  "schema_version": 1,
+  "purpose": "CPU-only exact-source reference fixtures for route observation; not installed/runtime pins or GPU execution evidence",
+  "installed_bytes_verified": false,
+  "triton_reference_release": "3.7.1",
+  "transformation": "Retain exact UTF-8 line slices as literals; dedent only to parse standalone definitions, then remove annotations and decorators in the AST. No statement rewriting, import removal, binder replay, runtime patching, or production wiring.",
+  "sources": {
+    "vllm/model_executor/layers/fused_moe/runner/moe_runner.py": {
+      "repository": "vllm-project/vllm",
+      "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+      "reference_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/layers/fused_moe/runner/moe_runner.py",
+      "reference_sha256": "05893188402fe37229bf72d75088d66193c417d5d502daafd3a55e1bfedaa60c",
+      "reference_bytes": 39714,
+      "git_blob_sha1": "6e63563ab8618a879cb685a65effd18254367ef3",
+      "git_blob_verified_against_retrieval": true,
+      "retrieval_metadata": "decode-route-contract-research/retrieval-metadata.json",
+      "installed_sha256": null,
+      "installed_bytes_verified": false
+    },
+    "vllm/model_executor/layers/fused_moe/router/fused_moe_router.py": {
+      "repository": "vllm-project/vllm",
+      "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+      "reference_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/layers/fused_moe/router/fused_moe_router.py",
+      "reference_sha256": "0daa0dc05b931d66767feca444a4cd57ecf140f59b40ea0e8ad213eef6da2b36",
+      "reference_bytes": 2870,
+      "git_blob_sha1": "f87b7d3ae8d010ed5c27c9ffc9330c3f171c7931",
+      "git_blob_verified_against_retrieval": true,
+      "retrieval_metadata": "decode-route-contract-research/retrieval-metadata.json",
+      "installed_sha256": null,
+      "installed_bytes_verified": false
+    },
+    "vllm/model_executor/layers/fused_moe/router/base_router.py": {
+      "repository": "vllm-project/vllm",
+      "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+      "reference_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/layers/fused_moe/router/base_router.py",
+      "reference_sha256": "47fa2324bcd9b6ebdc138d69ae6b6ecc0f2463d34bda8c5988bdb0a2a76d3fae",
+      "reference_bytes": 11890,
+      "git_blob_sha1": "01e674b2b13105dee3e91633d798e106f952cf7e",
+      "git_blob_verified_against_retrieval": true,
+      "retrieval_metadata": "decode-route-contract-research/retrieval-metadata.json",
+      "installed_sha256": null,
+      "installed_bytes_verified": false
+    },
+    "vllm/model_executor/layers/fused_moe/router/custom_routing_router.py": {
+      "repository": "vllm-project/vllm",
+      "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+      "reference_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/layers/fused_moe/router/custom_routing_router.py",
+      "reference_sha256": "1a40c7054e3c3a1b3ee2e98f6bc9efa9dfdc11f316a8edf7357dd91533487bfe",
+      "reference_bytes": 2354,
+      "git_blob_sha1": "6d191993d4f2fa8b244f5089f108b5b0fc066e70",
+      "git_blob_verified_against_retrieval": true,
+      "retrieval_metadata": "decode-route-contract-research/retrieval-metadata.json",
+      "installed_sha256": null,
+      "installed_bytes_verified": false
+    },
+    "vllm/model_executor/models/gemma4.py": {
+      "repository": "vllm-project/vllm",
+      "revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+      "reference_url": "https://github.com/vllm-project/vllm/blob/ced6857afa0ea7b2e3f0846a62e1394e90f15607/vllm/model_executor/models/gemma4.py",
+      "reference_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+      "reference_bytes": 69524,
+      "git_blob_sha1": "961709a7e7993c23a374c5f665227e0f0957a04d",
+      "git_blob_verified_against_retrieval": false,
+      "retrieval_metadata": "docs/evidence/supplied-candidate-source-review.json",
+      "installed_sha256": null,
+      "installed_bytes_verified": false
+    },
+    "python/triton/runtime/jit.py": {
+      "repository": "triton-lang/triton",
+      "revision": "f797708c0626e5f9840ca5b0a98790e2c7cb09ad",
+      "reference_url": "https://github.com/triton-lang/triton/blob/f797708c0626e5f9840ca5b0a98790e2c7cb09ad/python/triton/runtime/jit.py",
+      "reference_sha256": "5fe46fbfac257a2b8645b7a2cc709232273d42dd5e1d55de9770b412a9476d77",
+      "reference_bytes": 42990,
+      "git_blob_sha1": "ba21a58e190b55b41db715adb6d77b635b5a458f",
+      "git_blob_verified_against_retrieval": true,
+      "retrieval_metadata": "decode-route-contract-research/triton-retrieval-metadata.json",
+      "installed_sha256": null,
+      "installed_bytes_verified": false
+    },
+    "python/triton/compiler/compiler.py": {
+      "repository": "triton-lang/triton",
+      "revision": "f797708c0626e5f9840ca5b0a98790e2c7cb09ad",
+      "reference_url": "https://github.com/triton-lang/triton/blob/f797708c0626e5f9840ca5b0a98790e2c7cb09ad/python/triton/compiler/compiler.py",
+      "reference_sha256": "021a45ca590052ab6ca6d850eb0a102abf542165836ad92bfb3bb573218fc5d3",
+      "reference_bytes": 20736,
+      "git_blob_sha1": "d6f8dd26fef796e4760beed8a50571c1c2e6e0b8",
+      "git_blob_verified_against_retrieval": true,
+      "retrieval_metadata": "decode-route-contract-research/triton-retrieval-metadata.json",
+      "installed_sha256": null,
+      "installed_bytes_verified": false
+    },
+    "third_party/nvidia/backend/driver.py": {
+      "repository": "triton-lang/triton",
+      "revision": "f797708c0626e5f9840ca5b0a98790e2c7cb09ad",
+      "reference_url": "https://github.com/triton-lang/triton/blob/f797708c0626e5f9840ca5b0a98790e2c7cb09ad/third_party/nvidia/backend/driver.py",
+      "reference_sha256": "992ba21e12ee170a904f3a1caca24a78ce3dd66b661087faea5973b995480f63",
+      "reference_bytes": 13312,
+      "git_blob_sha1": "21e9045b253c3809c62115007431a03bd4ab45e9",
+      "git_blob_verified_against_retrieval": true,
+      "retrieval_metadata": "decode-route-observation-next/retrieval-metadata.json",
+      "installed_sha256": null,
+      "installed_bytes_verified": false
+    },
+    "python/triton/knobs.py": {
+      "repository": "triton-lang/triton",
+      "revision": "f797708c0626e5f9840ca5b0a98790e2c7cb09ad",
+      "reference_url": "https://github.com/triton-lang/triton/blob/f797708c0626e5f9840ca5b0a98790e2c7cb09ad/python/triton/knobs.py",
+      "reference_sha256": "b0e6a0a241cbc52067b04c230b2ec149ae109ee4bf48d3b7706a18a8e526fc60",
+      "reference_bytes": 18341,
+      "git_blob_sha1": "c8bf2d421a06691e966d1490d7e23e5069094b7d",
+      "git_blob_verified_against_retrieval": true,
+      "retrieval_metadata": "decode-route-observation-next/triton-extra-metadata.json",
+      "installed_sha256": null,
+      "installed_bytes_verified": false
+    }
+  },
+  "slices": {
+    "MoERunner._apply_quant_method": {
+      "source": "vllm/model_executor/layers/fused_moe/runner/moe_runner.py",
+      "symbol": "MoERunner._apply_quant_method",
+      "kind": "function",
+      "start_line": 595,
+      "definition_line": 595,
+      "end_line": 648,
+      "sha256": "8a18de3319cf3fa058b0b29b0361c10a4090cac4a66542da97b86739ad0dddfc",
+      "bytes": 2227
+    },
+    "FusedMoERouter.__init__": {
+      "source": "vllm/model_executor/layers/fused_moe/router/fused_moe_router.py",
+      "symbol": "FusedMoERouter.__init__",
+      "kind": "function",
+      "start_line": 18,
+      "definition_line": 18,
+      "end_line": 24,
+      "sha256": "ae25c61de650c1e40ee624c73dabb796439dd5cef3d691cf1d322feaf2bc0b73",
+      "bytes": 409
+    },
+    "FusedMoERouter.select_experts": {
+      "source": "vllm/model_executor/layers/fused_moe/router/fused_moe_router.py",
+      "symbol": "FusedMoERouter.select_experts",
+      "kind": "function",
+      "start_line": 49,
+      "definition_line": 49,
+      "end_line": 85,
+      "sha256": "f5f7510abd3d2c6462af3a08b06e9809a688104e0a7fc442124e31fb296d022b",
+      "bytes": 1321
+    },
+    "BaseRouter._validate_eplb_state": {
+      "source": "vllm/model_executor/layers/fused_moe/router/base_router.py",
+      "symbol": "BaseRouter._validate_eplb_state",
+      "kind": "function",
+      "start_line": 189,
+      "definition_line": 189,
+      "end_line": 202,
+      "sha256": "da0a67ed95f8909d9ec4ccaad3269b3bd3aa39d07ce1285c5a4e5af50efbbb2e",
+      "bytes": 897
+    },
+    "BaseRouter._apply_eplb_mapping": {
+      "source": "vllm/model_executor/layers/fused_moe/router/base_router.py",
+      "symbol": "BaseRouter._apply_eplb_mapping",
+      "kind": "function",
+      "start_line": 204,
+      "definition_line": 204,
+      "end_line": 223,
+      "sha256": "be2db199ac2a7dc5c4a546b620cd4ce07df5b88dc0c72c19297177384c778cff",
+      "bytes": 1103
+    },
+    "BaseRouter._convert_indices_dtype": {
+      "source": "vllm/model_executor/layers/fused_moe/router/base_router.py",
+      "symbol": "BaseRouter._convert_indices_dtype",
+      "kind": "function",
+      "start_line": 225,
+      "definition_line": 225,
+      "end_line": 233,
+      "sha256": "e421973a87fbd3c68a35f3f5ff0c8bf2d26c1831583fff246a01d00a3b83fb74",
+      "bytes": 413
+    },
+    "BaseRouter._select_experts": {
+      "source": "vllm/model_executor/layers/fused_moe/router/base_router.py",
+      "symbol": "BaseRouter._select_experts",
+      "kind": "function",
+      "start_line": 260,
+      "definition_line": 260,
+      "end_line": 305,
+      "sha256": "5b86be4f1d4269bc1a0007c06c05e8e906ea29175644da17333128ae2de9497a",
+      "bytes": 1680
+    },
+    "CustomRoutingRouter._compute_routing": {
+      "source": "vllm/model_executor/layers/fused_moe/router/custom_routing_router.py",
+      "symbol": "CustomRoutingRouter._compute_routing",
+      "kind": "function",
+      "start_line": 46,
+      "definition_line": 46,
+      "end_line": 64,
+      "sha256": "06a8fba63c241b15cb62fbb24bb1b3a2e25d19884ba5044d84cc6818c30fa909",
+      "bytes": 686
+    },
+    "gemma4_fused_routing_kernel_triton": {
+      "source": "vllm/model_executor/models/gemma4.py",
+      "symbol": "gemma4_fused_routing_kernel_triton",
+      "kind": "function",
+      "start_line": 165,
+      "definition_line": 165,
+      "end_line": 187,
+      "sha256": "8dd303416058d861901df5092b905ec9aacd92a9687e9a0d384dfc7bab9d3a1d",
+      "bytes": 737
+    },
+    "KernelInterface.__getitem__": {
+      "source": "python/triton/runtime/jit.py",
+      "symbol": "KernelInterface.__getitem__",
+      "kind": "function",
+      "start_line": 364,
+      "definition_line": 364,
+      "end_line": 370,
+      "sha256": "61dbe237951a2808a0ccf8318fe373c74842d9505c6f68fffcd538c88949a93a",
+      "bytes": 316
+    },
+    "compute_cache_key": {
+      "source": "python/triton/runtime/jit.py",
+      "symbol": "compute_cache_key",
+      "kind": "function",
+      "start_line": 574,
+      "definition_line": 574,
+      "end_line": 595,
+      "sha256": "1567204256270b790c1b8539f39fde080b02a623d3074cb9237e90bd1e620f4f",
+      "bytes": 909
+    },
+    "JITFunction.run": {
+      "source": "python/triton/runtime/jit.py",
+      "symbol": "JITFunction.run",
+      "kind": "function",
+      "start_line": 708,
+      "definition_line": 708,
+      "end_line": 763,
+      "sha256": "8686893714b9aef17074011b857f5a40eab9a545a35976d7eea895b7d352221d",
+      "bytes": 2773
+    },
+    "LazyDict": {
+      "source": "python/triton/compiler/compiler.py",
+      "symbol": "LazyDict",
+      "kind": "class",
+      "start_line": 374,
+      "definition_line": 374,
+      "end_line": 387,
+      "sha256": "0df7ebdc42bd3042a2fd97a35aa610279ad7231d3e7c99517cf8b383101b2f60",
+      "bytes": 330
+    },
+    "CompiledKernel._init_handles": {
+      "source": "python/triton/compiler/compiler.py",
+      "symbol": "CompiledKernel._init_handles",
+      "kind": "function",
+      "start_line": 439,
+      "definition_line": 439,
+      "end_line": 474,
+      "sha256": "4ba7e2f0375f113168b3583cb3b1199744c51f6968772d3cc7e985947577883b",
+      "bytes": 2285
+    },
+    "CompiledKernel.run": {
+      "source": "python/triton/compiler/compiler.py",
+      "symbol": "CompiledKernel.run",
+      "kind": "function",
+      "start_line": 476,
+      "definition_line": 477,
+      "end_line": 480,
+      "sha256": "51d8e4a326256d4602020b30c43e722f0b44afbcd1e83fac6bcb9c0956a4ffd8",
+      "bytes": 121
+    },
+    "CompiledKernel.launch_metadata": {
+      "source": "python/triton/compiler/compiler.py",
+      "symbol": "CompiledKernel.launch_metadata",
+      "kind": "function",
+      "start_line": 482,
+      "definition_line": 482,
+      "end_line": 491,
+      "sha256": "f897c9e384241b7f620af631f427577ceb84f4a07a74f1d5fc42f1205c6afa6e",
+      "bytes": 534
+    },
+    "CudaLauncher": {
+      "source": "third_party/nvidia/backend/driver.py",
+      "symbol": "CudaLauncher",
+      "kind": "class",
+      "start_line": 291,
+      "definition_line": 291,
+      "end_line": 330,
+      "sha256": "79152836761e10352159067133d3f27e1f4f011020635ac6193649247638ac52",
+      "bytes": 2333
+    },
+    "CudaLauncher.__init__": {
+      "source": "third_party/nvidia/backend/driver.py",
+      "symbol": "CudaLauncher.__init__",
+      "kind": "function",
+      "start_line": 293,
+      "definition_line": 293,
+      "end_line": 311,
+      "sha256": "732bc05b42173ef4782459fac22d999f94978f987a7c5cf6e13ef7e28173719a",
+      "bytes": 1232
+    },
+    "CudaLauncher.__call__": {
+      "source": "third_party/nvidia/backend/driver.py",
+      "symbol": "CudaLauncher.__call__",
+      "kind": "function",
+      "start_line": 313,
+      "definition_line": 313,
+      "end_line": 330,
+      "sha256": "152cac5293645963f68ee7652a4282b2f3ad7c5c81fb2c0e052139b65f7b7f7b",
+      "bytes": 1071
+    },
+    "HookChain": {
+      "source": "python/triton/knobs.py",
+      "symbol": "HookChain",
+      "kind": "class",
+      "start_line": 406,
+      "definition_line": 406,
+      "end_line": 424,
+      "sha256": "0c426c032a598e25659da79be220fdabb7a9ee513fcdb82e1b2ad760b39ac078",
+      "bytes": 588
+    },
+    "HookChain.__init__": {
+      "source": "python/triton/knobs.py",
+      "symbol": "HookChain.__init__",
+      "kind": "function",
+      "start_line": 410,
+      "definition_line": 410,
+      "end_line": 412,
+      "sha256": "8449e8f034541f447c536f3be56cb6da97266d78307083b9f17b7ec2f730aa83",
+      "bytes": 114
+    },
+    "HookChain.__call__": {
+      "source": "python/triton/knobs.py",
+      "symbol": "HookChain.__call__",
+      "kind": "function",
+      "start_line": 422,
+      "definition_line": 422,
+      "end_line": 424,
+      "sha256": "1b3976ca6cfc118eaad128f8f532ac71676368922f2c86038a76defb2b4de30e",
+      "bytes": 154
+    }
+  }
+}
