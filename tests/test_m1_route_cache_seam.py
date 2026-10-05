@@ -540,6 +540,20 @@ class CacheSelectionSeamTests(unittest.TestCase):
     def test_restoration_rejects_every_additional_executable_delta(self):
         f = Fixture()
         source = f.candidate().transformed_source
+        # ast.unparse formats tuple-assignment targets differently on 3.10 and
+        # 3.12. Insert the extra call structurally so this negative control
+        # cannot silently become a no-op because of optional parentheses.
+        tree = ast.parse(source)
+        body = tree.body[0].body
+        bindings = [(i, node) for i, node in enumerate(body)
+                    if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name) and node.value.func.id == "binder"]
+        self.assertEqual(len(bindings), 1)
+        index, binding = bindings[0]
+        body.insert(index + 1, ast.Expr(value=binding.value))
+        duplicate_binder = ast.unparse(ast.fix_missing_locations(tree)) + "\n"
+        self.assertEqual(sum(isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                             and node.func.id == "binder" for node in ast.walk(tree)), 2)
         mutations = (
             source.replace("grid, warmup", "grid, warmup=False"),
             source.replace("return kernel", "return None"),
@@ -549,14 +563,14 @@ class CacheSelectionSeamTests(unittest.TestCase):
             source.replace(_HELPER + "(", "another_helper("),
             source.replace("kernel = " + _HELPER, "unused = " + _HELPER),
             source + "unrelated = 1\n",
-            source.replace("bound_args, specialization, options = binder(*args, **kwargs)",
-                           "bound_args, specialization, options = binder(*args, **kwargs)\n    binder(*args, **kwargs)"),
+            duplicate_binder,
             source.replace("kernel = " + _HELPER, "kernel = " + _HELPER, 1)
                   + "extra = " + _HELPER + "(kernel_cache.get(key, None), kernel_cache, key, target, specialization, options)\n",
         )
         for changed in mutations:
             with self.subTest(changed=changed[-80:]):
                 self.assertNotEqual(changed, source)
+                self.assertNotEqual(ast.dump(ast.parse(changed)), ast.dump(ast.parse(source)))
                 with self.assertRaises(seam.CacheSeamSourceError):
                     seam.verify_cache_selection_restoration(_SOURCE, changed, expected_sha256=_SHA)
 
