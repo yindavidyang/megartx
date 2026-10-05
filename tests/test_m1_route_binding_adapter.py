@@ -1,5 +1,6 @@
 """CPU adversarial controls for uninstalled actual-object binding readers."""
 import ast
+import builtins
 from dataclasses import replace
 import gc
 import importlib.util
@@ -19,6 +20,7 @@ sys.path.insert(0, str(ROOT / "probes"))
 from m1_route_binding_adapter import (
     ActualBindingReaders, BindingRouteObserver, BoundaryObservation, LiveMetadata,
     ProducerOwners, SharedRouteDispatcher, SourceFileAttestation, TensorMetadataReader,
+    _FunctionSeal,
 )
 spec = importlib.util.spec_from_file_location("route_binding_reference", ROOT / "tests/fixtures/route_binding_reference.py")
 source = importlib.util.module_from_spec(spec)
@@ -89,8 +91,11 @@ class DispatchCache(dict):
 
 
 class BindingFixture(old.Fixture):
-    def __init__(self, *, dispatcher=None, shared=None, install=True, observe_cache=True, candidate_seam=False):
+    def __init__(self, *, dispatcher=None, shared=None, install=True, observe_cache=True, candidate_seam=False, jit_builtins=None):
         super().__init__(install=False, observe_cache=observe_cache)
+        if jit_builtins is not None:
+            type(self.jit).run = old.reference.load("JITFunction.run", {
+                **self.jit.run.__func__.__globals__, "__builtins__": jit_builtins})
         self.dispatcher = dispatcher or SharedRouteDispatcher()
         if shared is not None:
             for name in ("jit", "kernel", "launcher", "metadata", "cache", "target", "key", "utils",
@@ -582,6 +587,80 @@ class BindingAdapterTests(unittest.TestCase):
         self.assert_checked(f)
         self.assertEqual((len(f.binds), len(f.cache_gets), len(f.launches)), (1, 1, 1))
 
+    def test_absent_global_builtin_shadow_rejected_at_each_observation_boundary(self):
+        for stage in (None, "runner", "binder", "consumer", "after_consumer"):
+            with self.subTest(stage=stage):
+                f = BindingFixture()
+                fn = f.originals["jit"].__func__
+                self.assertIn("len", fn.__code__.co_names)
+                self.assertNotIn("len", fn.__globals__)
+                calls = []
+                def inject():
+                    fn.__globals__["len"] = lambda value: (calls.append(value), builtins.len(value))[1]
+                if stage is None:
+                    inject()
+                else:
+                    f.callbacks[stage] = inject
+                ids = f.run()[1]
+                self.assertIs(ids, f.bound[3])
+                self.assert_checked(f)
+                self.assertIn("bound callable global changed", f.observer.last_audit.reasons)
+                self.assertEqual((len(f.binds), len(f.cache_gets), len(f.launches)), (1, 1, 1))
+                self.assertEqual(len(calls), 0 if stage in ("consumer", "after_consumer") else 1)
+
+    def test_effective_builtin_mutation_rejected_without_using_globals_builtin_entry(self):
+        for stage in (None, "runner", "binder", "after_consumer"):
+            with self.subTest(stage=stage):
+                effective = dict(vars(builtins))
+                f = BindingFixture(jit_builtins=effective)
+                fn = f.originals["jit"].__func__
+                self.assertIs(fn.__builtins__, effective)
+                fn.__globals__["__builtins__"] = dict(vars(builtins))
+                calls = []
+                def inject():
+                    effective["len"] = lambda value: (calls.append(value), builtins.len(value))[1]
+                if stage is None:
+                    inject()
+                else:
+                    f.callbacks[stage] = inject
+                ids = f.run()[1]
+                self.assertIs(ids, f.bound[3])
+                self.assert_checked(f)
+                self.assertIn("bound callable builtin changed", f.observer.last_audit.reasons)
+                self.assertEqual((len(f.binds), len(f.cache_gets), len(f.launches)), (1, 1, 1))
+                self.assertEqual(len(calls), 0 if stage == "after_consumer" else 1)
+
+    def test_rebinding_globals_builtin_entry_does_not_change_existing_function_resolution(self):
+        f = BindingFixture(jit_builtins=dict(vars(builtins)))
+        fn = f.originals["jit"].__func__
+        fn.__globals__["__builtins__"] = {"len": lambda value: 0}
+        f.run()
+        self.assert_checked(f, True)
+        self.assertEqual((len(f.binds), len(f.cache_gets), len(f.launches)), (1, 1, 1))
+
+    def test_namespace_seal_distinguishes_missing_from_unknown_and_checks_removal(self):
+        cases = (
+            ({}, {}, "globals", UNKNOWN),
+            ({}, {}, "builtins", UNKNOWN),
+            ({"reference": UNKNOWN}, {}, "globals", None),
+            ({}, {"reference": UNKNOWN}, "builtins", None),
+            ({"reference": object()}, {}, "globals", object()),
+            ({}, {"reference": object()}, "builtins", object()),
+        )
+        for globals_, builtins_, target, replacement in cases:
+            with self.subTest(target=target, replacement=replacement):
+                namespace = dict(globals_, __builtins__=builtins_)
+                exec("def read(): return reference", namespace)
+                seal = _FunctionSeal(namespace["read"])
+                seal.check()
+                mapping = namespace if target == "globals" else builtins_
+                if replacement is None:
+                    del mapping["reference"]
+                else:
+                    mapping["reference"] = replacement
+                with self.assertRaisesRegex(Exception, "bound callable (global|builtin) changed"):
+                    seal.check()
+
     def test_tensor_and_parameter_are_exact_admitted_types_not_arbitrary_subclasses(self):
         f = BindingFixture()
         self.assertIs(type(f.scale), Parameter)
@@ -703,6 +782,123 @@ class BindingAdapterTests(unittest.TestCase):
         self.assert_checked(f)
         self.assertTrue(f.observer.last_audit.poisoned and f.observer.poisoned)
         self.assertEqual(f.dispatcher._inflight, 0)
+
+    def test_registered_overlap_rejection_holds_owner_terminal_lock_until_poison(self):
+        a = BindingFixture()
+        b = BindingFixture(dispatcher=a.dispatcher, shared=a)
+        parked, resume, cleanup_attempt = (threading.Event() for _ in range(3))
+        errors = []
+        run_code = a.wrappers["runner"].__code__
+        lines, start = inspect.getsourcelines(a.wrappers["runner"])
+        reject_line = start + next(i for i, line in enumerate(lines) if "self._active._reject(active_scope" in line)
+        lines, start = inspect.getsourcelines(old.RouteObserver._runner)
+        cleanup_line = start + next(i for i, line in enumerate(lines) if "if self._active is scope:" in line) - 1
+        def overlap():
+            def trace(frame, event, arg):
+                if event == "line" and frame.f_code is run_code and frame.f_lineno == reject_line:
+                    parked.set()
+                    if not resume.wait(10):
+                        raise AssertionError("resume timeout")
+                return trace
+            sys.settrace(trace)
+            try:
+                b.boundary = replace(b.boundary, thread=threading.current_thread())
+                b.run()
+            except BaseException as error:
+                errors.append(("overlap", type(error).__name__))
+            finally:
+                sys.settrace(None)
+        overlap_thread = threading.Thread(target=overlap)
+        def consumer():
+            overlap_thread.start()
+            if not parked.wait(10):
+                raise AssertionError("park timeout")
+        a.callbacks["consumer"] = consumer
+        def owner():
+            def trace(frame, event, arg):
+                if event == "line" and frame.f_code is old.RouteObserver._runner.__code__ and frame.f_lineno == cleanup_line:
+                    cleanup_attempt.set()
+                return trace
+            sys.settrace(trace)
+            try:
+                a.boundary = replace(a.boundary, thread=threading.current_thread())
+                a.run()
+            except BaseException as error:
+                errors.append(("owner", type(error).__name__))
+            finally:
+                sys.settrace(None)
+        owner_thread = threading.Thread(target=owner)
+        owner_thread.start()
+        try:
+            self.assertTrue(parked.wait(10))
+            self.assertTrue(cleanup_attempt.wait(10))
+            # No sleep/scheduler assumption: accepted rejection must own the
+            # same lock needed for terminal detach, before its poison write.
+            acquired = a.observer._lock.acquire(blocking=False)
+            if acquired:
+                a.observer._lock.release()
+            self.assertFalse(acquired)
+            self.assertIsNone(a.observer.last_audit)
+        finally:
+            resume.set()
+            overlap_thread.join(10)
+            owner_thread.join(10)
+        self.assertFalse(overlap_thread.is_alive() or owner_thread.is_alive())
+        self.assertEqual(errors, [])
+        self.assert_checked(a)
+        self.assert_checked(b)
+        self.assertTrue(a.observer.last_audit.poisoned and a.observer.poisoned)
+        self.assertTrue(b.observer.last_audit.poisoned and b.observer.poisoned)
+        self.assertEqual(a.dispatcher._inflight, 0)
+        self.assertEqual((len(a.binds), len(a.cache_gets), len(a.launches)), (2, 2, 2))
+
+    def test_retired_scope_audit_stays_historical_while_overlap_poisons_future_calls(self):
+        a = BindingFixture()
+        b = BindingFixture(dispatcher=a.dispatcher, shared=a)
+        retired, resume = threading.Event(), threading.Event()
+        errors = []
+        lines, start = inspect.getsourcelines(old.RouteObserver._runner)
+        post_audit_line = start + next(i for i, line in enumerate(lines) if "scope.retained.clear()" in line)
+        def owner():
+            def trace(frame, event, arg):
+                if event == "line" and frame.f_code is old.RouteObserver._runner.__code__ and frame.f_lineno == post_audit_line:
+                    retired.set()
+                    if not resume.wait(10):
+                        raise AssertionError("resume timeout")
+                return trace
+            sys.settrace(trace)
+            try:
+                a.boundary = replace(a.boundary, thread=threading.current_thread())
+                a.run()
+            except BaseException as error:
+                errors.append(type(error).__name__)
+            finally:
+                sys.settrace(None)
+        thread = threading.Thread(target=owner)
+        thread.start()
+        try:
+            self.assertTrue(retired.wait(10))
+            self.assertIsNone(a.observer._active)
+            audit = a.observer.last_audit
+            self.assertTrue(audit.complete)
+            self.assertFalse(audit.poisoned)
+            b.run()
+            self.assertIs(a.observer.last_audit, audit)
+            self.assertTrue(a.observer.poisoned and b.observer.poisoned)
+            self.assertFalse(b.observer.last_audit.complete)
+            self.assertEqual(a.dispatcher._inflight, 1)
+        finally:
+            resume.set()
+            thread.join(10)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(errors, [])
+        self.assert_checked(a, True)
+        self.assert_checked(b)
+        a.boundary = replace(a.boundary, thread=threading.current_thread())
+        a.run()
+        self.assert_checked(a, checks=2)
+        self.assertEqual(a.dispatcher._inflight, 0)
+        self.assertEqual((len(a.binds), len(a.cache_gets), len(a.launches)), (3, 3, 3))
 
     def test_fixture_sources_and_production_disconnection(self):
         self.assertTrue(source.validate_sources())

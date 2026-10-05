@@ -78,14 +78,24 @@ class _FunctionSeal:
         if type(fn) is not types.FunctionType:
             fn = type(fn).__call__
         self.fn = fn
-        self.globals = tuple((name, fn.__globals__[name]) for name in fn.__code__.co_names
-                             if name in fn.__globals__) if type(fn) is types.FunctionType else ()
+        # Missing globals are part of name resolution too: introducing one can
+        # shadow a builtin without changing code, defaults or closure cells.
+        # Use the function's effective builtin mapping, not the replaceable
+        # __globals__["__builtins__"] entry (Python caches it on the function).
+        self.globals = tuple((name, name in fn.__globals__, fn.__globals__.get(name, UNKNOWN))
+                             for name in fn.__code__.co_names) if type(fn) is types.FunctionType else ()
+        self.builtins = tuple((name, name in fn.__builtins__, fn.__builtins__.get(name, UNKNOWN))
+                              for name, present, _ in self.globals if not present)
 
     def check(self):
         _require(_same_refs(self.fingerprint, _fingerprint(self.function)),
                  "bound callable code/default/closure changed")
-        for name, value in self.globals:
-            _require(self.fn.__globals__.get(name, UNKNOWN) is value, "bound callable global changed")
+        for name, present, value in self.globals:
+            _require((name in self.fn.__globals__) is present and
+                     self.fn.__globals__.get(name, UNKNOWN) is value, "bound callable global changed")
+        for name, present, value in self.builtins:
+            _require((name in self.fn.__builtins__) is present and
+                     self.fn.__builtins__.get(name, UNKNOWN) is value, "bound callable builtin changed")
 
 
 class TensorMetadataReader:
@@ -457,11 +467,15 @@ class SharedRouteDispatcher:
                 self._inflight += 1
                 if busy:
                     self._poison = "nested/concurrent registered runner"
-                    active_scope = self._active._active
-                    if active_scope is not None:
-                        self._active._reject(active_scope, "nested/concurrent registered runner", poison=True)
-                    else:
-                        self._active._poison = "nested/concurrent registered runner"
+                    # Serialize scope capture/rejection with the base runner's
+                    # terminal scope detach. Dispatcher -> observer is the only
+                    # nested lock order; neither spans original execution.
+                    with self._active._lock:
+                        active_scope = self._active._active
+                        if active_scope is not None:
+                            self._active._reject(active_scope, "nested/concurrent registered runner", poison=True)
+                        else:
+                            self._active._poison = "nested/concurrent registered runner"
                     observer._poison = "nested/concurrent registered runner"
                     self._local.blocked = getattr(self._local, "blocked", 0) + 1
                 else:

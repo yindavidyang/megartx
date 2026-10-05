@@ -35,7 +35,11 @@ The readers check these ownership edges against current objects:
   agree; that closure owner owns this runner and the same scale object
 - The closure's actual routing-function global points to the observed function,
   whose actual JIT global points to the retained shared JIT. Callable code,
-  defaults, closure cells and referenced globals are retained and rechecked
+  defaults, closure cells and referenced global presence/identity are retained
+  and rechecked. Absent globals remain absent, including names that resolve to
+  builtins. Their effective `function.__builtins__` presence/identity is checked
+  separately; replacing the globals dictionary's `__builtins__` entry does not
+  redirect an existing function's cached builtin mapping
 - Actual modular implementation, experts and prepare/finalize ownership and
   current callable identities agree. No prepare/finalize function is executed
   merely to fill an observation
@@ -90,6 +94,17 @@ runners terminally poison the shared observation lifecycle. All in-flight calls
 are tracked until they drain, including when the first owner returns early;
 a third runner cannot acquire a complete observation during that interval.
 There is no reset API. Ordinary delegation continues after observation poison.
+
+Registered-overlap admission holds the dispatcher lock, then takes the active
+observer's terminal-state lock while capturing and rejecting its scope. An
+accepted rejection of a still-live scope therefore finishes poisoning before
+that scope can detach and publish its terminal audit. The same terminal-state
+lock orders explicit foreign-event rejection. If scope detach already won, a
+completed historical audit is not retroactively rewritten; the registered
+overlap still poisons the dispatcher and subsequent observations. No lock
+spans the original runner, producer, consumer or cleanup callbacks. The only
+nested lock order is dispatcher then observer, preserving nested and foreign
+thread delegation without waiting for ordinary execution to finish.
 
 `dependency_observed(scope, producer, consumer)` and
 `checked_consumer(scope, actual_ids, frame, consumer_stream)` dispatch to the
@@ -198,4 +213,11 @@ drain; exact-source cache restoration and cold/new paths; registry/callable/
 closure/prepare/scale/HookChain/cache/kernel substitution; actual inner stream;
 frame generation; invalid dtype/shape/stride/storage/arguments; primary and
 cleanup exceptions; strong owner release; native opaque metadata rejection and
-runtime disconnection. All existing source checks remain unchanged.
+runtime disconnection. Added regressions park an admitted registered rejection
+before its poison write and verify it owns the terminal-state lock while owner
+cleanup attempts to finish; the opposite ordering preserves a retired historical
+audit while poisoning later observations. Namespace controls inject absent-global builtin
+shadows at five boundaries, mutate the effective builtin mapping at four,
+distinguish missing entries from an actual UNKNOWN value, and check replacement
+and deletion without changing process-global builtins. All existing source
+checks remain unchanged.
