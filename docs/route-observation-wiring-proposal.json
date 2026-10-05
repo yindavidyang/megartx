@@ -1,0 +1,75 @@
+{
+  "schema": "route-observation-wiring-proposal-v1",
+  "base_commit": "0c00ddd8e81fe9c1af335edf7ce57001dd31ddd0",
+  "base_tree": "c0bb8407a154abac28228bbcf41ce4ecd2f93850",
+  "installed": false,
+  "experiment_admitted": false,
+  "runtime_qualified": false,
+  "source_evidence_only": true,
+  "default_enabled": false,
+  "maximum_runner_invocations": 30,
+  "shared_sources": [
+    {
+      "path": "src/megartx/vllm_scale_plugin.py",
+      "sha256": "2d92e1b89a734a3e57dc4c150a712578a75fa216e7c41d33961d3eec9cbda1f5",
+      "git_blob": "9902e0d626e6b2fc157605a1f8820b64467425e2",
+      "proposed_interfaces": [
+        "after successful prepare() returns its 30 layers",
+        "exclusive default-off observation-purpose admission",
+        "after begin_forward() and before old_forward()",
+        "finally cleanup after runner scopes drain"
+      ]
+    },
+    {
+      "path": "src/megartx/m1_live.py",
+      "sha256": "01af6a2202786ab3b1f087197aea5736fc464e86a3b270c57e416a2689b5ce70",
+      "git_blob": "0f582bda32c53377c24f444b131f6cd3b9c85602",
+      "proposed_interfaces": [
+        "after existing self.stream.wait_stream(producer) succeeds",
+        "before existing incumbent(**kwargs), inside native lease try/finally",
+        "preserve existing reverse producer.wait_stream(self.stream) and native end"
+      ]
+    },
+    {
+      "path": "src/megartx/m1_execution.py",
+      "sha256": "5040b1cb172219222ce02a33911b9ca0c533ed08c80627b8703d3a31c0898d90",
+      "git_blob": "ac2ce653609da4a4ce1499642231d62bc7629c3d",
+      "proposed_interfaces": [
+        "explicit untimed observation purpose and reviewed source catalog"
+      ]
+    },
+    {
+      "path": "scripts/run_scale_validation.py",
+      "sha256": "2c89dedede8a96877a8ce9feeeae408c73798728e85f8f5a80287ca96c0097d6",
+      "git_blob": "d0e000ecb86442c7abfc6aff96b52babd173fe08",
+      "proposed_interfaces": [
+        "clear inherited observation variables",
+        "explicit bounded purpose/source plan admission",
+        "existing owned-process and cleanup policy"
+      ]
+    }
+  ],
+  "vendor_source_hashes": {
+    "vllm/model_executor/models/gemma4.py": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+    "vllm/model_executor/layers/fused_moe/runner/moe_runner.py": "05893188402fe37229bf72d75088d66193c417d5d502daafd3a55e1bfedaa60c",
+    "triton/runtime/jit.py": "5fe46fbfac257a2b8645b7a2cc709232273d42dd5e1d55de9770b412a9476d77",
+    "triton/compiler/compiler.py": "021a45ca590052ab6ca6d850eb0a102abf542165836ad92bfb3bb573218fc5d3",
+    "triton/backends/nvidia/driver.py": "992ba21e12ee170a904f3a1caca24a78ce3dd66b661087faea5973b995480f63",
+    "triton/backends/nvidia/driver.c": "835f068cf517d237dc62be91275261e260c2bae985a9242fd28866303c1e5a60",
+    "torch/cuda/streams.py": "28d90fd68be59e8dd9a30d230e7df6f61a4b020e6e2da9fa89839691a1cfced5"
+  },
+  "jit_lookup_slice_sha256": "8686893714b9aef17074011b857f5a40eab9a545a35976d7eea895b7d352221d",
+  "required_checks": [
+    "route D2H readback",
+    "synchronization",
+    "native route checks"
+  ],
+  "missing_qualification": [
+    "loaded source association",
+    "producer-time context and capture state",
+    "stream/context ownership",
+    "opaque launcher ABI metadata",
+    "actual tensor dtype/storage profile",
+    "complete current guard/frame observations"
+  ]
+}
