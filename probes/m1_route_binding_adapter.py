@@ -507,9 +507,14 @@ class SharedRouteDispatcher:
         # Explicit stale/foreign dependency/consumer events differ from an
         # unrelated global launch. They can never validate another owner scope.
         active = self._active
-        active_scope = active._active if active is not None else None
-        if active_scope is not None:
-            active._reject(active_scope, "foreign/stale dispatcher event", poison=True)
+        if active is not None:
+            # The base runner clears _active under this same lock before
+            # constructing its terminal audit. Reject while the owner scope is
+            # still live, or observe that cleanup already won and leave it alone.
+            with active._lock:
+                active_scope = active._active
+                if active_scope is not None:
+                    active._reject(active_scope, "foreign/stale dispatcher event", poison=True)
         return None
 
     def dependency_observed(self, scope, producer, consumer):

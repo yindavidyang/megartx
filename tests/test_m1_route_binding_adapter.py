@@ -3,6 +3,7 @@ import ast
 from dataclasses import replace
 import gc
 import importlib.util
+import inspect
 from pathlib import Path
 import sys
 import threading
@@ -643,6 +644,65 @@ class BindingAdapterTests(unittest.TestCase):
         f.run()
         self.assertEqual(errors, [])
         self.assert_checked(f)
+
+    def test_foreign_rejection_is_serialized_before_owner_terminal_audit(self):
+        f = BindingFixture()
+        parked, resume, cleanup_attempt, owner_done = (threading.Event() for _ in range(4))
+        errors, scopes = [], []
+        lines, start = inspect.getsourcelines(type(f.dispatcher)._event_observer)
+        reject_line = start + next(i for i, line in enumerate(lines) if "active._reject(active_scope" in line)
+        lines, start = inspect.getsourcelines(old.RouteObserver._runner)
+        cleanup_line = start + next(i for i, line in enumerate(lines) if "if self._active is scope:" in line) - 1
+        def foreign():
+            def trace(frame, event, arg):
+                if event == "line" and frame.f_code is type(f.dispatcher)._event_observer.__code__ and frame.f_lineno == reject_line:
+                    parked.set()
+                    if not resume.wait(10):
+                        raise AssertionError("resume timeout")
+                return trace
+            sys.settrace(trace)
+            try:
+                f.dispatcher.dependency_observed(scopes[0], f.producer_stream, f.consumer_stream)
+            except BaseException as error:
+                errors.append(("foreign", type(error).__name__))
+            finally:
+                sys.settrace(None)
+        foreign_thread = threading.Thread(target=foreign)
+        def consumer():
+            scopes.append(f.dispatcher.active_scope)
+            foreign_thread.start()
+            if not parked.wait(10):
+                raise AssertionError("park timeout")
+        f.callbacks["consumer"] = consumer
+        def owner():
+            def trace(frame, event, arg):
+                if event == "line" and frame.f_code is old.RouteObserver._runner.__code__ and frame.f_lineno == cleanup_line:
+                    cleanup_attempt.set()
+                return trace
+            sys.settrace(trace)
+            try:
+                f.boundary = replace(f.boundary, thread=threading.current_thread())
+                f.run()
+            except BaseException as error:
+                errors.append(("owner", type(error).__name__))
+            finally:
+                sys.settrace(None)
+                owner_done.set()
+        owner_thread = threading.Thread(target=owner)
+        owner_thread.start()
+        try:
+            self.assertTrue(parked.wait(10))
+            self.assertTrue(cleanup_attempt.wait(10))
+            self.assertFalse(owner_done.is_set())
+        finally:
+            resume.set()
+            foreign_thread.join(10)
+            owner_thread.join(10)
+        self.assertFalse(foreign_thread.is_alive() or owner_thread.is_alive())
+        self.assertEqual(errors, [])
+        self.assert_checked(f)
+        self.assertTrue(f.observer.last_audit.poisoned and f.observer.poisoned)
+        self.assertEqual(f.dispatcher._inflight, 0)
 
     def test_fixture_sources_and_production_disconnection(self):
         self.assertTrue(source.validate_sources())
