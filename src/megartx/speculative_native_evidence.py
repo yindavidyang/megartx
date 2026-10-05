@@ -9,6 +9,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import stat
 import uuid
 
@@ -18,12 +19,59 @@ from .speculative_native_plan import PURPOSE, LIMITS, SHA, COMMIT, hash_file
 CAP = LIMITS["receipt_host_metadata_bytes"]
 
 
+def error_detail(error, stage, operation=None):
+    """Small diagnostic only, never a traceback, raw path, or cleanup proof."""
+    def safe(value, size=384):
+        try:
+            value = str(value)[:size]
+        except BaseException:
+            return "<unprintable>"
+        value = re.sub(r"(?<![\w])/(?:[^\s'\"<>]*)", "<path>", value)
+        return "".join(char if char.isprintable() else " " for char in value)
+    def row(item):
+        return {"error_type": safe(type(item).__name__, 80),
+                "message": safe(item),
+                "errno": item.errno if isinstance(item, OSError) and type(item.errno) is int else None,
+                "operation": safe(getattr(item, "megartx_operation", operation or stage), 80)}
+    result = {"stage": safe(stage, 80), **row(error), "causes": [],
+              "notes": [safe(note, 256) for note in getattr(error, "__notes__", ())[:2]]}
+    seen, current = {id(error)}, error
+    for _ in range(3):
+        current = current.__cause__ or (None if current.__suppress_context__ else current.__context__)
+        if current is None or id(current) in seen:
+            break
+        seen.add(id(current))
+        result["causes"].append(row(current))
+    return result
+
+
+def annotate_operation(error, operation):
+    if not hasattr(error, "megartx_operation"):
+        error.megartx_operation = operation
+
+
+def retain_error(primary, secondary, stage, operation=None):
+    """Keep the original exception, including on Python 3.10, with safe cause."""
+    if primary is None:
+        primary = secondary
+    note = stage + ": " + json.dumps(error_detail(secondary, stage, operation), sort_keys=True)
+    if hasattr(primary, "add_note"):
+        primary.add_note(note)
+    else:
+        primary.__notes__ = getattr(primary, "__notes__", []) + [note]
+    return primary
+
+
 def bounded_json_chunks(value, cap=CAP):
-    """Check conservative encode size before encoding even the first chunk.
+    """Bound structure, then exact encoded bytes before acquiring an output.
 
     The traversal creates no flattened copy. Strings are bounded individually;
-    node count/depth and a conservative escaped upper bound limit encoding work.
+    node count/depth and scalar limits bound each encoder chunk. A conservative
+    upper bound is a fast acceptance check, not grounds to reject a valid file.
+    If needed, a discard-only streaming pass counts exact bytes up to the cap.
     """
+    if type(cap) is not int or not 0 < cap <= CAP:
+        raise ProbeError("Private evidence cap exceeds the fixed serialized limit")
     nodes, upper = 0, 0
     def inspect(node, depth=0):
         nonlocal nodes, upper
@@ -57,11 +105,16 @@ def bounded_json_chunks(value, cap=CAP):
                 inspect(item, depth + 1)
         else:
             raise ProbeError("Non-JSON private evidence")
-        if upper > cap:
-            raise ProbeError("Private evidence conservative byte bound exceeded before encoding")
     inspect(value)
+    encoder = json.JSONEncoder(sort_keys=True, separators=(",", ":"), allow_nan=False)
+    if upper > cap:
+        exact = 0
+        for chunk in encoder.iterencode(value):
+            exact += len(chunk.encode())
+            if exact > cap:
+                raise ProbeError("Private evidence exact byte bound exceeded before acquisition")
     total = 0
-    for chunk in json.JSONEncoder(sort_keys=True, separators=(",", ":"), allow_nan=False).iterencode(value):
+    for chunk in encoder.iterencode(value):
         data = chunk.encode()
         if total + len(data) > cap:
             raise ProbeError("Private evidence byte limit exceeded before write")
@@ -71,54 +124,81 @@ def bounded_json_chunks(value, cap=CAP):
 
 class PrivateEvidence:
     def __init__(self, directory):
-        self.directory = Path(directory)
-        self.fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-        info = os.fstat(self.fd)
-        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
-            self.close()
-            raise ProbeError("Private evidence directory must be owned and mode 0700")
-        filesystem = os.fstatvfs(self.fd)
-        if filesystem.f_bavail * filesystem.f_frsize < LIMITS["private_run_evidence_bytes"]:
-            self.close()
-            raise ProbeError("Insufficient private evidence disk reserve")
+        self.directory, self.fd = Path(directory), None
+        operation = "evidence_directory_open"
+        try:
+            self.fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            operation = "evidence_directory_validate"
+            info = os.fstat(self.fd)
+            if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+                raise ProbeError("Private evidence directory must be owned and mode 0700")
+            operation = "evidence_disk_reserve"
+            filesystem = os.fstatvfs(self.fd)
+            if filesystem.f_bavail * filesystem.f_frsize < LIMITS["private_run_evidence_bytes"]:
+                raise ProbeError("Insufficient private evidence disk reserve")
+        except BaseException as primary:
+            annotate_operation(primary, operation)
+            try:
+                self.close()
+            except BaseException as secondary:
+                retain_error(primary, secondary, "Evidence initialization cleanup failed")
+            raise
 
     def close(self):
         if getattr(self, "fd", None) is not None:
-            os.close(self.fd)
-            self.fd = None
+            fd, self.fd = self.fd, None
+            try:
+                os.close(fd)
+            except BaseException as error:
+                annotate_operation(error, "evidence_directory_close")
+                raise
 
     def __enter__(self):
         return self
 
-    def __exit__(self, *args):
-        self.close()
+    def __exit__(self, error_type, primary, traceback):
+        try:
+            self.close()
+        except BaseException as secondary:
+            if primary is None:
+                raise
+            retain_error(primary, secondary, "Evidence directory cleanup failed")
 
     def write(self, name, value, *, cap=CAP):
-        if Path(name).name != name or name.startswith("."):
-            raise ProbeError("Invalid evidence filename")
-        # Complete conservative validation before opening/acquiring output.
-        chunks = bounded_json_chunks(value, cap)
-        first = next(chunks, b"")
-        # Serial owned writers share this directory. Reserve the complete future
-        # baseline startup files and log even if they have not been written yet.
-        # Counting is streaming and stops before accepting unbounded topology.
-        count, present = 0, 0
-        with os.scandir(self.fd) as entries:
-            for entry in entries:
-                count += 1
-                if count > 64 or not entry.is_file(follow_symlinks=False):
-                    raise ProbeError("Private evidence inventory exceeds its bound")
-                present += entry.stat(follow_symlinks=False).st_size
-                if present > LIMITS["private_run_evidence_bytes"]:
-                    raise ProbeError("Private run evidence exceeds its frozen bound")
-        future_startup_and_log = 4 * (8 << 20)
-        if present + cap + future_startup_and_log > LIMITS["private_run_evidence_bytes"]:
-            raise ProbeError("Private evidence disk budget exceeded before acquisition")
-        tmp = ".pending-" + str(uuid.uuid4())
-        fd = os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600, dir_fd=self.fd)
-        total, digest = 0, hashlib.sha256()
+        operation, tmp, fd = "evidence_filename", None, None
         try:
-            with os.fdopen(fd, "wb") as stream:
+            if Path(name).name != name or name.startswith("."):
+                raise ProbeError("Invalid evidence filename")
+            # Complete conservative validation before opening/acquiring output.
+            operation = "evidence_serialization_preflight"
+            chunks = bounded_json_chunks(value, cap)
+            first = next(chunks, b"")
+            # Serial owned writers share this directory. Reserve the complete future
+            # baseline startup files and log even if they have not been written yet.
+            # Counting is streaming and stops before accepting unbounded topology.
+            operation = "evidence_inventory"
+            count, present = 0, 0
+            with os.scandir(self.fd) as entries:
+                for entry in entries:
+                    count += 1
+                    if count > 64 or not entry.is_file(follow_symlinks=False):
+                        raise ProbeError("Private evidence inventory exceeds its bound")
+                    present += entry.stat(follow_symlinks=False).st_size
+                    if present > LIMITS["private_run_evidence_bytes"]:
+                        raise ProbeError("Private run evidence exceeds its frozen bound")
+            future_startup_and_log = 4 * (8 << 20)
+            if present + cap + future_startup_and_log > LIMITS["private_run_evidence_bytes"]:
+                raise ProbeError("Private evidence disk budget exceeded before acquisition")
+            operation = "evidence_temporary_open"
+            candidate = ".pending-" + str(uuid.uuid4())
+            fd = os.open(candidate, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600, dir_fd=self.fd)
+            tmp = candidate  # Only unlink a temporary file we actually acquired.
+            total, digest = 0, hashlib.sha256()
+            operation = "evidence_stream_open"
+            stream = os.fdopen(fd, "wb")
+            fd = None  # stream owns the descriptor after successful fdopen.
+            try:
+                operation = "evidence_write"
                 def put(data):
                     nonlocal total
                     if total + len(data) > cap:
@@ -129,19 +209,44 @@ class PrivateEvidence:
                 put(first)
                 for data in chunks:
                     put(data)
+                operation = "evidence_flush"
                 stream.flush()
+                operation = "evidence_file_fsync"
                 os.fsync(stream.fileno())
+                operation = "evidence_file_seal"
                 os.fchmod(stream.fileno(), 0o400)
+            except BaseException as primary:
+                annotate_operation(primary, operation)
+                try:
+                    stream.close()
+                except BaseException as secondary:
+                    retain_error(primary, secondary, "Evidence stream cleanup failed", "evidence_stream_close")
+                raise
+            operation = "evidence_stream_close"
+            stream.close()
             # link is no-replace, unlike rename. Existing receipts never mutate.
+            operation = "evidence_publish_no_replace"
             os.link(tmp, name, src_dir_fd=self.fd, dst_dir_fd=self.fd, follow_symlinks=False)
+            operation = "evidence_temporary_unlink"
             os.unlink(tmp, dir_fd=self.fd)
+            tmp = None
+            operation = "evidence_directory_fsync"
             os.fsync(self.fd)
             return {"sha256": digest.hexdigest(), "bytes": total}
-        except BaseException:
-            try:
-                os.unlink(tmp, dir_fd=self.fd)
-            except FileNotFoundError:
-                pass
+        except BaseException as primary:
+            annotate_operation(primary, operation)
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except BaseException as secondary:
+                    retain_error(primary, secondary, "Evidence file cleanup failed", "evidence_file_close")
+            if tmp is not None:
+                try:
+                    os.unlink(tmp, dir_fd=self.fd)
+                except FileNotFoundError:
+                    pass
+                except BaseException as secondary:
+                    retain_error(primary, secondary, "Evidence temporary cleanup failed", "evidence_temporary_unlink")
             raise
 
 

@@ -152,8 +152,9 @@ PID/start-time, nonce, purpose, checkpoint, and writer source before saving:
 Directories are owned mode 0700. Evidence writes use exclusive temporary files,
 fsync, immutable mode 0400, and no-replace links. A duplicate cannot overwrite a
 previous receipt. JSON topology, node count, depth, strings, integer magnitude,
-nonfinite values, and a conservative escaped-byte upper bound are checked before
-output acquisition. Canonical JSON is streamed with a byte check before each
+nonfinite values are checked before encoding. A conservative escaped-byte upper
+bound allows a fast acceptance; otherwise a discard-only encoding pass counts
+exact canonical bytes and rejects true excess before output acquisition. Canonical JSON is streamed with a byte check before each
 write; its SHA-256 must equal the actual EngineCore receipt digest. The streaming
 directory inventory rejects more than 64 files and reserves 24 MiB for the three
 baseline startup outputs plus 8 MiB for logs before each evidence acquisition,
@@ -227,9 +228,11 @@ retain 2 GiB and host available RAM 8 GiB before acquisition and during the run;
 unknown telemetry stops owned work. Startup/receipt has a 900-second deadline,
 the full owned lifecycle including cleanup has an 1800-second limit, and 60
 seconds are reserved for teardown. Runtime logs are capped at 8 MiB before write.
-The child applies an 8 MiB kernel per-file bound to startup evidence before
-imports. A 64 MiB run evidence disk reserve is separate from these RAM/GPU limits
-and is not an allocation-coverage claim.
+The child does not apply the receipt byte cap as an inherited kernel file-size
+limit: that would incorrectly cap compiler output and cache files. The bounded
+receipt/log writers and 64 MiB run-evidence admission budget remain independent
+of runtime artifacts, host RAM and GPU limits. These are not allocation-coverage
+claims. See the additive startup correction below.
 
 The shared registration/evidence-hook integration and reviewed active runner
 selection are the remaining frozen source blockers in this branch. Read-only installed metadata reports Torch distribution
@@ -269,3 +272,57 @@ references, without claiming a native host peak bound. After shared integration
 and the exact client/plan are reviewed, the plan generator/schema must be deliberately updated
 and re-frozen at the accepted integrated HEAD. This packet makes no correctness,
 quality, timing, speed, workspace coverage, or live-fit claim.
+
+
+## Startup file-domain and cleanup-diagnostic correction
+
+The unchanged-source `7b05e005780098bb5890eca28a71d02eb017cb62` attempt
+reached model loading and logged the V2 worker extension, then failed during
+FlashInfer JIT with a compiler file-size signal. Its child installed an 8 MiB
+hard `RLIMIT_FSIZE` before runtime construction. Compiler descendants inherited
+that process-wide cap; this was broader than the serialized receipt contract.
+The correction removes that assignment rather than increasing evidence limits
+or changing compiler/RSS/time ownership guards. V2's existing frozen cache/tmp/
+home/config paths remain task-local and disjoint from source, installed packages
+and private evidence. No global cache/package write or automatic retry is added.
+Pre-existing startup reference/capture writers are unchanged; this correction
+adds no new unbounded artifact writer and does not reclassify them as receipts.
+
+Serialized receipts remain capped at 8 MiB, supervisor logs at 8 MiB before each
+write, full cleanup JSON at 256 KiB, and run-evidence inventory at 64 MiB with its
+existing startup/log reserve. All structural JSON guards remain: maximum depth
+32, 100,000 visited values, 4096 characters per string, uint64-magnitude integers,
+finite floats and primitive JSON types. A conservative escaped-size estimate no
+longer rejects a file merely because that estimate is above its cap. Instead,
+a discard-only canonical encoding pass counts exact bytes, stops at real excess,
+and completes before any temporary output is opened. Each scalar encoder chunk
+is structurally bounded; no flattened payload or full encoded copy is acquired.
+The write pass independently checks the same byte cap before every write.
+
+Cleanup evidence retains a bounded, path-redacted exception message, type,
+errno, operation, stage and cause chain. Writer acquisition, serialization,
+publication, fsync and cleanup stages are distinguished. Failure-reporting,
+pending-file cleanup and directory-close errors attach to the original exception
+rather than replacing it. Process ownership and pidfd selection rules are
+unchanged. A failed full cleanup receipt sets cleanup uncertainty even if the
+in-memory process report said no identities remained. A small separately named
+fallback is diagnostic only: it explicitly says the full internal identity graph
+was not verified. If that fallback also cannot be written, both errors remain on
+the original exception. An external no-jobs observation is never promoted into
+an internal cleanup receipt.
+
+CPU subprocess controls exercise the production supervisor and child with a
+fixture runtime factory, real Linux subreaper/pidfd cleanup and an actual 9 MiB
+compiler-like temporary output. They do not invoke a native compiler, import a
+model runtime or query a GPU. Separate controls exercise real serializer limits,
+repeated compiler identities, long arguments, exact-cap/one-byte-over files,
+ENOSPC, cleanup exceptions and secondary write/unlink/close failures. Historical
+cleanup-writer cause remains unknown because the old path retained only its
+exception class. Plausible CPU reproductions do not retroactively identify it.
+
+The historical attempt completed no receipt/lease utility session and made no
+additional diagnostic forwards. Startup-forward completion remains unverified;
+all six forced fixtures were false. No native-fit, quality or speed acceptance
+follows. Both the runtime root and private output directory from that attempt
+are consumed and retained; future separately authorized work requires fresh
+paths, a new exact-source freeze, review and assigned slot.

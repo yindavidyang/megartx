@@ -8,7 +8,6 @@ import asyncio
 import json
 import os
 from pathlib import Path
-import resource
 import signal
 import socket
 import subprocess
@@ -21,7 +20,7 @@ sys.path.insert(0, str(PROJECT / "src"))
 from megartx.speculative_native_plan import (BASE, SITE, LIMITS, PURPOSE, environment,
     read_json, validate_plan, validate_authorization, installed_preflight,
     checkpoint_preflight, receipt_admission)
-from megartx.speculative_native_evidence import PrivateEvidence
+from megartx.speculative_native_evidence import PrivateEvidence, error_detail, retain_error
 from megartx.speculative_native_probe import ProbeError, _process_start
 from megartx.speculative_native_preparation import runtime_preflight, create_runtime, validate_entrypoint_discovery
 
@@ -76,10 +75,35 @@ def bounded_log(source, target, fail):
 
 
 def retain_primary(primary, cleanup, phase):
-    if primary is None:
-        return cleanup
-    if hasattr(primary, "add_note"):
-        primary.add_note(phase + ": " + type(cleanup).__name__)
+    return retain_error(primary, cleanup, phase)
+
+
+def write_cleanup_evidence(directory, cleanup, primary):
+    """Never promote an unwritten identity graph to verified cleanup evidence."""
+    if primary is not None:
+        cleanup["primary_failure"] = error_detail(primary, "owned_execution")
+    try:
+        with PrivateEvidence(directory) as evidence:
+            evidence.write("native-owned-cleanup.private.json", cleanup, cap=LIMITS["plan_bytes"])
+    except BaseException as error:
+        process_cleanup = cleanup.get("cleanup_complete") is True
+        cleanup["cleanup_complete"] = False
+        cleanup["cleanup_evidence_complete"] = False
+        detail = error_detail(error, "owned_cleanup_evidence", "write_cleanup_receipt")
+        primary = retain_primary(primary, error, "Owned cleanup evidence failed")
+        # This smaller record is diagnostic only. It omits the identity graph and
+        # cannot stand in for the failed complete receipt, even after no-jobs audit.
+        fallback = {"schema": "megartx-native-cleanup-failure-v1", "cleanup_complete": False,
+            "full_cleanup_receipt_written": False, "internal_identity_graph_verified": False,
+            "process_cleanup_reported_complete": process_cleanup, "failure": detail,
+            "primary_failure": error_detail(primary, "owned_execution"), "retry_allowed": False}
+        try:
+            with PrivateEvidence(directory) as evidence:
+                evidence.write("native-owned-cleanup-failure.private.json", fallback, cap=64 << 10)
+        except BaseException as secondary:
+            primary = retain_primary(primary, secondary, "Owned cleanup diagnostic evidence failed")
+        primary = retain_primary(primary, ProbeError("Internal cleanup receipt unavailable; cleanup uncertainty retained"),
+                                 "Owned cleanup uncertainty")
     return primary
 
 
@@ -137,9 +161,10 @@ def child_entry(args):
                 raise ProbeError("Owned resource controls unavailable")
         admission, deadline = packet["admission"], packet["deadline_monotonic"]
         gate()
-        # Kernel file bound covers startup writes before any overflow, separately
-        # from the writer's serialized byte cap and sampled host RAM reserve.
-        resource.setrlimit(resource.RLIMIT_FSIZE, (8 << 20, 8 << 20))
+        # Evidence limits are enforced by their writers, not RLIMIT_FSIZE. A
+        # process-wide file limit is inherited by JIT compiler descendants and
+        # incorrectly applies the receipt's 8 MiB cap to runtime/cache artifacts.
+        # V2's source-bound cache/tmp paths remain separate from evidence.
         from megartx.speculative_native_client import ReceiptSession, make_actual_client
         session = None
         async def run_async():
@@ -161,9 +186,13 @@ def child_entry(args):
             stream.write(b"complete\n")
             return 0
         except BaseException as error:
-            with PrivateEvidence(args.private_directory) as evidence:
-                evidence.write("native-client-failure.private.json", {"error_type": type(error).__name__,
-                    "events": session.events if session else [], "retry_allowed": False}, cap=64 << 10)
+            try:
+                with PrivateEvidence(args.private_directory) as evidence:
+                    evidence.write("native-client-failure.private.json", {"error_type": type(error).__name__,
+                        "failure": error_detail(error, "owned_client_startup" if session is None else "owned_client_session"),
+                        "events": session.events if session else [], "retry_allowed": False}, cap=64 << 10)
+            except BaseException as secondary:
+                retain_primary(error, secondary, "Owned client failure evidence failed")
             raise
 
 
@@ -199,10 +228,13 @@ def supervise(args):
         evidence.write("native-source-preflight.private.json", {"installed": installed, "checkpoint": checkpoint,
             "headroom": reserves}, cap=LIMITS["plan_bytes"])
     stop, failure, threads = threading.Event(), [], []
+    failure_details = []
     lock = threading.RLock()
     child, primary = None, None
-    def fail(kind):
+    def fail(kind, error=None, stage="owned_guard"):
         with lock:
+            if error is not None and len(failure_details) < 8:
+                failure_details.append(error_detail(error, stage))
             if not failure:
                 failure.append(kind)
                 ownership.fail(kind)
@@ -229,11 +261,11 @@ def supervise(args):
             except BaseException as error:
                 if stop.is_set():
                     return
-                fail(type(error).__name__)
+                fail(type(error).__name__, error, "owned_watchdog")
                 try:
                     ownership.stop()
-                except BaseException:
-                    fail("owned_stop_failed")
+                except BaseException as secondary:
+                    fail("owned_stop_failed", secondary, "owned_watchdog_stop")
                 return
             stop.wait(.2)
     parent_socket, child_socket = socket.socketpair()
@@ -263,7 +295,7 @@ def supervise(args):
                     parent_socket.sendall(json.dumps(response).encode() + b"\n")
         except BaseException as error:
             if not stop.is_set():
-                fail(type(error).__name__)
+                fail(type(error).__name__, error, "owned_control_channel")
     def interrupted(signum, frame):
         raise InterruptedError("Owned supervisor interrupted")
     previous = {sig: signal.signal(sig, interrupted) for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
@@ -292,32 +324,49 @@ def supervise(args):
         primary = error
     finally:
         stop.set()
+        finalization_errors = []
+        def finalization_failure(error, stage):
+            nonlocal primary
+            finalization_errors.append(error_detail(error, stage))
+            primary = retain_primary(primary, error, stage)
         for sock in (parent_socket, child_socket):
-            sock.close()
+            try:
+                sock.close()
+            except BaseException as error:
+                finalization_failure(error, "Owned control socket close failed")
         try:
             cleanup = ownership.cleanup(gpu_processes, (child.poll if child else lambda: None), term_seconds=10, kill_seconds=10)
         except BaseException as error:
-            cleanup = {"cleanup_complete": False, "cleanup_error_type": type(error).__name__}
+            cleanup = {"cleanup_complete": False, "cleanup_error_type": type(error).__name__,
+                       "failure_detail": error_detail(error, "owned_process_cleanup")}
             primary = retain_primary(primary, error, "Owned cleanup failed")
         for thread in threads:
-            thread.join(timeout=2)
-            if thread.is_alive():
-                fail("owned_monitor_or_log_thread_uncertain")
+            try:
+                thread.join(timeout=2)
+                if thread.is_alive():
+                    fail("owned_monitor_or_log_thread_uncertain")
+            except BaseException as error:
+                finalization_failure(error, "Owned monitor join failed")
         for sig, handler in previous.items():
-            signal.signal(sig, handler)
+            try:
+                signal.signal(sig, handler)
+            except BaseException as error:
+                finalization_failure(error, "Owned signal handler restore failed")
+        if finalization_errors:
+            cleanup["cleanup_complete"] = False
+            cleanup["finalization_errors"] = finalization_errors
+        if failure_details:
+            cleanup["guard_failure_details"] = failure_details
         if time.monotonic() > deadline:
             cleanup["cleanup_complete"] = False
             cleanup["wall_bound_exceeded"] = True
-        try:
-            with PrivateEvidence(args.private_directory) as evidence:
-                evidence.write("native-owned-cleanup.private.json", cleanup, cap=LIMITS["plan_bytes"])
-        except BaseException as error:
-            primary = retain_primary(primary, error, "Owned cleanup evidence failed")
+        primary = write_cleanup_evidence(args.private_directory, cleanup, primary)
         if not cleanup["cleanup_complete"] or ownership.failure or failure:
             if primary is None:
                 primary = ProbeError("Owned cleanup/resource uncertainty retained")
-            elif hasattr(primary, "add_note"):
-                primary.add_note("Owned cleanup/resource uncertainty retained")
+            else:
+                primary = retain_primary(primary, ProbeError("Owned cleanup/resource uncertainty retained"),
+                                         "Owned cleanup/resource uncertainty retained")
     if primary:
         raise primary
     from megartx.speculative_native_compare import compare_files

@@ -1,0 +1,37 @@
+{
+  "schema": "megartx-native-startup-correction-v1",
+  "base_commit": "7b05e005780098bb5890eca28a71d02eb017cb62",
+  "base_tree": "27ccb5bba41a4bc2e5fc14f8d6b624ed47d8fd52",
+  "historical_attempt": {
+    "plan_sha256": "a5f58e300a0cb6af759241fdf6aaafa3f0096c648b066240a6e9307ffe22e4df",
+    "elapsed_seconds": 30.059,
+    "source_files_verified": 355,
+    "installed_source_bindings_verified": 46,
+    "checkpoint_files_fully_hashed": 11,
+    "model_loaded_GiB_reported": 17.07,
+    "v2_worker_extension_logged": true,
+    "failure": "FlashInfer JIT compiler cc1plus reported File size limit exceeded; inherited child RLIMIT_FSIZE was 8 MiB",
+    "cleanup_full_internal_receipt_present": false,
+    "cleanup_writer_underlying_message_retained": false,
+    "cleanup_writer_historical_cause": "unknown",
+    "external_process_audit": "Supervisor/EngineCore and observed compute/compiler/model/tasks/sockets gone; not full internal identity-graph verification",
+    "startup_forwards_verified": false,
+    "forced_six_fixtures_complete": false,
+    "diagnostic_target_forwards": 0,
+    "utility_session_started": false,
+    "retry_allowed": false,
+    "runtime_and_evidence_paths": "consumed_retained_fresh_paths_required",
+    "handoff_sha256": "de389e5fc7b713c0486b2de53ff08a663df80e101813f24dcfd77fc2747ffb9c",
+    "runtime_log_sha256": "22e79f0ec0b56a01c90b39966f70420b5596e60f17535665f2e7817bb1c5d806",
+    "supervisor_log_sha256": "03950f77f89250f25ef72f9a2a0e543cb1d59cc6e31d74a44dd5e20315b2d588"
+  },
+  "correction_scope": [
+    "Remove inherited receipt-sized file cap; retain serialized/log/inventory/RSS/time bounds",
+    "Exact streamed serialization count under unchanged caps and structural guards",
+    "Retain bounded primary/secondary cleanup diagnostics; fallback is never full identity proof"
+  ],
+  "validation": "CPU-only pending exact-source review",
+  "gpu_execution_performed_for_correction": false,
+  "native_fit_admitted": false,
+  "historical_cause_limit": "CPU writer reproductions establish possible failure classes, not an unretained historical cause"
+}

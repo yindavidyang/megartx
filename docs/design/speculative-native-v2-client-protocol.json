@@ -39,5 +39,14 @@
   ],
   "preparation": "Runtime-bound V2 freeze records a short fresh exclusive owned mode-0700 runtime root, task-local writable cache/tmp/home/config paths, exact real pip --target wheel entrypoint metadata and matching package source. Unconfigured source-only plans retain an admission blocker. Inherited cache overrides are removed and rejected by the child. No shared baseline writes.",
   "checkpoint_coverage": "All 11 selected checkpoint files pinned by public immutable names/sizes/SHA256; .gitattributes is a documented repository-only omission. The pinned index supplies exactly two weight shards. Every selected file is freshly streamed and hashed before admission; retained manifest or stat evidence does not substitute.",
-  "ipc_budget": "Linux socket path payload <=107 UTF-8 bytes, accounting for pinned vLLM slash+UUID suffix (37 bytes) and 16 bytes reserved margin. Both TMPDIR and VLLM_RPC_BASE_PATH use the same task-local short tmp path."
+  "ipc_budget": "Linux socket path payload <=107 UTF-8 bytes, accounting for pinned vLLM slash+UUID suffix (37 bytes) and 16 bytes reserved margin. Both TMPDIR and VLLM_RPC_BASE_PATH use the same task-local short tmp path.",
+  "startup_file_domains": {
+    "receipt_serialized_bytes": 8388608,
+    "supervisor_log_bytes": 8388608,
+    "cleanup_serialized_bytes": 262144,
+    "private_run_evidence_bytes": 67108864,
+    "runtime_artifacts": "Existing frozen task-local cache/tmp/home/config paths are distinct from evidence; no inherited receipt-sized RLIMIT_FSIZE. Pre-existing startup reference/capture writers and contracts are unchanged. No shared package/cache writes.",
+    "json_preflight": "Preserve structural/scalar bounds; conservative estimate is fast acceptance only. If estimate exceeds cap, discard-only canonical byte counting must pass before temporary output acquisition. Stream writes independently enforce the same cap."
+  },
+  "cleanup_diagnostics": "Preserve primary exceptions and bounded path-redacted stage/operation/type/errno/message/cause. Full receipt failure is cleanup uncertainty even after empty-process observations. A compact fallback explicitly does not verify the internal identity graph; secondary fallback failure stays attached to the primary. Ownership/pidfd/capability rules are unchanged."
 }
