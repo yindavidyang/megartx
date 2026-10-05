@@ -24,28 +24,12 @@ from prefill_storage_client import (StreamLedger, payload, client_receipt, strea
 
 def source_fixture(root):
     """A private CPU fixture tree, never a repository freeze or GPU clearance."""
-    for name in storage.SOURCES:
-        path = root / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        original = ROOT / name
-        path.write_bytes(original.read_bytes() if original.is_file() else b'# synthetic CPU source\n')
-    composition = storage.map_borrow.load_catalog(ROOT)
-    for record in composition['superseded_sources']:
-        target = root/record['path']
+    catalog = storage.attention_lineage.load_catalog(ROOT)
+    names = {record['path'] for record in catalog['source_records']} | set(storage.SOURCES)
+    for name in sorted(names):
+        target = root / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes((ROOT/record['path']).read_bytes())
-    for name in [*composition['parent_ledgers'], *composition['preserved_borrow_sources']]:
-        target = root/name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes((ROOT/name).read_bytes())
-    catalog = json.loads((ROOT/storage.CATALOG_SOURCE).read_text())
-    equivalence = catalog['default_fit_equivalence']
-    for name in [*catalog['unchanged_historical_catalogs'], *catalog['parent_ledgers'],
-                 equivalence['test_path'], *equivalence['additional_tests'], *equivalence['source_fixtures'],
-                 *(record['path'] for record in catalog['superseded_sources'])]:
-        target = root/name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes((ROOT/name).read_bytes())
+        target.write_bytes((ROOT / name).read_bytes())
     # Copy the immutable catalogs exactly; the terminal overlay admits current
     # proof and validator bytes without refreshing any historical hash.
     return storage.freeze_plan(list(range(2048)), '3' * 40, root, {
@@ -266,7 +250,7 @@ class StoragePlanTests(unittest.TestCase):
             self.assertEqual(storage.validate_source_catalog(root, plan['source_hashes']), value)
             old = ROOT/'tests/fixtures/prefill-storage-base/src__megartx__vllm_scale_plugin.py.source'
             (root/'src/megartx/vllm_scale_plugin.py').write_bytes(old.read_bytes())
-            with self.assertRaisesRegex(ValueError, 'mixed'):
+            with self.assertRaisesRegex(ValueError, 'mixed|source drift'):
                 storage.freeze_plan(plan['tokens'], plan['source_head'], root, plan['checkpoint_identity'])
 
     def test_storage_catalog_wrong_purpose_and_equivalence_are_not_admitted(self):

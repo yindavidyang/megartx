@@ -14,6 +14,8 @@ import stat
 
 from . import prefill_diagnostic_plan as legacy
 from . import m1_map_borrow_lineage as map_borrow
+from . import prefill_attention_lineage as attention_lineage
+ATTENTION_HELPER_SHA256 = '6ddcf45d7ad75888e63d374119a0c11c887361752b15c5ef308c30370b6d9dfa'
 
 BASE = legacy.BASE
 BOUNDS = legacy.BOUNDS
@@ -85,6 +87,7 @@ EXTRA_SOURCES = (
     'docs/prefill/current-main-composition.md',
 )
 SOURCES = (*legacy.SOURCES, *EXTRA_SOURCES, map_borrow.CATALOG_SOURCE, map_borrow.HELPER_SOURCE)
+SOURCES = (*SOURCES, attention_lineage.CATALOG_SOURCE, attention_lineage.HELPER_SOURCE)
 CHECKER_SOURCE = 'numerical_reference/prefill_native_control.py'
 FAILURE_FILE = 'storage-failure.json'
 FAILURE_RESERVE_BYTES = 4096
@@ -166,6 +169,10 @@ def validate_plan(value, root=None):
 
 def validate_source_catalog(root, hashes):
     """Admit one reviewed two-parent composition, never a per-file hash union."""
+    # BEGIN ATTENTION SOURCE ADMISSION
+    _source_file(root, attention_lineage.HELPER_SOURCE, ATTENTION_HELPER_SHA256)
+    return attention_lineage.validate_storage_catalog(root, hashes)
+    # END ATTENTION SOURCE ADMISSION
     # BEGIN MAP-BORROW SOURCE ADMISSION
     helper_sha = '7e4f093d9d0dc0c9a1cd9640ce3d59e3a2092144255326af3d02677f1d8233e7'
     _source_file(root, map_borrow.HELPER_SOURCE, helper_sha)
@@ -270,7 +277,7 @@ def verify_adapter_sources(plan):
     the numerical checker object it loads separately against this exact path.
     """
     origins = legacy.verify_adapter_sources(plan)
-    for relative in (*EXTRA_SOURCES, map_borrow.HELPER_SOURCE):
+    for relative in (*EXTRA_SOURCES, map_borrow.HELPER_SOURCE, attention_lineage.HELPER_SOURCE):
         if not relative.startswith('src/megartx/'):
             continue
         name = 'megartx.' + Path(relative).stem

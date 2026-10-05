@@ -1,7 +1,7 @@
 """Full synthetic storage-to-attention publication; no native execution/clearance.
 
-Only terminal source-catalog admission and a declared host-availability signal
-are mocked. Metadata/operands are synthetic. Complete streaming contributions,
+Only a declared host-availability signal is mocked. Exact current terminal
+source-catalog admission executes normally. Metadata/operands are synthetic. Complete streaming contributions,
 current storage/frontier/client/cleanup gates, request/frame crossbinding,
 read_capture, isolated owned reference worker, hard process limits, and final
 publication all execute normally. Fsync is elided only during fixture setup;
@@ -72,7 +72,7 @@ class AttentionPublicationTests(unittest.TestCase):
     def test_full_actual_owned_worker_publication(self):
       with tempfile.TemporaryDirectory() as d:
         ev,plan,report,owner=setup(Path(d))
-        with patch('megartx.prefill_attention_lineage.validate_source_catalog',return_value=True), patch('megartx.prefill_attention_analysis._host_available_bytes',return_value=16<<30):
+        with patch('megartx.prefill_attention_analysis._host_available_bytes',return_value=16<<30):
           receipt=pub.publish_attention(ev,plan,report,deadline=time.monotonic()+300,ownership=owner)
         self.assertEqual(receipt['status'],'independent_attention_error_observed')
         self.assertIsNone(receipt['native_arithmetic_acceptance'])
@@ -96,7 +96,7 @@ class AttentionPublicationTests(unittest.TestCase):
       with tempfile.TemporaryDirectory() as d:
         ev,plan,report,owner=setup(Path(d));ctl=json.loads((ev.directory/'control.json').read_text())
         ctl['frontier']['checked_heads']=262;write(ev.directory/'control.json',ctl)
-        with patch('megartx.prefill_attention_lineage.validate_source_catalog',return_value=True),patch('megartx.prefill_attention_analysis.run_analysis') as oracle:
+        with patch('megartx.prefill_attention_analysis.run_analysis') as oracle:
           with self.assertRaisesRegex(ValueError,'frontier'):pub.publish_attention(ev,plan,report,deadline=time.monotonic()+300,ownership=owner)
           oracle.assert_not_called()
         self.assertFalse((ev.directory/'attention-errors.json').exists());self.assertFalse((ev.directory/'attention.json').exists())
@@ -105,7 +105,7 @@ class AttentionPublicationTests(unittest.TestCase):
       with tempfile.TemporaryDirectory() as d:
         ev,plan,report,owner=setup(Path(d));record=json.loads((ev.directory/'attention-records.json').read_text())
         record['records'][-1]['frame_input_ids_sha256']='a'*64;write(ev.directory/'attention-records.json',record)
-        with patch('megartx.prefill_attention_lineage.validate_source_catalog',return_value=True),patch('megartx.prefill_attention_analysis.run_analysis') as oracle:
+        with patch('megartx.prefill_attention_analysis.run_analysis') as oracle:
           with self.assertRaisesRegex(ValueError,'stale'):pub.publish_attention(ev,plan,report,deadline=time.monotonic()+300,ownership=owner)
           oracle.assert_not_called()
         self.assertFalse((ev.directory/'attention-errors.json').exists());self.assertFalse((ev.directory/'attention.json').exists())

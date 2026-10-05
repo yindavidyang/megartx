@@ -17,11 +17,14 @@ class CurrentMainReconciliationTests(unittest.TestCase):
         catalog = storage.validate_source_catalog(ROOT, hashes)
         self.assertEqual(catalog['parent_ledgers'], storage.PARENT_LEDGERS)
         self.assertEqual(catalog['executing_helpers'], storage.EXECUTING_HELPERS)
-        composition = storage.map_borrow.load_catalog(ROOT)
-        terminal = lambda path, digest: storage.map_borrow.terminal_sha(composition, path, digest)
+        attention = storage.attention_lineage.load_catalog(ROOT)
+        composition = storage.attention_lineage.map_borrow_catalog(ROOT)
+        terminal = lambda path, digest: storage.attention_lineage.terminal_sha(
+            attention, path, storage.map_borrow.terminal_sha(composition, path, digest))
         self.assertEqual({path: terminal(path, digest) for path, digest in catalog['runtime_source_hashes'].items()}, {
             path: value for path, value in hashes.items()
-            if path not in (storage.CATALOG_SOURCE, storage.map_borrow.CATALOG_SOURCE, storage.map_borrow.HELPER_SOURCE)})
+            if path not in (storage.CATALOG_SOURCE, storage.map_borrow.CATALOG_SOURCE, storage.map_borrow.HELPER_SOURCE,
+                            storage.attention_lineage.CATALOG_SOURCE, storage.attention_lineage.HELPER_SOURCE)})
         self.assertEqual(set(catalog['previous_source_hashes']), set(catalog['changed_source_hashes']))
         for path, value in catalog['changed_source_hashes'].items():
             self.assertEqual(storage.file_sha(ROOT/path), terminal(path, value), path)

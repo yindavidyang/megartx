@@ -31,9 +31,9 @@ def dump(node):
 
 
 class DefaultPurpose(ast.NodeTransformer):
-    """Evaluate only explicit new storage-purpose gates with selector absent."""
+    """Evaluate explicit storage/attention gates with both selectors absent."""
     def known(self, node):
-        if isinstance(node, ast.Name) and node.id == 'prefill_storage':
+        if isinstance(node, ast.Name) and node.id in ('prefill_storage', 'prefill_attention'):
             return False
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
             value = self.known(node.operand)
@@ -41,7 +41,9 @@ class DefaultPurpose(ast.NodeTransformer):
         if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
             values = [self.known(x) for x in node.values]
             return False if False in values else None
-        if isinstance(node, ast.Compare) and isinstance(node.left, ast.Name) and node.left.id == 'storage':
+        if (isinstance(node, ast.Compare) and isinstance(node.left, ast.Name)
+                and node.left.id in ('storage', 'attention_capture')
+                and len(node.ops) == len(node.comparators) == 1):
             if isinstance(node.ops[0], ast.IsNot) and isinstance(node.comparators[0], ast.Constant) and node.comparators[0].value is None:
                 return False
             if isinstance(node.ops[0], ast.Eq) and isinstance(node.comparators[0], ast.Constant) and node.comparators[0].value == '1':
@@ -54,17 +56,22 @@ class DefaultPurpose(ast.NodeTransformer):
         return self.generic_visit(node)
 
     def visit_If(self, node):
+        # Normalize nested purpose branches before selecting one so consecutive
+        # attention/storage gates still produce a flat, executable statement list.
+        node = self.generic_visit(node)
         known = self.known(node.test)
         if known is not None:
-            return [self.visit(x) for x in (node.body if known else node.orelse)]
-        return self.generic_visit(node)
+            return node.body if known else node.orelse
+        return node
 
     def visit_IfExp(self, node):
         known = self.known(node.test)
         return self.visit(node.body if known else node.orelse) if known is not None else self.generic_visit(node)
 
     def visit_Assign(self, node):
-        if any(isinstance(t, ast.Name) and t.id in ('storage', 'prefill_storage') for t in node.targets):
+        if any(isinstance(t, ast.Name) and t.id in
+               ('storage', 'prefill_storage', 'attention_capture', 'prefill_attention')
+               for t in node.targets):
             return None
         if any(isinstance(t, ast.Name) and t.id == 'prefill_native' for t in node.targets):
             node = copy.deepcopy(node)
@@ -74,12 +81,15 @@ class DefaultPurpose(ast.NodeTransformer):
 
     def visit_Tuple(self, node):
         node = self.generic_visit(node)
-        node.elts = [x for x in node.elts if not (isinstance(x, ast.Constant) and x.value in ('prefill-storage', 'MEGARTX_PREFILL_STORAGE_CONTROL'))]
+        node.elts = [x for x in node.elts if not (isinstance(x, ast.Constant) and x.value in
+                    ('prefill-storage', 'MEGARTX_PREFILL_STORAGE_CONTROL',
+                     'prefill-attention', 'MEGARTX_PREFILL_ATTENTION_CAPTURE'))]
         return node
 
     def visit_Set(self, node):
         node = self.generic_visit(node)
-        node.elts = [x for x in node.elts if not (isinstance(x, ast.Constant) and x.value == 'prefill-storage')]
+        node.elts = [x for x in node.elts if not (isinstance(x, ast.Constant) and x.value in
+                    ('prefill-storage', 'prefill-attention'))]
         return node
 
 

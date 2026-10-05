@@ -330,12 +330,20 @@ class M1PreparationTests(unittest.TestCase):
         lineage = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(lineage)
         try:
-            terminal_catalog = lineage.load_catalog(root)
+            import sys
+            sys.path.insert(0, str(root / "src"))
+            try:
+                from megartx import prefill_attention_lineage as attention
+            finally:
+                sys.path.pop(0)
+            attention_catalog = attention.load_catalog(root)
+            terminal_catalog = attention.map_borrow_catalog(root)
         except ValueError as error:
             self.fail(str(error))
         def terminal(path, previous):
             try:
-                return lineage.terminal_sha(terminal_catalog, path, previous)
+                return attention.terminal_sha(attention_catalog, path,
+                    lineage.terminal_sha(terminal_catalog, path, previous))
             except ValueError as error:
                 self.fail(str(error))
         terminal_changes = current_changes

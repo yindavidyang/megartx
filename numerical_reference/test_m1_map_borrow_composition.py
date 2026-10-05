@@ -33,10 +33,12 @@ class MapBorrowCompositionTests(unittest.TestCase):
         sys.path.insert(0, str(ROOT / 'src'))
         try:
             from megartx import prefill_storage_plan
+            from megartx import prefill_attention_lineage
             from megartx.controlled_kv_capture import CONFIG_SHA256
         finally:
             sys.path.pop(0)
         cls.storage = prefill_storage_plan
+        cls.attention = prefill_attention_lineage
         cls.config_sha256 = CONFIG_SHA256
 
     def validate(self, root=None):
@@ -65,7 +67,7 @@ class MapBorrowCompositionTests(unittest.TestCase):
                 storage.validate_source_catalog(ROOT, hashes)
 
     def test_validator_restores_exact_main_without_touching_execution(self):
-        source = (ROOT / 'src/megartx/prefill_storage_plan.py').read_text()
+        source = self.attention.parent_validator_source((ROOT / 'src/megartx/prefill_storage_plan.py').read_text())
         expected = '42eab7949b1b2b0a64892c4efe01084da50339d8d3bbc446d227694153e7d580'
         self.assertEqual(sha(lineage.parent_validator_source(source).encode()), expected)
         for marker in ('    # BEGIN MAP-BORROW SOURCE ADMISSION\n',
@@ -80,7 +82,8 @@ class MapBorrowCompositionTests(unittest.TestCase):
             self.assertNotEqual(sha(lineage.parent_validator_source(changed).encode()), expected)
 
     def test_borrow_parent_ledger_and_both_terminal_paths_are_preserved(self):
-        value = lineage.load_catalog(ROOT)
+        attention_catalog = self.attention.load_catalog(ROOT)
+        value = self.attention.map_borrow_catalog(ROOT)
         rows = {record['path']: record for record in value['superseded_sources']}
         borrow = json.loads((ROOT / 'docs/evidence/m1-invocation-regions-source-pins.json').read_text())
         descriptor_path = ROOT / 'docs/evidence/m1-tma-descriptor-source-pins.json'
@@ -105,11 +108,13 @@ class MapBorrowCompositionTests(unittest.TestCase):
             self.assertEqual(set(record), {'path', 'prior_sha256', 'current_sha256'})
             self.assertEqual(record['prior_sha256'], common[name], name)
             self.assertEqual(record['current_sha256'], rows[name]['borrow_parent_sha256'], name)
-            self.assertEqual(lineage.terminal_sha(value, name, record['current_sha256'], 'borrow_parent_sha256'),
+            self.assertEqual(self.attention.terminal_sha(attention_catalog, name,
+                lineage.terminal_sha(value, name, record['current_sha256'], 'borrow_parent_sha256')),
                              sha((ROOT / name).read_bytes()), name)
         main = json.loads((ROOT / 'docs/prefill/current-main-source-reconciliation.json').read_text())
         for record in main['superseded_sources']:
-            self.assertEqual(lineage.terminal_sha(value, record['path'], record['current_sha256']),
+            self.assertEqual(self.attention.terminal_sha(attention_catalog, record['path'],
+                lineage.terminal_sha(value, record['path'], record['current_sha256'])),
                              sha((ROOT / record['path']).read_bytes()), record['path'])
         self.assertEqual(set(borrow['added_source_hashes']), {'probes/m1_invocation_regions_flow_test.cpp',
             'numerical_reference/test_m1_invocation_regions.py', 'docs/m1-invocation-regions.md',

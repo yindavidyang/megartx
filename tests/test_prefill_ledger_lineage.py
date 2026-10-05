@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import unittest
 from megartx import m1_map_borrow_lineage as map_borrow
+from megartx import prefill_attention_lineage as attention
 from megartx.prefill_diagnostic_plan import HISTORICAL_SOURCES as SOURCES, TRANSPORT_FILES
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -20,7 +21,8 @@ class LedgerLineageTests(unittest.TestCase):
         follow=json.loads((ROOT/'docs/prefill/native-stream-fit-admission-correction.json').read_text())
         storage=json.loads((ROOT/'docs/prefill/native-storage-source-reconciliation.json').read_text())
         composition=json.loads((ROOT/'docs/prefill/current-main-source-reconciliation.json').read_text())
-        terminal=map_borrow.load_catalog(ROOT)
+        attention_catalog=attention.load_catalog(ROOT)
+        terminal=attention.map_borrow_catalog(ROOT)
         for field in ('runtime_source_hashes','changed_source_hashes','new_control_source_hashes',
                       'unchanged_historical_catalogs','unchanged_shared_sources'):
             for path,expected in value[field].items():
@@ -33,7 +35,7 @@ class LedgerLineageTests(unittest.TestCase):
                 if path in composition['changed_source_hashes']:
                     self.assertEqual(composition['previous_source_hashes'][path],expected,path)
                     expected=composition['changed_source_hashes'][path]
-                self.assertEqual(sha(path),map_borrow.terminal_sha(terminal,path,expected),path)
+                self.assertEqual(sha(path),attention.terminal_sha(attention_catalog,path,map_borrow.terminal_sha(terminal,path,expected)),path)
         self.assertEqual(value['installed_transport_file_hashes'],TRANSPORT_FILES)
         changed=sorted(path for path in SOURCES if value['runtime_source_hashes'][path]!=value['previous_runtime_source_hashes'][path])
         self.assertEqual(changed,['scripts/prefill_diagnostic_client.py','src/megartx/prefill_diagnostic_plan.py',
