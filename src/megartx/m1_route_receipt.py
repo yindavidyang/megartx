@@ -238,6 +238,18 @@ class RouteObservationLedger:
             self._fail("out-of-order or duplicate observation")
         return current
 
+    @contextmanager
+    def _operation(self, token, phase):
+        with self._lock:
+            try:
+                yield self._current(token, phase)
+            except BaseException:
+                # A caller catching an unexpected validator failure inside the
+                # invocation must not make a subsequent retry valid.
+                if self._poison is None:
+                    self._poison = "exception in observation operation"
+                raise
+
     def _begin(self, bindings, guards, stream, frame):
         with self._lock:
             if self._poison is not None:
@@ -326,8 +338,7 @@ class RouteObservationLedger:
         launch boundaries; reading a mutable kernel object only after return is
         not sufficient. No live launch interception is implemented here.
         """
-        with self._lock:
-            current = self._current(token, "open")
+        with self._operation(token, "open") as current:
             self._validate_producer(current, before)
             self._validate_producer(current, after)
             if not _same_output(before.output, after.output):
@@ -341,8 +352,7 @@ class RouteObservationLedger:
         This method performs no wait and does not certify an event. Keep all
         current waits, record_stream calls and host readbacks unchanged.
         """
-        with self._lock:
-            current = self._current(token, "produced")
+        with self._operation(token, "produced") as current:
             if (not _same_stream(current.stream, producer) or not _stream_valid(consumer)
                     or consumer.handle == 0 or consumer.device != producer.device
                     or consumer.context is not producer.context):
@@ -352,8 +362,7 @@ class RouteObservationLedger:
 
     def consume(self, token, bindings, guards, output, consumer, frame):
         """Consume once for audit; result always requires route readback."""
-        with self._lock:
-            current = self._current(token, "dependency_observed")
+        with self._operation(token, "dependency_observed") as current:
             if (not _same_binding(self._expected, bindings) or not _guards_valid(guards)
                     or not _same_output(current.output, output)
                     or not _same_stream(current.consumer, consumer) or frame is not current.frame):

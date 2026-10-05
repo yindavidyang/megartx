@@ -490,6 +490,28 @@ class RouteReceiptTests(unittest.TestCase):
                 self.fail("primary exception swallowed")
             self.assert_poisoned_and_closed(f)
 
+    def test_unexpected_validator_exceptions_cannot_be_caught_then_retried(self):
+        for phase in ("production", "dependency", "consumption"):
+            f = Fixture()
+            with self.subTest(phase=phase), self.assertRaises(RouteObservationError):
+                with f.invocation() as token:
+                    if phase != "production":
+                        f.produce(token)
+                    if phase == "consumption":
+                        f.dependency(token)
+                    with self.assertRaises(AttributeError):
+                        if phase == "production":
+                            malformed = object.__new__(ProducerSnapshot)
+                            f.ledger.observe_production(token, malformed, malformed)
+                        elif phase == "dependency":
+                            f.ledger.observe_dependency(token, f.producer, object.__new__(StreamSnapshot))
+                        else:
+                            f.consume(token, bindings=object.__new__(BindingSnapshot))
+                    self.assertTrue(f.ledger.poisoned)
+                    with self.assertRaises(RouteObservationError):
+                        f.consume(token)
+            self.assert_poisoned_and_closed(f)
+
     def test_no_runtime_import_hook_environment_switch_or_device_dependency(self):
         root = Path(__file__).resolve().parents[1]
         source = root / "src/megartx/m1_route_receipt.py"
