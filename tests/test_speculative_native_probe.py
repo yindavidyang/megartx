@@ -245,9 +245,13 @@ class SourceAndDefaultOff(unittest.TestCase):
         tree = ast.parse(source)
         from_runner = next(x for x in ast.walk(tree) if isinstance(x, ast.FunctionDef) and x.name == "from_runner")
         self.assertEqual([a.arg for a in from_runner.args.args], ["cls", "runner", "ticket", "admission"])
-        for call in ("runner.get_model()", "pool.get_new_blocks(sum(counts))", "pool.free_blocks(blocks)",
+        for call in ("runner.get_model()",
                      "builder.build(0, commons[gid])", "self.model.compute_logits(hidden[row:row + 1])"):
             self.assertIn(call, source)
+        lifecycle = (ROOT / "src/megartx/speculative_native_lifecycle.py").read_text()
+        self.assertIn("pool.get_new_blocks(sum(counts))", lifecycle)
+        self.assertIn("lease.pool.free_blocks(lease.blocks)", lifecycle)
+        self.assertIn("return owned_probe(core, prompt, admission)", source)
         self.assertNotIn("provider", [a.arg for a in from_runner.args.args])
         self.assertIn("with torch.inference_mode():", source)
         self.assertIn("binding(layer, adapter)", source)
