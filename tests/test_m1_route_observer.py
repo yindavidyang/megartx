@@ -155,6 +155,9 @@ class Fixture:
         self.jit = JIT()
         self.jit.debug, self.jit.pre_run_hooks, self.jit.used_global_vals = False, [], {}
         self.jit.launch_metadata = None
+        self.jit.arg_names = tuple(str(i) for i in range(7))
+        self.kernel.src = compiled_globals["ASTSource"]()
+        self.kernel.src.fn = self.jit
         self.jit._pack_args = lambda *args: ({}, {}, {}, {})
         self.jit._do_compile = self.compile
         self.compile_result = None
@@ -481,13 +484,28 @@ class RouteObserverTests(unittest.TestCase):
             elif mode == "source":
                 f.kernel.src = Owner()
             else:
-                f.kernel.src.fn = Owner()
+                f.kernel.src.fn = NS(launch_metadata=None)
             with self.subTest(mode=mode):
                 f.run()
                 self.assert_checked(f)
                 self.assertEqual(len(f.launches), 1)
                 if mode in ("launch_metadata", "_init_handles"):
                     self.assertEqual(seen, [mode])
+
+    def test_unobserved_compiled_source_function_stays_incomplete(self):
+        f = Fixture(install=False)
+        f.kernel.src = Owner()  # No source-to-JIT owner relationship is observed.
+        f.observer = RouteObserver(f.expected, f.reference, f.readers)
+        f.wrappers = dict(
+            runner=f.observer.wrap_runner(f.runner, f.originals["runner"]),
+            select=f.observer.wrap_select(f.router, f.originals["select"]),
+            jit=f.observer.wrap_jit(f.jit, f.originals["jit"]),
+            launch=f.observer.wrap_launcher(f.kernel, f.originals["launch"]))
+        f.install()
+        f.run()
+        self.assert_checked(f)
+        self.assertEqual((len(f.binds), len(f.cache_gets), len(f.launches)), (1, 1, 1))
+        self.assertIn("compiled source/function owner changed or unknown", f.observer.last_audit.reasons)
 
     def test_foreign_router_helpers_instance_and_class_substitution_rejected(self):
         for helper in ("_select_experts", "_compute_routing", "_validate_eplb_state",

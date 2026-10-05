@@ -373,8 +373,7 @@ class RouteObserver:
         _require(source is self._kernel_source and source is not UNKNOWN and
                  type(source) is self._kernel_source_type and
                  getattr(source, "fn", UNKNOWN) is self._kernel_source_fn and
-                 (self._kernel_source_fn is UNKNOWN or
-                  self._kernel_source_fn is self.expected.jit_function),
+                 self._kernel_source_fn is self.expected.jit_function,
                  "compiled source/function owner changed or unknown")
         _require(vars(kernel).get("module", UNKNOWN) is self.expected.cuda_module and
                  vars(kernel).get("function", UNKNOWN) is self.expected.cuda_function and
