@@ -176,10 +176,10 @@ def _output_valid(value):
             and _integer(value.pointer, 1) and _integer(value.storage_pointer, 1)
             and _integer(value.storage_bytes, 32) and _integer(value.offset_bytes)
             and _integer(value.device) and type(value.view_bytes) is int and value.view_bytes == 32
-            and type(value.shape) is tuple and value.shape == (1, 8)
-            and all(type(x) is int for x in value.shape)
-            and type(value.strides) is tuple and value.strides == (8, 1)
-            and all(type(x) is int for x in value.strides)
+            and type(value.shape) is tuple and len(value.shape) == 2
+            and all(type(x) is int for x in value.shape) and value.shape == (1, 8)
+            and type(value.strides) is tuple and len(value.strides) == 2
+            and all(type(x) is int for x in value.strides) and value.strides == (8, 1)
             and type(value.dtype) is str and value.dtype == "int32"
             and value.pointer % 4 == 0 and value.offset_bytes % 4 == 0
             and value.pointer == value.storage_pointer + value.offset_bytes
@@ -295,8 +295,14 @@ class RouteObservationLedger:
                         self._active = None
                 if primary is None:
                     raise
-                if hasattr(primary, "add_note"):
-                    primary.add_note("Route observation cleanup failed: " + str(cleanup))
+                # Neither hostile __str__ nor an overridden add_note may mask
+                # the original exception. Notes are optional on Python 3.10.
+                try:
+                    add_note = getattr(BaseException, "add_note", None)
+                    if add_note is not None:
+                        add_note(primary, "Route observation cleanup failed")
+                except BaseException:
+                    pass
 
     def _validate_producer(self, current, snapshot):
         if (type(snapshot) is not ProducerSnapshot
@@ -308,8 +314,9 @@ class RouteObservationLedger:
                 or any(type(getattr(snapshot, name)) is not int or getattr(snapshot, name) != expected
                        for name, expected in (("experts", 128), ("top_k", 8),
                                               ("block_experts", 128), ("num_warps", 1)))
-                or type(snapshot.grid) is not tuple or snapshot.grid != (1,)
-                or any(type(x) is not int for x in snapshot.grid)):
+                or type(snapshot.grid) is not tuple or len(snapshot.grid) != 1
+                or any(type(x) is not int for x in snapshot.grid)
+                or snapshot.grid != (1,)):
             self._fail("producer metadata changed, unsupported or unobserved")
 
     def observe_production(self, token, before, after):

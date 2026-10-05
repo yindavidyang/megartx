@@ -447,6 +447,49 @@ class RouteReceiptTests(unittest.TestCase):
             receipt = f.consume(token)
         self.assertTrue(receipt.route_readback_required)
 
+    def test_shape_stride_and_grid_elements_never_call_overloaded_equality(self):
+        for where in ("shape", "strides", "grid"):
+            f = Fixture()
+            bomb = EqualToEverything()
+            with self.subTest(where=where), self.assertRaises(RouteObservationError):
+                with f.invocation() as token:
+                    if where == "grid":
+                        bad = replace(f.snapshot(), grid=(bomb,))
+                    else:
+                        bad = replace(f.snapshot(), output=replace(f.output, **{where: (bomb, 8)}))
+                    with self.assertRaises(RouteObservationError):
+                        f.ledger.observe_production(token, bad, bad)
+                    self.assertTrue(f.ledger.poisoned)
+                    with self.assertRaises(RouteObservationError):
+                        f.complete(token)
+            self.assert_poisoned_and_closed(f)
+
+    def test_cleanup_formatting_and_overridden_notes_cannot_mask_primary(self):
+        class BadCleanup(BaseException):
+            def __str__(self):
+                raise RuntimeError("cleanup formatting must not run")
+        class Primary(KeyboardInterrupt):
+            def add_note(self, note):
+                raise RuntimeError("overridden note must not run")
+        class CleanupFailure(RouteObservationLedger):
+            def _cleanup(self, token, primary):
+                raise BadCleanup()
+        for bad_notes in (False, True):
+            f = Fixture()
+            f.ledger = CleanupFailure(f.bindings)
+            primary = Primary("exact primary")
+            if bad_notes:
+                primary.__notes__ = "malformed fixture notes"
+            try:
+                with f.invocation() as token:
+                    f.complete(token)
+                    raise primary
+            except BaseException as error:
+                self.assertIs(error, primary)
+            else:
+                self.fail("primary exception swallowed")
+            self.assert_poisoned_and_closed(f)
+
     def test_no_runtime_import_hook_environment_switch_or_device_dependency(self):
         root = Path(__file__).resolve().parents[1]
         source = root / "src/megartx/m1_route_receipt.py"
