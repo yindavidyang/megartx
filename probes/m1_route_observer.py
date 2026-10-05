@@ -202,9 +202,29 @@ class RouteObserver:
         self._lock = threading.RLock()
         self._local = threading.local()
         self.last_audit = None
+        kernel = expected.compiled_kernel
+        self._kernel_type = type(kernel)
+        self._kernel_source = vars(kernel).get("src", UNKNOWN)
+        self._kernel_source_type = type(self._kernel_source)
+        self._kernel_source_fn = getattr(self._kernel_source, "fn", UNKNOWN)
+        self._kernel_entries = tuple((name, getattr(kernel, name, UNKNOWN))
+            for name in ("launch_metadata", "_init_handles"))
+        self._run_descriptor = vars(type(kernel)).get("run", UNKNOWN)
+        self._run_getter = (self._run_descriptor.fget
+                            if type(self._run_descriptor) is property else UNKNOWN)
+        self._router_type = type(expected.router)
+        self._host_entries = tuple((expected.router, name, getattr(expected.router, name, UNKNOWN))
+            for name in ("_select_experts", "_compute_routing", "_validate_eplb_state",
+                         "_apply_eplb_mapping", "_convert_indices_dtype")) + (
+            (expected.runner, "_maybe_apply_shared_experts",
+             getattr(expected.runner, "_maybe_apply_shared_experts", UNKNOWN)),
+            (expected.layer, "forward_modular", getattr(expected.layer, "forward_modular", UNKNOWN)),
+        )
         self._expected_functions = tuple((value, _fingerprint(value)) for value in
             (expected.custom_routing, expected.prepare, reference.hookchain_call,
-             reference.launcher_launch, reference.utils_launch, *reference.extra_bindings)
+             reference.launcher_launch, reference.utils_launch, self._run_getter,
+             *(entry for _, entry in self._kernel_entries),
+             *(entry for _, _, entry in self._host_entries), *reference.extra_bindings)
             if callable(value))
         self._hook_objects = tuple(getattr(reference.runtime, name, UNKNOWN) for name in
             ("launch_enter_hook", "launch_exit_hook", "kernel_load_start_hook", "kernel_load_end_hook"))
@@ -244,6 +264,8 @@ class RouteObserver:
     def _slot(self, kind, owner, name, original, body):
         if kind in self._slots or not callable(original):
             raise ValueError("one exact callable per wrapper kind is required")
+        _require(_same_callable(getattr(owner, name, UNKNOWN), original),
+                 "wrapper original differs from current callable")
         slot = _Slot(owner, name, original, _fingerprint(original))
         def wrapper(*args, **kwargs):
             return body(slot, args, kwargs)
@@ -269,6 +291,11 @@ class RouteObserver:
                  "actual runner ownership changed")
         _require(_same_callable(getattr(self.expected.router, "custom_routing_function", UNKNOWN),
                                 self.expected.custom_routing), "actual custom routing changed")
+        _require(type(self.expected.router) is self._router_type, "router class changed")
+        for owner, name, expected_entry in self._host_entries:
+            _require(callable(expected_entry) and
+                     _same_callable(getattr(owner, name, UNKNOWN), expected_entry),
+                     "router/runner/consumer helper changed or unknown")
         value = self.readers.bindings()
         _require(type(value) is BindingSnapshot and value.cache_key is UNKNOWN,
                  "binding reader must leave cache selection unknown")
@@ -334,6 +361,21 @@ class RouteObserver:
         kernel = self.expected.compiled_kernel
         launcher = self._slots["launch"].original
         ref = self.reference
+        _require(type(kernel) is self._kernel_type and
+                 vars(type(kernel)).get("run", UNKNOWN) is self._run_descriptor and
+                 type(self._run_descriptor) is property and "run" not in vars(kernel),
+                 "compiled run descriptor changed or unknown")
+        for name, expected_entry in self._kernel_entries:
+            _require(callable(expected_entry) and
+                     _same_callable(getattr(kernel, name, UNKNOWN), expected_entry),
+                     "compiled kernel callback/entrypoint changed")
+        source = vars(kernel).get("src", UNKNOWN)
+        _require(source is self._kernel_source and source is not UNKNOWN and
+                 type(source) is self._kernel_source_type and
+                 getattr(source, "fn", UNKNOWN) is self._kernel_source_fn and
+                 (self._kernel_source_fn is UNKNOWN or
+                  self._kernel_source_fn is self.expected.jit_function),
+                 "compiled source/function owner changed or unknown")
         _require(vars(kernel).get("module", UNKNOWN) is self.expected.cuda_module and
                  vars(kernel).get("function", UNKNOWN) is self.expected.cuda_function and
                  vars(kernel).get("metadata", UNKNOWN) is ref.metadata and

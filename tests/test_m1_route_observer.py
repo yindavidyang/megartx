@@ -469,6 +469,62 @@ class RouteObserverTests(unittest.TestCase):
                 self.assertIn("actual runner ownership changed", f.observer.last_audit.reasons)
                 self.assertEqual((len(f.binds), len(f.cache_gets), len(f.launches)), (1, 1, 1))
 
+    def test_compiled_entrypoint_source_and_descriptor_substitution_rejected(self):
+        for mode in ("launch_metadata", "_init_handles", "run", "source", "source_fn"):
+            f = Fixture()
+            seen = []
+            if mode in ("launch_metadata", "_init_handles"):
+                original = getattr(f.kernel, mode)
+                setattr(f.kernel, mode, lambda *args: (seen.append(mode), original(*args))[1])
+            elif mode == "run":
+                type(f.kernel).run = property(lambda kernel: kernel._run)
+            elif mode == "source":
+                f.kernel.src = Owner()
+            else:
+                f.kernel.src.fn = Owner()
+            with self.subTest(mode=mode):
+                f.run()
+                self.assert_checked(f)
+                self.assertEqual(len(f.launches), 1)
+                if mode in ("launch_metadata", "_init_handles"):
+                    self.assertEqual(seen, [mode])
+
+    def test_foreign_router_helpers_instance_and_class_substitution_rejected(self):
+        for helper in ("_select_experts", "_compute_routing", "_validate_eplb_state",
+                       "_apply_eplb_mapping", "_convert_indices_dtype"):
+            for location in ("instance", "class"):
+                f = Fixture()
+                calls = []
+                original = getattr(f.router, helper)
+                if location == "instance":
+                    setattr(f.router, helper, lambda *a, **kw: (calls.append(helper), original(*a, **kw))[1])
+                else:
+                    setattr(type(f.router), helper,
+                            lambda owner, *a, **kw: (calls.append(helper), original(*a, **kw))[1])
+                with self.subTest(helper=helper, location=location):
+                    f.run()
+                    self.assert_checked(f)
+                    self.assertEqual(calls, [helper])
+                    self.assertIn("router/runner/consumer helper changed or unknown",
+                                  f.observer.last_audit.reasons)
+
+    def test_factory_rejects_wrong_current_original_before_registering_wrapper(self):
+        f = Fixture(install=False)
+        other = RouteObserver(f.expected, f.reference, f.readers)
+        original = f.runner._apply_quant_method
+        calls = []
+        def foreign(*args, **kwargs):
+            calls.append("foreign")
+            return original(*args, **kwargs)
+        with self.assertRaises(Exception):
+            other.wrap_runner(f.runner, foreign)
+        self.assertEqual(calls, [])
+        self.assertEqual(other._slots, {})
+        f.router.select_experts = lambda *args, **kwargs: None
+        with self.assertRaises(Exception):
+            other.wrap_select(f.router, f.originals["select"])
+        self.assertEqual(other._slots, {})
+
     def test_each_guard_unknown_or_active_keeps_exact_production_checked(self):
         for info in fields(GuardSnapshot):
             f = Fixture()
@@ -569,7 +625,7 @@ class RouteObserverTests(unittest.TestCase):
             ("select_experts", "_compute_routing")), ("_compute_routing",))
         f.run()
         self.assert_checked(f)
-        self.assertIn("guard/callback unknown or active", f.observer.last_audit.reasons)
+        self.assertIn("router/runner/consumer helper changed or unknown", f.observer.last_audit.reasons)
 
     def test_owned_wrapper_replacement_still_delegates_without_accepting_foreign_wrapper(self):
         for kind in ("select", "jit", "launch"):
@@ -686,7 +742,8 @@ class RouteObserverTests(unittest.TestCase):
         self.assert_checked(f)
         self.assertEqual(f.events.count("unobserved_launch"), 1)
         self.assertEqual(len(f.launches), 0)
-        self.assertIn("missing or duplicate inner launch", f.observer.last_audit.reasons)
+        self.assertTrue(set(f.observer.last_audit.reasons) &
+                        {"missing or duplicate inner launch", "compiled run descriptor changed or unknown"})
 
     def test_duplicate_inner_launch_delegates_each_call_once_but_poisons(self):
         f = Fixture()
@@ -1167,11 +1224,12 @@ class RouteObserverTests(unittest.TestCase):
 
     def test_router_returned_ids_must_be_the_exact_inner_bound_output(self):
         f = Fixture()
-        type(f.router)._convert_indices_dtype = lambda self, ids, dtype: Tensor((1, 8), "int32")
+        f.callbacks["launch"] = lambda: setattr(type(f.router), "_convert_indices_dtype",
+            lambda self, ids, dtype: Tensor((1, 8), "int32"))
         result = f.run()
         self.assert_checked(f)
         self.assertIsNot(result[1], f.launches[0][-1][3])
-        self.assertIn("selected IDs are not observed bound output", f.observer.last_audit.reasons)
+        self.assertIn("router/runner/consumer helper changed or unknown", f.observer.last_audit.reasons)
         self.assertTrue(f.observer.poisoned)
 
     def test_arguments_and_binding_readers_returning_wrong_snapshot_types_fail_closed(self):

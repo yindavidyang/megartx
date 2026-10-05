@@ -61,9 +61,13 @@ never complete another audit with that observer.
 
 The registry strongly retains owner/original/wrapper pairs and recognizes only
 its own exact wrapper objects. `__wrapped__` attributes confer no ownership.
-Foreign instance overrides are preserved as mismatches. Callable code,
+Factories also check that the supplied original is the current exact callable.
+Foreign instance overrides are preserved as mismatches. Source-defined router
+helpers and runner/consumer callables are retained and rechecked, including class
+replacement. Callable code,
 defaults/closure owners, prepare/finalize extras, initialized kernel/module/
-function, launch targets and scalar launcher configuration are rechecked.
+function, compiled source/entrypoints/run descriptor, launch targets and scalar
+launcher configuration are rechecked.
 Per-invocation arguments, returned IDs, frame and output/storage owners remain
 strongly retained until owner-thread cleanup and are then released.
 
@@ -133,10 +137,17 @@ removal and CPU fake globals; executable bodies are unchanged.
   `f797708c0626e5f9840ca5b0a98790e2c7cb09ad`
 - Every fixture explicitly has `installed_bytes_verified=false`
 
-Historical source associations and this reference are not a current installed
-pin. Installed file/RECORD hashes, native extensions/compiler artifacts, actual
-current knobs, selected compilation, loaded handles and worker process evidence
-remain separate intake requirements. Missing cache artifacts do not prevent
+A separately supplied owner-saved target source-only intake vector matches all
+nine full-file hashes underlying these 22 excerpts. The vector SHA-256 is
+`560a78317f5a2d479457bbe1a3de58623993e022a624000b2c24b09e135b6884`;
+its source-inventory hash is
+`9ec1691ba076f42d69e43920da1fc0c14348014af36644b7e4e27caede465145`.
+The fixture metadata continues to describe reference provenance, not a live
+runtime pin. Source-hash correspondence does not identify the selected cache
+entry, loaded binary/function, current callbacks or process state. Existing
+native/compiler artifact hashes in that intake are not selected-artifact proof;
+outside-root group references were not read. Current knobs, selected compilation,
+loaded handles and worker process evidence remain separate requirements. Missing cache artifacts do not prevent
 these CPU tests, but prevent claims about an installed compilation.
 
 Run the isolated suite with:
