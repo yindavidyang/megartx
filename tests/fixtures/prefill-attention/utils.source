@@ -1,0 +1,187 @@
+# Exact source-extracted Python bodies. CPU mocks only; see manifest.json.
+from __future__ import annotations
+
+class PosEncodingMode(Enum):
+    NONE = 0
+    ROPE_LLAMA = 1
+    ALIBI = 2
+
+
+class MaskMode(Enum):
+    NON_CAUSAL = 0
+    CAUSAL = 1
+    CUSTOM = 2
+    MULTIITEMSCORING = 3
+
+
+class TensorLayout(Enum):
+    NHD = 0
+    HND = 1
+
+
+def _expand_5d(x: torch.Tensor, kv_layout: str) -> torch.Tensor:
+    if x.ndim not in [4, 5]:
+        raise ValueError("x must be 4D or 5D")
+    if x.ndim == 4:
+        # page_size == 1
+        if kv_layout == "NHD":
+            # (num_pages, 2, num_heads, head_dim) -> (num_pages, 2, page_size=1, num_heads, head_dim)
+            # expand to 5D on the 3nd last dimension
+            return x.unsqueeze(-3)
+        elif kv_layout == "HND":
+            # (num_pages, 2, num_heads, head_dim) -> (num_pages, 2, num_heads, page_size=1, head_dim)
+            # expand to 5D on the 2nd last dimension
+            return x.unsqueeze(-2)
+        else:
+            raise KeyError("Invalid kv_layout {}".format(kv_layout))
+    return x
+
+
+def _expand_4d(x: torch.Tensor, kv_layout: str) -> torch.Tensor:
+    if x.ndim not in [3, 4]:
+        raise ValueError("x must be 3D or 4D")
+    if x.ndim == 3:
+        # page_size == 1
+        if kv_layout == "NHD":
+            # (num_pages, num_heads, head_dim) -> (num_pages, page_size=1, num_heads, head_dim)
+            # expand to 4D on the 3nd last dimension
+            return x.unsqueeze(-3)
+        elif kv_layout == "HND":
+            # (num_pages, num_heads, head_dim) -> (num_pages, num_heads, page_size=1, head_dim)
+            # expand to 5D on the 2nd last dimension
+            return x.unsqueeze(-2)
+        else:
+            raise KeyError("Invalid kv_layout {}".format(kv_layout))
+    return x
+
+
+def _check_pos_encoding_mode(pos_encoding_mode: str) -> None:
+    if not hasattr(PosEncodingMode, pos_encoding_mode):
+        raise KeyError("Invalid pos_encoding_mode {}".format(pos_encoding_mode))
+
+
+def is_float8(x: torch.Tensor) -> bool:
+    return x.dtype in [torch.float8_e4m3fn, torch.float8_e5m2]
+
+
+def _unpack_paged_kv_cache(
+    paged_kv_cache: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]],
+    kv_layout: str,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    if isinstance(paged_kv_cache, tuple):
+        paged_k_cache, paged_v_cache = paged_kv_cache
+        return (
+            _expand_4d(paged_k_cache, kv_layout),
+            _expand_4d(paged_v_cache, kv_layout),
+        )
+    elif torch.is_tensor(paged_kv_cache):
+        # NOTE(Zihao): split on the second dimension
+        paged_kv_cache = _expand_5d(paged_kv_cache, kv_layout)
+        paged_k_cache, paged_v_cache = paged_kv_cache.unbind(dim=1)
+        return paged_k_cache, paged_v_cache
+    else:
+        raise KeyError(
+            "Unrecognized paged_kv_cache type {}, expect a single tensor or a tuple of tensor.".format(
+                type(paged_kv_cache)
+            )
+        )
+
+
+def get_alibi_slopes(
+    n_heads: int, device: Optional[torch.device] = None
+) -> torch.Tensor:
+    n = 2 ** math.floor(math.log2(n_heads))
+    m_0 = 2.0 ** (-8.0 / n)
+    m = torch.pow(m_0, torch.arange(1, 1 + n, device=device))
+    if n < n_heads:
+        m_hat_0 = 2.0 ** (-4.0 / n)
+        m_hat = torch.pow(
+            m_hat_0, torch.arange(1, 1 + 2 * (n_heads - n), 2, device=device)
+        )
+        m = torch.cat([m, m_hat])
+    return m.float()
+
+
+def _get_cache_alibi_slopes_buf(
+    num_qo_heads: int, device: torch.device
+) -> torch.Tensor:
+    key = (f"alibi_slopes_{num_qo_heads}", device)
+    buf = _cache_buf.get(key)
+    if buf is None:
+        buf = get_alibi_slopes(num_qo_heads, device=device)
+        _cache_buf[key] = buf
+    return buf
+
+
+@functools.cache
+def get_device_properties(device: torch.device):
+    return torch.cuda.get_device_properties(device)
+
+
+@functools.cache
+def get_compute_capability(device: torch.device) -> Tuple[int, int]:
+    if device.type != "cuda":
+        raise ValueError("device must be a cuda device")
+    properties = get_device_properties(device)
+    return properties.major, properties.minor
+
+
+def check_trtllm_gen_sm107_only_feature(
+    enabled: Optional[bool], feature_name: str, device: torch.device
+) -> None:
+    if not enabled:
+        return
+    major, minor = get_compute_capability(device)
+    if (major, minor) != (10, 7):
+        raise ValueError(
+            f"{feature_name} is only supported on SM107 (Rubin); the current device is "
+            f"sm{major}{minor}. trtllm-gen exports those cubin variants for SM107 only."
+        )
+
+
+def _check_cached_qkv_data_type(
+    q: torch.Tensor, k: torch.Tensor, dtype_q: torch.dtype, dtype_kv: torch.dtype
+) -> None:
+    if q.dtype != dtype_q:
+        raise ValueError(
+            f"The dtype of q {q.dtype} does not match the q_data_type {dtype_q} specified in plan function."
+        )
+    if k.dtype != dtype_kv:
+        raise ValueError(
+            f"The dtype of k {k.dtype} does not match the kv_data_type {dtype_kv} specified in plan function."
+        )
+
+
+def check_shape_dtype_device(
+    x: torch.Tensor,
+    expected_shape: Optional[Sequence[int]],
+    expected_dtype: Optional[torch.dtype],
+    expected_device: Optional[torch.device],
+    name: str,
+) -> None:
+    if expected_shape and x.shape != torch.Size(expected_shape):
+        raise ValueError(
+            f"Invalid shape of {name}: expected {expected_shape}, got {x.shape}"
+        )
+    if expected_dtype and x.dtype != expected_dtype:
+        raise ValueError(
+            f"Invalid dtype of {name}: expected {expected_dtype}, got {x.dtype}"
+        )
+    if expected_device and x.device != expected_device:
+        raise ValueError(
+            f"Invalid device of {name}: expected {expected_device}, got {x.device}"
+        )
+
+
+@functools.cache
+def device_support_pdl(device: torch.device) -> bool:
+    if device.type != "cuda":
+        return False
+    major, _ = get_compute_capability(device)
+    return major >= 9
+
+
+@functools.cache
+def get_device_sm_count(device: torch.device) -> int:
+    return get_device_properties(device).multi_processor_count
+

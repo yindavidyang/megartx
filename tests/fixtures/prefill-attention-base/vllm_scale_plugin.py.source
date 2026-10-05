@@ -15,12 +15,6 @@ from .m1_execution import profile_scope
 def install():
     mode = os.environ.get("MEGARTX_SCALE_MODE")
     storage = os.environ.get("MEGARTX_PREFILL_STORAGE_CONTROL")
-    attention_capture = os.environ.get("MEGARTX_PREFILL_ATTENTION_CAPTURE")
-    if attention_capture is not None and (attention_capture != "1" or storage is not None
-            or mode != "native" or not all(os.environ.get(k) for k in (
-                "MEGARTX_PREFILL_NATIVE_PLAN", "MEGARTX_PREFILL_NATIVE_DIR",
-                "MEGARTX_PREFILL_NATIVE_DEADLINE", "MEGARTX_PREFILL_NATIVE_SOURCE_ROOT"))):
-        raise RuntimeError("Attention capture requires its complete exclusive native purpose")
     if storage is not None and (storage != "1" or mode != "native"
             or not all(os.environ.get(k) for k in ("MEGARTX_PREFILL_NATIVE_PLAN",
                 "MEGARTX_PREFILL_NATIVE_DIR", "MEGARTX_PREFILL_NATIVE_DEADLINE",
@@ -378,10 +372,7 @@ def install():
 
     # Purpose-specific default-off observation; historical callbacks stay intact.
     if os.environ.get("MEGARTX_PREFILL_NATIVE_PLAN") or os.environ.get("MEGARTX_PREFILL_NATIVE_DIR"):
-        if attention_capture == "1":
-            from .prefill_attention_native import install_attention_observer
-            install_attention_observer(torch, Gemma4ForConditionalGeneration)
-        elif storage == "1":
+        if storage == "1":
             from .prefill_storage_native import install_storage_observer
             install_storage_observer(torch, Gemma4ForConditionalGeneration)
         else:

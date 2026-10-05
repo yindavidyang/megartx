@@ -1,0 +1,7 @@
+# Exact source-extracted Python bodies. CPU mocks only; see manifest.json.
+from __future__ import annotations
+
+def _is_trace_dump_enabled() -> bool:
+    """Return True if auto-dump is currently enabled via FLASHINFER_TRACE_DUMP."""
+    return os.environ.get("FLASHINFER_TRACE_DUMP", "0") not in ("0", "")
+

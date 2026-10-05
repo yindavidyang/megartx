@@ -1,0 +1,353 @@
+# Exact source-extracted Python bodies. CPU mocks only; see manifest.json.
+from __future__ import annotations
+
+def _attach_fi_trace(
+    wrapped: Callable,
+    original: Callable,
+    trace_template=None,
+) -> Callable:
+    """Attach a ``fi_trace`` callable to *wrapped*.
+
+    Three resolution strategies, tried in order:
+
+    1. **Dispatch callable** (new interface): if *trace_template* is a
+       plain callable (not a ``TraceTemplate``), it is called at trace time
+       with the bound kwargs and must return the appropriate
+       :class:`~flashinfer.trace.TraceTemplate` for that invocation.  Use
+       this when a single API function needs different templates depending on
+       a runtime parameter (e.g. ``routing_method_type``).
+    2. **Explicit template** (new interface): if *trace_template* is a
+       :class:`~flashinfer.trace.TraceTemplate`, use it directly.
+    3. **Registry lookup** (legacy interface): look up the qualname of
+       *original* in the old ``_REGISTRY`` dict in ``flashinfer.fi_trace``.
+
+    When ``FLASHINFER_TRACE_DUMP=1`` is set and a template is provided, the
+    returned callable also auto-dumps a trace JSON on every invocation
+    (deduplication: same-named files are written only once per process).
+
+    The attachment is a no-op when neither strategy finds a spec.
+    """
+    try:
+        if trace_template is not None:
+            from flashinfer.trace.template import (  # noqa: PLC0415
+                TraceTemplate,
+                _is_trace_dump_enabled,
+            )
+
+            # New interface: derive fi_api from the function's module + qualname.
+            module = getattr(original, "__module__", "") or ""
+            qualname = getattr(original, "__qualname__", "") or ""
+            fi_api = f"{module}.{qualname}" if module else qualname
+
+            fi_init_fn: Optional[Callable] = None
+            if isinstance(trace_template, TraceTemplate):
+                # Static template: pre-build the fi_trace callable once.
+                fi_trace_fn = trace_template.build_fi_trace_fn(fi_api)
+                # Register for auto-discovery by consistency tests.
+                label = trace_template.name_prefix or trace_template.op_type
+                _TRACE_REGISTRY.append((original, trace_template, label))
+                # Static template: expose .init directly if set.
+                if getattr(trace_template, "init", None) is not None:
+                    fi_init_fn = trace_template.init
+            else:
+                # Dispatch callable: *trace_template* is a function
+                # ``(save_dir=None, name=None, **kwargs) -> TraceTemplate``.
+                # Resolve the template at call time and cache per template
+                # instance to avoid rebuilding extractors on every call.
+                # If the dispatch function exposes a .templates iterable,
+                # register each template for auto-discovery.
+                dispatch_templates = tuple(
+                    tpl
+                    for tpl in getattr(trace_template, "templates", ())
+                    if isinstance(tpl, TraceTemplate)
+                )
+                for tpl in dispatch_templates:
+                    _label = tpl.name_prefix or tpl.op_type
+                    _TRACE_REGISTRY.append((original, tpl, _label))
+                _dispatch_fn = trace_template
+                _fi_trace_cache: Dict[int, Callable] = {}
+
+                def fi_trace_fn(
+                    save_dir=None,
+                    name=None,
+                    **kwargs: Any,
+                ) -> Dict[str, Any]:
+                    tpl = _dispatch_fn(save_dir=None, name=None, **kwargs)
+                    if tpl is None:
+                        return {}
+                    tpl_id = id(tpl)
+                    if tpl_id not in _fi_trace_cache:
+                        _fi_trace_cache[tpl_id] = tpl.build_fi_trace_fn(fi_api)
+                    return _fi_trace_cache[tpl_id](
+                        save_dir=save_dir, name=name, **kwargs
+                    )
+
+                # Dispatch case: fi_init must also dispatch by kwargs. We
+                # attach a callable that resolves the template via the
+                # dispatch fn and forwards the call to its .init. This
+                # branch is only used by MoE routing variants today.
+                def _dispatch_fi_init(**kwargs: Any) -> Any:
+                    tpl = _dispatch_fn(save_dir=None, name=None, **kwargs)
+                    if tpl is None or getattr(tpl, "init", None) is None:
+                        raise RuntimeError(
+                            f"No init function available for the resolved "
+                            f"template (fi_api={fi_api})"
+                        )
+                    return tpl.init(**kwargs)
+
+                # Expose fi_init if known dispatch targets have init support.
+                # If a dispatch callable does not publish .templates, still
+                # attach the resolver and let it validate the chosen template
+                # at call time.
+                if not dispatch_templates or any(
+                    getattr(tpl, "init", None) is not None for tpl in dispatch_templates
+                ):
+                    fi_init_fn = _dispatch_fi_init
+
+            wrapped.fi_trace = fi_trace_fn  # type: ignore[attr-defined]
+            if fi_init_fn is not None:
+                wrapped.fi_init = fi_init_fn  # type: ignore[attr-defined]
+
+            # Auto-dump wrapper: checked lazily at call time so that callers
+            # can set FLASHINFER_TRACE_DUMP after importing flashinfer (e.g.
+            # when running via ``python -m``).
+            _inner = wrapped
+            _sig = inspect.signature(original)
+
+            # Track which (function, error-type) pairs have already been warned
+            # about so we emit at most one diagnostic per failure class per process.
+            _autodump_warned: set = set()
+
+            @functools.wraps(_inner)
+            def _auto_dump_wrapper(*args, **kwargs):
+                # Generate trace BEFORE the actual call (crash-safe: schema
+                # depends only on input shapes/dtypes, not on whether the
+                # computation succeeds).
+                if _is_trace_dump_enabled():
+                    try:
+                        bound = _sig.bind(*args, **kwargs)
+                        bound.apply_defaults()
+                        fi_trace_fn(**dict(bound.arguments))
+                    except Exception as _exc:
+                        # Non-fatal: the API call still runs. Warn once per
+                        # (function, error-type) so users get a diagnostic
+                        # instead of silently missing a trace JSON.
+                        _key = (fi_api, type(_exc).__name__)
+                        if _key not in _autodump_warned:
+                            _autodump_warned.add(_key)
+                            import warnings as _warnings  # noqa: PLC0415
+
+                            _warnings.warn(
+                                f"[flashinfer] fi_trace auto-dump failed for "
+                                f"'{fi_api}': {type(_exc).__name__}: {_exc}. "
+                                f"Further occurrences of this error for this API "
+                                f"will be suppressed.",
+                                stacklevel=2,
+                            )
+                return _inner(*args, **kwargs)
+
+            _auto_dump_wrapper.fi_trace = fi_trace_fn  # type: ignore[attr-defined]
+            if fi_init_fn is not None:
+                _auto_dump_wrapper.fi_init = fi_init_fn  # type: ignore[attr-defined]
+            return _auto_dump_wrapper
+        else:
+            # Legacy registry lookup (kept for backwards compatibility).
+            from flashinfer.fi_trace import _REGISTRY, build_fi_trace_fn  # noqa: PLC0415
+
+            qualname = getattr(original, "__qualname__", "")
+            spec = _REGISTRY.get(qualname)
+            if spec is not None:
+                wrapped.fi_trace = build_fi_trace_fn(spec)  # type: ignore[attr-defined]
+    except Exception as _exc:
+        # Warn instead of silently swallowing: a broken trace template should
+        # be visible to the developer during import, not discovered later as a
+        # confusing AttributeError when calling func.fi_trace(...).
+        _func_name = getattr(original, "__qualname__", repr(original))
+        import warnings  # noqa: PLC0415
+
+        warnings.warn(
+            f"[flashinfer] Failed to attach fi_trace to '{_func_name}': "
+            f"{type(_exc).__name__}: {_exc}\n"
+            f"The function will work normally but fi_trace will be unavailable. "
+            f"Fix the TraceTemplate passed to @flashinfer_api(trace=...).",
+            stacklevel=3,
+        )
+    return wrapped
+
+
+def flashinfer_api(func: Callable = None, *, trace=None) -> Callable:
+    """
+    Decorator to FlashInfer's APIs.
+
+    .. warning::
+        This API logging feature is experimental and may change in future versions.
+
+    Currently logs input and output values of the function using Python's logging library.
+    This decorator integrates with Python's standard logging infrastructure while
+    maintaining zero overhead when disabled (FLASHINFER_LOGLEVEL=0).
+
+    Environment Variables
+    ---------------------
+    FLASHINFER_LOGLEVEL : int (default: 0)
+        - 0: No logging (zero overhead - decorator returns original function)
+        - 1: Log function name only (logged BEFORE execution - crash-safe)
+        - 3: Log function name + inputs/outputs with metadata (inputs logged BEFORE execution - crash-safe)
+        - 5: Log function name + inputs/outputs with metadata + tensor statistics (inputs logged BEFORE execution - crash-safe)
+        - 10: Level 5 logging + dump metadata and input/output tensors to disk for reproducibility (preserves stride/contiguity)
+
+    FLASHINFER_LOGDEST : str (default: "stdout")
+        - "stdout": Log to standard output
+        - "stderr": Log to standard error
+        - <path>: Log to specified file path
+        - Use %i in path for process ID substitution (e.g., "log_%i.txt" -> "log_12345.txt")
+
+    Level 10 Tensor Dumping (additional variables):
+    FLASHINFER_DUMP_DIR : str (default: "flashinfer_dumps")
+        - Directory where tensor dumps are saved
+
+    FLASHINFER_DUMP_MAX_SIZE_GB : float (default: 20)
+        - Maximum total size of dumps in GB
+
+    FLASHINFER_DUMP_MAX_COUNT : int (default: 1000)
+        - Maximum number of function call dumps
+
+    FLASHINFER_DUMP_SAFETENSORS : int (default: 0)
+        - 0: Use torch.save format (preserves stride/contiguity)
+        - 1: Use safetensors format (no pickle, but loses stride info)
+
+    FLASHINFER_DUMP_INCLUDE : str (default: "")
+        - Comma-separated list of patterns to include for dumping (fnmatch-style)
+
+    FLASHINFER_DUMP_EXCLUDE : str (default: "")
+        - Comma-separated list of patterns to exclude for dumping (fnmatch-style)
+
+    Examples
+    --------
+    Basic usage:
+
+    >>> @flashinfer_api
+    ... def my_function(x, y):
+    ...     return x + y
+
+    Notes
+    -----
+    - Key header lines include a timestamp in the format: [YYYY-MM-DD HH:MM:SS]
+      (e.g., "FlashInfer API Call: function_name", "FlashInfer API Logging - System Information")
+    - When FLASHINFER_LOGLEVEL=0, the decorator has truly zero overhead
+      as it returns the original function unchanged.
+    - Function names and inputs are logged BEFORE execution:
+      - Level 1: Function name only
+      - Levels 3-5: Function name + inputs with metadata
+      This means critical debugging information is preserved even if the function
+      crashes (e.g., CUDA illegal memory access, out-of-bounds, etc.).
+    - Outputs are logged AFTER successful execution for levels 3 and 5.
+    - **CUDA Graph Compatibility**: At level 5, tensor statistics (min/max/mean/nan/inf)
+      are computed by a small captured CUDA kernel that emits one line per tensor
+      via device-side printf on graph replay. The host log records a correlation id
+      ("[stats deferred to GPU kernel: id=N ...]") so the kernel output
+      ("[flashinfer stats] id=N ...") can be matched back to the API call/argument.
+      Supported dtypes: float32, float16, bfloat16, int32, int64, uint8. For other
+      dtypes the legacy "[statistics skipped: CUDA graph capture in progress]" message
+      is emitted.
+    - **CUDA Graph Compatibility (Level 10)**: tensor dumps captured inside CUDA
+      graphs store tensor references and defer the actual ``inputs.pt``/
+      ``outputs.pt`` writes. FlashInfer installs a ``CUDAGraph.replay`` hook at
+      level 10, so normal PyTorch graph replays are flushed automatically into
+      immutable ``graph_flushes/flush_XXXX`` snapshots; the root
+      ``inputs.pt``/``outputs.pt`` files still contain the latest flush for
+      compatibility. This is expensive. Use :func:`clear_graph_dumps` once
+      you're done with the captured graph to drop the deferred-write registry.
+    - The %i pattern is automatically replaced with the process ID for multi-process environments.
+    - The logger does not propagate to the root logger to avoid duplicate logs.
+    """
+    # If logging is disabled, return original function with zero overhead.
+    # We still attach fi_trace so it is always available regardless of log level.
+    if _API_LOG_LEVEL == 0:
+        if func is None:
+            return lambda f: _attach_fi_trace(f, f, trace_template=trace)
+        return _attach_fi_trace(func, func, trace_template=trace)
+
+    def decorator(f: Callable) -> Callable:
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            # Determine function name (with class name if applicable)
+            func_name = f.__name__
+            self_id = None
+            if args and hasattr(args[0], "__class__"):
+                try:
+                    class_name = args[0].__class__.__name__
+                    if "Wrapper" in class_name or class_name in [
+                        "BatchMLAPagedAttentionWrapper"
+                    ]:
+                        func_name = f"{class_name}.{func_name}"
+                        self_id = id(args[0])
+                except Exception:
+                    pass
+
+            # Level 10: Dump inputs BEFORE execution (crash-safe)
+            dump_dir = None
+            if _API_LOG_LEVEL >= 10:
+                try:
+                    dump_dir = _dump_function_inputs(
+                        f, func_name, args, kwargs, self_id=self_id
+                    )
+                    if dump_dir:
+                        _logger.debug(f"Inputs dumped to: {dump_dir}")
+                except Exception as e:
+                    _logger.error(f"[DUMP ERROR (inputs) in {func_name}]: {e}")
+
+            # Log BEFORE execution (crash-safe for all levels!)
+            #
+            # NOTE: at level 3+ we also gate by FLASHINFER_DUMP_INCLUDE /
+            # FLASHINFER_DUMP_EXCLUDE so the heavy stat collection
+            # (level-5 stats: min/max/mean/nan/inf, plus the device-side
+            # printf path under graph capture) is skipped for APIs the
+            # caller didn't select. Without this gate, setting
+            # FLASHINFER_LOGLEVEL=10 inside a real workload (e.g. sglang
+            # warmup) emits tens of millions of stat lines from APIs the
+            # user never asked to dump, which can overrun upstream HTTP
+            # health checks and abort startup. Level 1 is unconditional —
+            # it's just a single name line per call and useful as a
+            # lightweight call trace.
+            try:
+                if _API_LOG_LEVEL == 1:
+                    # Level 1: Just log function name before execution (crash-safe)
+                    _logger.debug(
+                        f"{_get_timestamp()} FlashInfer API Call: {func_name}"
+                    )
+                elif _API_LOG_LEVEL >= 3 and _should_dump_function(func_name):
+                    # Level 3+: Log full inputs before execution (crash-safe)
+                    # For level 10, we use level 5 logging (includes statistics)
+                    effective_level = min(_API_LOG_LEVEL, 5)  # Cap at 5 for logging
+                    _log_function_inputs(f, func_name, args, kwargs, effective_level)
+            except Exception as e:
+                _logger.error(f"[LOGGING ERROR in {func_name} (pre-execution)]: {e}")
+
+            # Call the original function (may crash here with CUDA errors)
+            result = f(*args, **kwargs)
+
+            # Log outputs AFTER successful execution (level 3+ only)
+            try:
+                if _API_LOG_LEVEL >= 3 and _should_dump_function(func_name):
+                    # Level 3+: Log outputs (inputs were already logged above)
+                    effective_level = min(_API_LOG_LEVEL, 5)
+                    _log_function_outputs(func_name, result, effective_level)
+            except Exception as e:
+                _logger.error(f"[LOGGING ERROR in {func_name} (outputs)]: {e}")
+
+            # Level 10: Dump outputs AFTER successful execution (crash-safe)
+            if _API_LOG_LEVEL >= 10 and dump_dir:
+                try:
+                    _dump_function_outputs(dump_dir, result)
+                    _logger.info(f"Outputs dumped to: {dump_dir}")
+                except Exception as e:
+                    _logger.error(f"[DUMP ERROR (outputs) in {func_name}]: {e}")
+
+            return result
+
+        return _attach_fi_trace(wrapper, f, trace_template=trace)
+
+    if func is None:
+        return decorator
+    return decorator(func)
+

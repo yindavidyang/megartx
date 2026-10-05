@@ -1,0 +1,20 @@
+These source-extracted fixtures preserve executable upstream Python bodies for
+CPU-only protocol tests. They do not import or execute the native runtime.
+Extraction and synthetic surrounding definitions are identified in manifest.json.
+
+vLLM excerpts:
+SPDX-License-Identifier: Apache-2.0
+SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+Upstream revision: ced6857afa0ea7b2e3f0846a62e1394e90f15607
+https://github.com/vllm-project/vllm
+
+FlashInfer excerpts:
+Copyright (c) 2023 by FlashInfer team.
+Licensed under the Apache License, Version 2.0.
+Upstream Python revision: 8bc3b578027791336c6ae87db5c9d76f82cef8bc
+The previously source-pinned XQA file's revision is recorded by its source hash.
+https://github.com/flashinfer-ai/flashinfer
+
+The Apache 2.0 license is provided in LICENSE-APACHE-2.0.txt. The upstream code
+is distributed on an AS IS BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied, as provided by that license.
