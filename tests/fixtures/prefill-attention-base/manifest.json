@@ -1,0 +1,21 @@
+{
+  "base": "8060d8b6a9e335042925f9666394e19c0b50b7cc",
+  "tree": "b584293b1508bff6fd5735516eb84451d6e7e735",
+  "files": {
+    "src/megartx/vllm_scale_plugin.py": {
+      "fixture": "vllm_scale_plugin.py.source",
+      "bytes": 24968,
+      "sha256": "2d92e1b89a734a3e57dc4c150a712578a75fa216e7c41d33961d3eec9cbda1f5"
+    },
+    "scripts/run_scale_validation.py": {
+      "fixture": "run_scale_validation.py.source",
+      "bytes": 60449,
+      "sha256": "2c89dedede8a96877a8ce9feeeae408c73798728e85f8f5a80287ca96c0097d6"
+    },
+    "src/megartx/prefill_storage_native.py": {
+      "fixture": "prefill_storage_native.py.source",
+      "bytes": 33768,
+      "sha256": "8515ef3f9054b58fb06bc4ae64a4781b91d2860540c1f3376db783cc054077a9"
+    }
+  }
+}

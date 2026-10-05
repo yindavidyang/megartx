@@ -1,0 +1,25 @@
+# Exact source-extracted Python bodies. CPU mocks only; see manifest.json.
+from __future__ import annotations
+
+def _lazy_import_wrapper(
+    module_name: str, attr_name: str, fallback_fn: Callable[..., Any] = _missing
+):
+    """Create a lazy import wrapper for a specific function."""
+
+    @functools.cache
+    def _get_impl():
+        if not has_flashinfer():
+            return None
+        mod = _get_submodule(module_name)
+        return getattr(mod, attr_name, None) if mod else None
+
+    def wrapper(*args, **kwargs):
+        impl = _get_impl()
+        if impl is None:
+            return fallback_fn(*args, **kwargs)
+        return impl(*args, **kwargs)
+
+    return wrapper
+
+
+flashinfer_xqa_batch_decode_with_kv_cache = _lazy_import_wrapper("flashinfer.decode", "xqa_batch_decode_with_kv_cache")

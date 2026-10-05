@@ -1,0 +1,332 @@
+{
+  "backend.source": {
+    "module": "vllm.v1.attention.backends.flashinfer",
+    "source_sha256": "8ee541fde43ed92a417b3f01ea1e6fc64af8ab2eb54cbfc28308a49aaca4ed7f",
+    "fixture_sha256": "39cb8a69e8694b4f60f9580715f28a49cc1819c5717ee40a6325c87609cfabb8",
+    "fragments": [
+      {
+        "owner": "FIPrefill",
+        "start": 554,
+        "end": 558,
+        "sha256": "672ffd7aaa8a36bee5d43e28d7b10919aaf6ab5b8c4e5a1b476edddf45b94aa2"
+      },
+      {
+        "owner": "FIDecode",
+        "start": 561,
+        "end": 565,
+        "sha256": "b0f56c01948d6e5ea363a9892e8e218171bb4c5f22612cc5aeec95d99ef61da9"
+      },
+      {
+        "owner": "FlashInferDecodeKernel",
+        "start": 568,
+        "end": 572,
+        "sha256": "37fa4477cb13f8e6bf8ce740187c4a4ac1868ddecd565cdafb1dad216f0441d2"
+      },
+      {
+        "owner": "TRTLLMPrefill",
+        "start": 579,
+        "end": 604,
+        "sha256": "fb56b6457adaa4e2ccb5473bc6430689b446511fb68eeab3b499908284ed14a9"
+      },
+      {
+        "owner": "FlashInferTrtllmAPIDecode",
+        "start": 607,
+        "end": 638,
+        "sha256": "d95e28a206baa33991f060d8c4d16f5da7fcc1fa43f4bc32bfdff1244a87051d"
+      },
+      {
+        "owner": "FlashInferMetadata",
+        "start": 641,
+        "end": 680,
+        "sha256": "ac50abf780221790a5bc8b17685a3e5f49ea89d3d2ec31f7b961cfd1582b189f"
+      },
+      {
+        "owner": "FlashInferImpl.get_xqa_bmm1_scale",
+        "start": 1921,
+        "end": 1927,
+        "sha256": "8c91f6f2bc286f1c4db616fec92326b17370b24512c437f18e609ca33bc7e177"
+      },
+      {
+        "owner": "FlashInferImpl.maybe_quant_query",
+        "start": 1931,
+        "end": 1950,
+        "sha256": "06e07b3d57feca220b76201f04876b207357a9407fb659fa182f650374b52ce6"
+      },
+      {
+        "owner": "FlashInferImpl.forward",
+        "start": 1952,
+        "end": 2575,
+        "sha256": "b5479fc8d87636b9383e7fd691399b4280f1bd2d731dcb01c9052b0d4cb64da7"
+      }
+    ],
+    "upstream_repository": "vllm-project/vllm",
+    "upstream_revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+    "source_only": true
+  },
+  "gemma.source": {
+    "module": "vllm.model_executor.models.gemma4",
+    "source_sha256": "16ac0a67dcf5dd695a59edb177f20e1e69d9c3ec45c5883744470c7c06c516a3",
+    "fixture_sha256": "b4c5b5208e155178425679162b831352ae61bc425ecc01c04cf4d18b9c3e7c62",
+    "fragments": [
+      {
+        "owner": "Gemma4Attention.forward",
+        "start": 535,
+        "end": 571,
+        "sha256": "fcbf6a0a04882e8976cb23a0bd6e2f64d0368531d0ff277442a02ac7c1242a27"
+      }
+    ],
+    "upstream_repository": "vllm-project/vllm",
+    "upstream_revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+    "source_only": true
+  },
+  "prefill.source": {
+    "module": "flashinfer.prefill",
+    "source_sha256": "2ad12a8387b3f6bff192e5945769b68d90cfcab00b9eb2a8a524af8dd71a29de",
+    "fixture_sha256": "64bd4cef089cc76d5facd5fbfb89d4cdd4db267fb9ecfc50b7e64524e2d1d350",
+    "fragments": [
+      {
+        "owner": "_split_scale_param",
+        "start": 91,
+        "end": 108,
+        "sha256": "0805c5619b218464d02e39683bfad75360646c48a0b2f03be12c2669658f6de6"
+      },
+      {
+        "owner": "get_batch_prefill_module",
+        "start": 457,
+        "end": 903,
+        "sha256": "a84b9efd8825283f9d76356b627f31fd9db91c23a1ac59cb250836a562dd003e"
+      },
+      {
+        "owner": "BatchPrefillWithPagedKVCacheWrapper.run",
+        "start": 2695,
+        "end": 3144,
+        "sha256": "a6edff7d8140f71af81d7dd9ecd442ffedb05e8d1f357cee6361e29ae2672dfc"
+      }
+    ],
+    "upstream_repository": "flashinfer-ai/flashinfer",
+    "upstream_revision": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+    "source_only": true
+  },
+  "decode.source": {
+    "module": "flashinfer.decode",
+    "source_sha256": "d82d107a644596a9349780b839b34e690c50169ea4cea3d0ee02b78e9dc88c1a",
+    "fixture_sha256": "dbb24fc395e49858ac8be8086f2407681e00fc18fa0419219c903f569ff9a404",
+    "fragments": [
+      {
+        "owner": "BatchDecodeWithPagedKVCacheWrapper.use_tensor_cores",
+        "start": 977,
+        "end": 979,
+        "sha256": "c3b68f224a3ed2050503ea7084d35d8f52e33a88f61dee676d0a00fd2a89030a"
+      },
+      {
+        "owner": "BatchDecodeWithPagedKVCacheWrapper.run",
+        "start": 1850,
+        "end": 2295,
+        "sha256": "ce969b415089c5a5d0e986a8961e9ae30bda1b4df748f43f489012914c83c6bc"
+      },
+      {
+        "owner": "xqa_batch_decode_with_kv_cache",
+        "start": 3620,
+        "end": 3823,
+        "sha256": "6f7254a7c9652a8e617ca431cca3cad0cb2a7b9b87575c8bfdcd1a25e4809d1d"
+      }
+    ],
+    "upstream_repository": "flashinfer-ai/flashinfer",
+    "upstream_revision": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+    "source_only": true
+  },
+  "utils.source": {
+    "module": "flashinfer.utils",
+    "source_sha256": "6cb8ebcc25eb65521808bf40a8aaf0c5a868827283955867ae382ad7ec773815",
+    "fixture_sha256": "aec06439e52b45999f50814604ba8813084a2210533c0810abb87bbaa70c909f",
+    "fragments": [
+      {
+        "owner": "PosEncodingMode",
+        "start": 37,
+        "end": 40,
+        "sha256": "7fea81881196c96d81fea67b2ccc50e14796cd4d92df66cbc9299d67a8af6558"
+      },
+      {
+        "owner": "MaskMode",
+        "start": 43,
+        "end": 47,
+        "sha256": "c96449fd2e6664493b80c12b240c579d732339de75c0d29593834943d63c9fb0"
+      },
+      {
+        "owner": "TensorLayout",
+        "start": 50,
+        "end": 52,
+        "sha256": "18f236e631a065d614862876bc9eefa6c9f63346c26243bd49fd25ec334c4fe4"
+      },
+      {
+        "owner": "_expand_5d",
+        "start": 76,
+        "end": 91,
+        "sha256": "7bc63e1c97bc212d77738ebfc6c704db23f3091f29d6a95c1829ec0d8b2b140b"
+      },
+      {
+        "owner": "_expand_4d",
+        "start": 94,
+        "end": 109,
+        "sha256": "03b1319bfcbac98e296a85f083d008f21831f5bc8140e0c8722280dc44f10259"
+      },
+      {
+        "owner": "_check_pos_encoding_mode",
+        "start": 165,
+        "end": 167,
+        "sha256": "a5abff3ca8f519f2aa9361faf4f874f6ef79fe3a88d42f92159402da06dfb618"
+      },
+      {
+        "owner": "is_float8",
+        "start": 175,
+        "end": 176,
+        "sha256": "b8bc60a1c681d2ee45aa85895adf743bd5c59ba669024affeae47fd7fd1faa88"
+      },
+      {
+        "owner": "_unpack_paged_kv_cache",
+        "start": 186,
+        "end": 206,
+        "sha256": "d3c74f7ba7807f88db1256a24d05a9fbae1249e30bda64c1d6f1aca82de3f729"
+      },
+      {
+        "owner": "get_alibi_slopes",
+        "start": 209,
+        "end": 221,
+        "sha256": "a9c446417c5b9e8dea458af23de80bac0aed5a0b418d5e464280e6e852990911"
+      },
+      {
+        "owner": "_get_cache_alibi_slopes_buf",
+        "start": 258,
+        "end": 266,
+        "sha256": "c798aa7d6397d1e8173d30f3cf0ad949899af993cacb08d47332e684ab21c045"
+      },
+      {
+        "owner": "get_device_properties",
+        "start": 280,
+        "end": 282,
+        "sha256": "82da20d5bc708cf63bbed4f069df4ec36382a4e941d3b383372e23345e59cb19"
+      },
+      {
+        "owner": "get_compute_capability",
+        "start": 285,
+        "end": 290,
+        "sha256": "ae2e8e21c69e0c9cbb088ed7452a1465335d2c188d687072cb783b8506347a34"
+      },
+      {
+        "owner": "check_trtllm_gen_sm107_only_feature",
+        "start": 297,
+        "end": 307,
+        "sha256": "1f0c58ea207ce2c46392591738d8a34b9db072eb0e2db030e1dc1789fc11dbb0"
+      },
+      {
+        "owner": "_check_cached_qkv_data_type",
+        "start": 356,
+        "end": 366,
+        "sha256": "86f22812d94f8aa1b7af07ad6fa3f56f24679e59a6af3ad7ff817ed2284c877a"
+      },
+      {
+        "owner": "check_shape_dtype_device",
+        "start": 759,
+        "end": 777,
+        "sha256": "52c97ce3592fe1004f55433c1243631782b259efbb5732eb9f20bd7e83b1de01"
+      },
+      {
+        "owner": "device_support_pdl",
+        "start": 821,
+        "end": 826,
+        "sha256": "ee0fa3c6fc7da6cc6537cfd5584f605a0b8baf3b994555704bc38189b8a36b76"
+      },
+      {
+        "owner": "get_device_sm_count",
+        "start": 848,
+        "end": 850,
+        "sha256": "7578e39ef5d468b504527faf1217f67dae9afc7f03370675d2d001fd0097a996"
+      }
+    ],
+    "upstream_repository": "flashinfer-ai/flashinfer",
+    "upstream_revision": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+    "source_only": true
+  },
+  "xqa.source": {
+    "module": "flashinfer.xqa",
+    "source_sha256": "6a3f7330980b976201cff0fcdf51e2958e454c4c5951ad2b30c1f2aa13722d33",
+    "fixture_sha256": "1306f1128e6318a312b905d7076240036d7432f29cd1ed7f005134ad46aa58cb",
+    "fragments": [
+      {
+        "owner": "get_xqa_module",
+        "start": 40,
+        "end": 64,
+        "sha256": "3e4c3505453cb7f9799be142a8921be8e5673da6e8a6e1ea02bddec3e18a5442"
+      },
+      {
+        "owner": "_get_xqa_module_cached",
+        "start": 67,
+        "end": 184,
+        "sha256": "b0f93a48e3bb91fa4d614081e1b4e96772c65895671f730cdeb401836db54697"
+      },
+      {
+        "owner": "xqa",
+        "start": 187,
+        "end": 456,
+        "sha256": "af256e46443248d070a8b61a2bdbda390727581d2b5e0385bf809a09093ea57e"
+      }
+    ],
+    "upstream_repository": "flashinfer-ai/flashinfer",
+    "upstream_revision": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+    "source_only": true
+  },
+  "shim.source": {
+    "module": "vllm.utils.flashinfer",
+    "source_sha256": "7144bbb7a905ad3d40994a2d3e69d69144e4e71020e7c92f487dea65b390790d",
+    "fixture_sha256": "00e12ff4044497d798d5dc88db3ecd895983b9743795c9d3d27fcd9c136da742",
+    "fragments": [
+      {
+        "owner": "_lazy_import_wrapper",
+        "start": 190,
+        "end": 208,
+        "sha256": "d471e1147777d679633bcf1d6deaae9f142a705f1757cde79261c78b41010db5"
+      }
+    ],
+    "upstream_repository": "vllm-project/vllm",
+    "upstream_revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+    "source_only": true
+  },
+  "logging.source": {
+    "module": "flashinfer.api_logging",
+    "source_sha256": "0302b4ff890c9d0de9c91f340794d8805b68b467690fe3fbec3dfb29f05720ad",
+    "fixture_sha256": "555dc35d92b1d4be071701a2de15cb8d213c579ef883ef39cf74e03c0636fedd",
+    "fragments": [
+      {
+        "owner": "_attach_fi_trace",
+        "start": 2190,
+        "end": 2361,
+        "sha256": "f2229637e8d46d59ba4f6dd094ee09b0a57fc311e0068124ee626ed00bd5cafd"
+      },
+      {
+        "owner": "flashinfer_api",
+        "start": 2364,
+        "end": 2538,
+        "sha256": "2f5c4505d2a6d6d0e2ee6807c2334b1f50be11fdc6b63171eeb6a20a4bd53354"
+      }
+    ],
+    "upstream_repository": "flashinfer-ai/flashinfer",
+    "upstream_revision": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+    "source_only": true
+  },
+  "trace.source": {
+    "module": "flashinfer.trace.template",
+    "source_sha256": "8188ab3ff4be944bc15817f10da342ea9e0c7e25a4a29f8868140e5e685c6825",
+    "fixture_sha256": "64971029e8700127df7c942abc41fca57b3dfc5af548f6e503ba859427ebc39d",
+    "fragments": [
+      {
+        "owner": "_is_trace_dump_enabled",
+        "start": 63,
+        "end": 65,
+        "sha256": "331ce9e1c60e6c0162434188b0b91561ea673f3b74dbbbef824e3c2df97296d2"
+      }
+    ],
+    "upstream_repository": "flashinfer-ai/flashinfer",
+    "upstream_revision": "8bc3b578027791336c6ae87db5c9d76f82cef8bc",
+    "source_only": true
+  }
+}

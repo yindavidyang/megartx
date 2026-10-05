@@ -1,0 +1,783 @@
+# Exact source-extracted Python bodies. CPU mocks only; see manifest.json.
+from __future__ import annotations
+
+@dataclass
+class FIPrefill:
+    """Metadata for the native FlashInfer prefill pathway (non-TRTLLM)."""
+
+    wrapper: BatchPrefillWithPagedKVCacheWrapper | BatchDCPPrefillWrapper
+
+
+@dataclass
+class FIDecode:
+    """Metadata for the native FlashInfer decode pathway (non-TRTLLM)."""
+
+    wrapper: BatchDecodeWithPagedKVCacheWrapper
+
+
+class FlashInferDecodeKernel(Enum):
+    """Decode kernels selected inside the FlashInfer backend."""
+
+    XQA = "xqa"
+    TRTLLM_GEN = "trtllm-gen"
+
+
+@dataclass
+class TRTLLMPrefill:
+    """Metadata for the TRTLLM prefill pathway."""
+
+    block_tables: torch.Tensor
+    """
+    The slice of the block table tensor corresponding *only* to prefill requests.
+    Shape: [num_prefills, max_num_blocks_per_seq]
+    """
+
+    seq_lens: torch.Tensor
+    """
+    The slice of the sequence lengths tensor corresponding *only* to prefill requests.
+    Shape: [num_prefills]
+    """
+
+    cum_seq_lens_q: torch.Tensor
+    cum_seq_lens_kv: torch.Tensor
+
+    max_q_len: int
+    """
+    The maximum query length *among prefill requests*.
+    """
+
+    max_seq_len: int
+    """The maximum sequence length for KV Cache."""
+
+
+@dataclass
+class FlashInferTrtllmAPIDecode:
+    """Metadata for XQA and trtllm-gen decode."""
+
+    kernel: FlashInferDecodeKernel
+
+    block_tables: torch.Tensor
+    """
+    The slice of the block table tensor corresponding *only* to decode requests.
+    Shape: [num_decodes, max_num_blocks_per_seq]
+    """
+
+    seq_lens: torch.Tensor
+    """
+    The slice of the sequence lengths tensor corresponding *only* to decode requests.
+    Shape: [num_decodes]
+    """
+
+    max_seq_len: int
+    """The maximum sequence length for KV Cache."""
+
+    q_len_per_req: int = 1
+    """Query tokens per request for uniform speculative decode."""
+
+    q_cu_seq_lens: torch.Tensor | None = None
+    """Cumulative query lengths for ragged XQA decode."""
+
+    mask: torch.Tensor | None = None
+    """Packed XQA draft mask."""
+
+    dcp_query_start_loc: torch.Tensor | None = None
+    """Decode query boundaries for masking empty DCP shards during reduction."""
+
+
+@dataclass
+class FlashInferMetadata:
+    num_actual_tokens: int
+    """Total number of tokens in the batch (excluding padding)."""
+
+    slot_mapping: torch.Tensor
+    """Tensor for writing K/V to the cache. Shape: [num_actual_tokens]"""
+
+    # The data types of the query for prefill and decode.
+    # On SM90, these two data types may be different.
+    q_data_type_prefill: torch.dtype
+    q_data_type_decode: torch.dtype
+
+    num_decodes: int
+    num_decode_tokens: int
+    num_prefills: int
+    num_prefill_tokens: int
+    causal: bool
+
+    prefill: FIPrefill | TRTLLMPrefill | None
+    """
+    Holds the metadata for the prefill portion of the batch.
+    Will be `None` if `num_prefill_tokens == 0`.
+    """
+
+    decode: FIDecode | FlashInferTrtllmAPIDecode | None
+    """
+    Holds the metadata for the decode portion of the batch.
+    Will be `None` if `num_decode_tokens == 0`.
+    """
+
+    # --- Special Case: Cascade Attention ---
+
+    use_cascade: bool
+    """
+    If True, the entire batch is a cascade attention call, and the
+    `prefill` and `decode` fields will both be None.
+    """
+
+    cascade_wrapper: MultiLevelCascadeAttentionWrapper | None
+
+
+class FlashInferImpl:
+    def get_xqa_bmm1_scale(self, layer: torch.nn.Module, q_data_type: torch.dtype):
+        bmm1_scale = self.scale
+        if is_quantized_kv_cache(self.kv_cache_dtype):
+            if q_data_type in (torch.float8_e4m3fn, torch.float8_e5m2):
+                bmm1_scale *= layer._q_scale_float
+            bmm1_scale *= layer._k_scale_float
+        return bmm1_scale
+
+    def maybe_quant_query(
+        self,
+        query: torch.Tensor,
+        q_data_type: torch.dtype,
+        scale: torch.Tensor,
+    ) -> torch.Tensor:
+        if query.dtype != q_data_type:
+            assert query.dtype in [torch.float16, torch.bfloat16]
+            assert q_data_type in [torch.float8_e4m3fn, torch.float8_e5m2]
+            assert query.dim() == 3
+            num_tokens = query.shape[0]
+            num_heads = query.shape[1]
+            head_size = query.shape[2]
+            assert query.stride(2) == 1 and query.stride(1) == head_size
+            query_quantized, _ = custom_ops.scaled_fp8_quant(
+                query.view(num_tokens, num_heads * head_size), scale=scale
+            )
+            return query_quantized.view(num_tokens, num_heads, head_size)
+
+        return query
+
+    def forward(
+        self,
+        layer: torch.nn.Module,
+        query: torch.Tensor,
+        key: torch.Tensor | None,
+        value: torch.Tensor | None,
+        kv_cache: torch.Tensor,
+        attn_metadata: FlashInferMetadata,
+        output: torch.Tensor,
+        output_scale: torch.Tensor | None = None,
+        output_block_scale: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Forward pass with FlashInfer.
+
+        Args:
+            query: shape = [num_tokens, num_heads, head_size]
+            key: shape = [num_tokens, num_kv_heads, head_size], or None for a
+                KV-sharing decoder layer.
+            value: shape = [num_tokens, num_kv_heads, head_size], or None for a
+                KV-sharing decoder layer.
+            kv_cache: [num_blocks, num_kv_heads, block_size, 2*head_size]
+            attn_metadata: Metadata for attention.
+        Returns:
+            shape = [num_tokens, num_heads * head_size]
+        """
+        if attn_metadata is None:
+            # Profiling run.
+            return output.fill_(0)
+
+        if self.bmm1_scale is None:
+            self.bmm1_scale = self.scale
+            if is_quantized_kv_cache(self.kv_cache_dtype):
+                self.bmm1_scale *= layer._q_scale_float * layer._k_scale_float
+
+        if self.bmm2_scale is None:
+            self.bmm2_scale = 1.0
+            if is_quantized_kv_cache(self.kv_cache_dtype):
+                self.bmm2_scale *= layer._v_scale_float
+
+        prefill_use_trtllm = isinstance(attn_metadata.prefill, TRTLLMPrefill)
+        decode_kernel = (
+            attn_metadata.decode.kernel
+            if isinstance(attn_metadata.decode, FlashInferTrtllmAPIDecode)
+            else None
+        )
+        decode_with_xqa = decode_kernel == FlashInferDecodeKernel.XQA
+        decode_with_trtllm_gen = decode_kernel == FlashInferDecodeKernel.TRTLLM_GEN
+        decode_with_flashinfer_trtllm_api = decode_with_xqa or decode_with_trtllm_gen
+
+        # The attn+quant fusion happens when output_scale is provided.
+        if output_scale is None:
+            assert output_block_scale is None, (
+                "output_block_scale is not supported when fusion has not happened"
+            )
+        else:
+            assert attn_metadata.q_data_type_prefill == FP8_DTYPE, (
+                "Query must be FP8 when attn+quant fusion happened for prefill."
+            )
+            assert attn_metadata.q_data_type_decode == FP8_DTYPE, (
+                "Query must be FP8 when attn+quant fusion happened for decode."
+            )
+            assert (attn_metadata.num_prefills == 0 or prefill_use_trtllm) and (
+                attn_metadata.num_decodes == 0 or decode_with_trtllm_gen
+            ), "Output quant fusion requires TRTLLM prefill/trtllm-gen decode"
+
+            if output.dtype == FP8_DTYPE:
+                assert output_block_scale is None, (
+                    "output_block_scale should not be provided for fp8 output"
+                )
+            elif output.dtype == FP4_DTYPE:
+                assert output_block_scale is not None, (
+                    "output_block_scale is required for nvfp4 output"
+                )
+            else:
+                raise ValueError(f"Unsupported output dtype: {output.dtype}")
+
+            # TRTLLM attn kernel requires to scale to pass as a host scalar,
+            # store the o scale as a host scalar in warmup run with cuda graph
+            # not enabled
+            if layer._o_scale_float is None:
+                layer._o_scale_float = output_scale.cpu().item()
+                if output.dtype == FP8_DTYPE:
+                    self.bmm2_scale = self.bmm2_scale / layer._o_scale_float
+                elif output.dtype == FP4_DTYPE:
+                    self.o_sf_scale = layer._o_scale_float
+
+        # IMPORTANT!
+        # NOTE(woosuk): With piece-wise CUDA graphs, this method is executed in
+        # eager-mode PyTorch. Thus, we need to be careful about any CPU overhead
+        # in this method. For example, `view` and `slice` (or `[:n]`) operations
+        # are surprisingly slow even in the case they do not invoke any GPU ops.
+        # Minimize the PyTorch ops in this method as much as possible.
+        # Whenever making a change in this method, please benchmark the
+        # performance to make sure it does not introduce any overhead.
+
+        num_actual_tokens = attn_metadata.num_actual_tokens
+
+        # FlashInfer treats uint8 KV cache as NVFP4. vLLM stores FP8 KV cache
+        # as uint8 bytes, so pass FP8 caches with their logical dtype.
+        if not self.is_kvcache_nvfp4 and kv_cache.dtype == torch.uint8:
+            fp8_view_dtype = None
+            if self.kv_cache_dtype in ("fp8", "fp8_e4m3", torch.float8_e4m3fn):
+                fp8_view_dtype = torch.float8_e4m3fn
+            elif self.kv_cache_dtype in ("fp8_e5m2", torch.float8_e5m2):
+                fp8_view_dtype = torch.float8_e5m2
+            if fp8_view_dtype is not None:
+                kv_cache = kv_cache.view(fp8_view_dtype)
+
+        # Inputs and outputs may be padded for CUDA graphs. Keep the original
+        # query for single-token XQA, whose non-ragged API requires one row for
+        # every (including padded) decode request.
+        query_padded = query
+        query = query[:num_actual_tokens]
+        output_padded = output
+        output = output[:num_actual_tokens]
+
+        if attn_metadata.use_cascade:
+            # Cascade attention (rare case).
+            assert attn_metadata.cascade_wrapper is not None
+            stride_order = self.kv_cache_layout.layer_view_order
+            if self.is_kvcache_nvfp4:
+                kv_cache_views = tuple(
+                    cache.permute(*stride_order)
+                    for cache in kv_cache.split(self.num_kv_heads, dim=1)
+                )
+            else:
+                kv_perm = kv_cache.permute(*stride_order)
+                kv_cache_views = kv_perm.split(self.head_size, dim=-1)
+            kv_tuple = tuple(
+                canonicalize_singleton_dim_strides(cache) for cache in kv_cache_views
+            )
+            output.copy_(attn_metadata.cascade_wrapper.run(query, kv_tuple))
+            return output
+
+        # When using spec decoding, num_decodes can be < num_decode_tokens
+        # because some decode requests may have more than one query token.
+        num_decode_tokens = attn_metadata.num_decode_tokens
+        num_prefill_tokens = attn_metadata.num_prefill_tokens
+
+        stride_order = self.kv_cache_layout.layer_view_order
+        kv_cache_permute = kv_cache.permute(*stride_order)  # HND and contiguous
+        # Fix degenerate strides on any size-1 dimension (e.g. num_kv_heads=1
+        # with TP=8).  PyTorch permits non-canonical strides on size-1 dims;
+        # CUDA TMA requires ≥16-byte alignment on all non-outermost strides.
+        # canonicalize_singleton_dim_strides patches metadata via as_strided —
+        # zero-copy.  See vllm.utils.torch_utils.
+        fixed = canonicalize_singleton_dim_strides(kv_cache_permute)
+        if fixed is not kv_cache_permute:
+            logger.debug(
+                "Canonicalized degenerate KV cache strides (FlashInfer): "
+                "shape=%s, strides before=%s, strides after=%s",
+                kv_cache_permute.shape,
+                kv_cache_permute.stride(),
+                fixed.stride(),
+            )
+        kv_cache_permute = fixed
+
+        # Split K/V — zero-copy views. NVFP4 stores K/V as separate head
+        # groups; other dtypes pack K/V in the content dim.
+        hs = self.head_size
+        nvfp4_kv_data = None
+        nvfp4_kv_block_scales = None
+        if self.is_kvcache_nvfp4:
+            k_cache, v_cache = kv_cache.split(self.num_kv_heads, dim=1)
+            kv_cache_tuple = (
+                canonicalize_singleton_dim_strides(k_cache.permute(*stride_order)),
+                canonicalize_singleton_dim_strides(v_cache.permute(*stride_order)),
+            )
+            k_data, k_sf = nvfp4_split_data_scale(kv_cache_tuple[0])
+            v_data, v_sf = nvfp4_split_data_scale(kv_cache_tuple[1])
+            nvfp4_kv_data = (k_data, v_data)
+            nvfp4_kv_block_scales = (k_sf, v_sf)
+        else:
+            kv_cache_tuple = kv_cache_permute.split(hs, dim=-1)
+
+        use_dcp = self.dcp_world_size > 1
+        if decode_with_xqa:
+            assert not use_dcp
+            assert not self.is_kvcache_nvfp4
+            assert self.o_sf_scale is None
+            assert output.dtype != FP4_DTYPE
+
+        # Regular attention (common case).
+        # Decodes are at the front and prefills are at the back.
+        if num_prefill_tokens > 0:
+            prefill_query = query[num_decode_tokens:]
+            assert prefill_query.shape[0] == num_prefill_tokens
+
+            # Convert query to the expected dtype for prefill if needed.
+            prefill_query = self.maybe_quant_query(
+                prefill_query,
+                attn_metadata.q_data_type_prefill,
+                layer._q_scale,
+            )
+
+            if not prefill_use_trtllm:
+                assert isinstance(attn_metadata.prefill, FIPrefill)
+                prefill_wrapper = attn_metadata.prefill.wrapper
+                assert prefill_wrapper is not None
+                if use_dcp:
+                    if key is None or value is None:
+                        raise NotImplementedError(
+                            "FlashInfer DCP prefill does not support KV-sharing layers"
+                        )
+                    assert isinstance(prefill_wrapper, BatchDCPPrefillWrapper)
+                    assert prefill_wrapper._context._window_left == self.window_left
+                    assert prefill_wrapper._context._logits_soft_cap == (
+                        self.logits_soft_cap or 0.0
+                    )
+                    assert prefill_wrapper._context._sm_scale == self.scale
+                    assert not prefill_wrapper._context._causal
+                    assert prefill_wrapper._new_tokens._window_left == self.window_left
+                    assert prefill_wrapper._new_tokens._logits_soft_cap == (
+                        self.logits_soft_cap or 0.0
+                    )
+                    assert prefill_wrapper._new_tokens._sm_scale == self.scale
+                    assert prefill_wrapper._new_tokens._causal
+
+                    prefill_wrapper.run(
+                        layer,
+                        prefill_query,
+                        kv_cache_tuple,
+                        key[num_decode_tokens:num_actual_tokens],
+                        value[num_decode_tokens:num_actual_tokens],
+                        out=output[num_decode_tokens:],
+                    )
+                else:
+                    assert isinstance(
+                        prefill_wrapper, BatchPrefillWithPagedKVCacheWrapper
+                    )
+                    assert prefill_wrapper._window_left == self.window_left
+                    assert prefill_wrapper._logits_soft_cap == (
+                        self.logits_soft_cap or 0.0
+                    )
+                    assert prefill_wrapper._sm_scale == self.scale
+                    assert prefill_wrapper._causal == attn_metadata.causal
+
+                    if self.is_kvcache_nvfp4:
+                        kv_cache_for_fi = nvfp4_kv_data
+                    else:
+                        kv_cache_for_fi = kv_cache_tuple
+                    kv_cache_sf = (
+                        nvfp4_kv_block_scales if self.is_kvcache_nvfp4 else None
+                    )
+
+                    # NVFP4 trtllm kernel only supports FP8 output.
+                    # Use a pre-allocated FP8 buffer and dequantize
+                    # afterwards.
+                    needs_fp8_out_prefill = (
+                        self.is_kvcache_nvfp4 and output.dtype != FP8_DTYPE
+                    )
+                    if needs_fp8_out_prefill:
+                        out_prefill = self._nvfp4_fp8_out[:num_prefill_tokens]
+                    else:
+                        out_prefill = output[num_decode_tokens:]
+
+                    if isinstance(
+                        prefill_wrapper, BatchAttentionWithAttentionSinkWrapper
+                    ):
+                        assert self.sinks is not None
+                        prefill_wrapper.run(
+                            prefill_query,
+                            kv_cache_for_fi,
+                            self.sinks,
+                            self.scale * layer._q_scale_float * layer._k_scale_float,
+                            v_scale=layer._v_scale_float,
+                            out=out_prefill,
+                        )
+                    else:
+                        prefill_wrapper.run(
+                            prefill_query,
+                            kv_cache_for_fi,
+                            q_scale=layer._q_scale_float,
+                            k_scale=layer._k_scale_float,
+                            v_scale=layer._v_scale_float,
+                            out=out_prefill,
+                            kv_cache_sf=kv_cache_sf,
+                        )
+
+                    if needs_fp8_out_prefill:
+                        output[
+                            num_decode_tokens : num_decode_tokens + num_prefill_tokens
+                        ].copy_(out_prefill)
+            else:
+                assert isinstance(attn_metadata.prefill, TRTLLMPrefill)
+                # prefill_query may be non-contiguous or have degenerate strides
+                # on size=1 dims. contiguous() ensures memory layout; then
+                # canonicalize_singleton_dim_strides fixes any remaining
+                # degenerate strides on size=1 dims for TMA alignment.
+                prefill_query = prefill_query.contiguous()
+                prefill_query = canonicalize_singleton_dim_strides(prefill_query)
+                workspace_buffer = _get_trtllm_workspace_buffer()
+                block_tables_prefill = attn_metadata.prefill.block_tables
+                seq_lens_prefill = attn_metadata.prefill.seq_lens
+
+                # This path needs to be enabled with VLLM_KV_CACHE_LAYOUT = HND
+                assert get_flashinfer_layout_string(self.kv_cache_layout) == "HND"
+                assert is_strictly_contiguous(prefill_query)
+                assert is_strictly_contiguous(workspace_buffer)
+                assert is_strictly_contiguous(block_tables_prefill)
+                assert is_strictly_contiguous(seq_lens_prefill)
+
+                if output.dtype == FP4_DTYPE:
+                    assert self.o_sf_scale is not None
+                    out = FP4Tensor(
+                        data=output[num_decode_tokens:],
+                        scale=output_block_scale,
+                        scale_start_index=num_decode_tokens,
+                        original_shape=prefill_query.shape,
+                    )
+                else:
+                    assert self.o_sf_scale is None
+                    out = output[num_decode_tokens:]
+
+                # NVFP4 trtllm kernel only supports FP8 output.
+                # Use a pre-allocated FP8 buffer and dequantize afterwards.
+                needs_fp8_out = self.is_kvcache_nvfp4 and output.dtype != FP8_DTYPE
+                if needs_fp8_out:
+                    out = self._nvfp4_fp8_out[:num_prefill_tokens]
+
+                prefill_kv_block_scales = None
+                if self.is_kvcache_nvfp4:
+                    # NVFP4 trtllm-gen kernel requires FP8 query.
+                    assert attn_metadata.q_data_type_prefill == FP8_DTYPE, (
+                        "NVFP4 KV cache requires FP8 quantized queries for "
+                        "trtllm-gen prefill. Set "
+                        "disable_flashinfer_q_quantization=False."
+                    )
+                    mock_kv_cache = nvfp4_kv_data
+                    mock_block_table = block_tables_prefill
+                    prefill_kv_block_scales = nvfp4_kv_block_scales
+                elif (
+                    attn_metadata.q_data_type_prefill != FP8_DTYPE
+                    and self.kv_cache_dtype.startswith("fp8")
+                ):
+                    # TRTLLM prefill attention does not support BF16 Q
+                    # and fp8 kv cache. So to enable prefill attention
+                    # with fp8 kv cache, we can construct a mock block
+                    # and mock kv cache with BF16 KV involved in the prefill.
+                    kv_cache_permute = canonicalize_singleton_dim_strides(
+                        kv_cache_permute
+                    )
+                    kv_strides = kv_cache_permute.stride()
+                    assert (
+                        kv_strides[-1] == 1
+                        and kv_strides[-2] == kv_cache_permute.shape[-1]
+                    ), (
+                        "KV cache inner dims (block_size, head_size) must be "
+                        f"contiguous, got strides {kv_strides}"
+                    )
+                    # fp8 uses (B, H, N, 2*hs); reshape to (B, 2, H, N, hs)
+                    # for the dequant kernel — zero-copy view. The dequant
+                    # kernel handles the interleaved K/V block stride.
+                    B_kv, H_kv, N_kv = kv_cache_permute.shape[:3]
+                    kv_cache_5d = kv_cache_permute.view(B_kv, H_kv, N_kv, 2, hs)
+                    kv_cache_5d = kv_cache_5d.permute(0, 3, 1, 2, 4)
+                    mock_kv_cache, mock_block_table = trtllm_prefill_attn_kvfp8_dequant(
+                        kv_cache_5d,
+                        block_tables_prefill,
+                        layer._k_scale,
+                        layer._v_scale,
+                        attn_metadata.q_data_type_prefill,
+                    )
+                else:
+                    mock_kv_cache = kv_cache_tuple
+                    mock_block_table = block_tables_prefill
+
+                trtllm_batch_context_with_kv_cache(
+                    query=prefill_query,
+                    kv_cache=mock_kv_cache,
+                    workspace_buffer=workspace_buffer,
+                    block_tables=mock_block_table,
+                    seq_lens=seq_lens_prefill,
+                    max_q_len=attn_metadata.prefill.max_q_len,
+                    max_kv_len=attn_metadata.prefill.max_seq_len,
+                    bmm1_scale=self.bmm1_scale,
+                    bmm2_scale=self.bmm2_scale,
+                    batch_size=attn_metadata.num_prefills,
+                    cum_seq_lens_q=attn_metadata.prefill.cum_seq_lens_q,
+                    cum_seq_lens_kv=attn_metadata.prefill.cum_seq_lens_kv,
+                    window_left=self.window_left,
+                    sinks=self.sinks,
+                    o_sf_scale=self.o_sf_scale,
+                    out=out,
+                    kv_cache_sf=prefill_kv_block_scales,
+                )
+
+                if needs_fp8_out:
+                    output[
+                        num_decode_tokens : num_decode_tokens + num_prefill_tokens
+                    ].copy_(out[:num_prefill_tokens])
+
+        if num_decode_tokens > 0:
+            decode_query_tokens = num_decode_tokens
+            if decode_with_xqa:
+                assert isinstance(attn_metadata.decode, FlashInferTrtllmAPIDecode)
+                if attn_metadata.decode.q_len_per_req == 1:
+                    decode_query_tokens = attn_metadata.num_decodes
+            decode_query = query_padded[:decode_query_tokens]
+            assert decode_query.shape[0] == decode_query_tokens
+
+            # Convert query to the expected dtype for decode if needed.
+            decode_query = self.maybe_quant_query(
+                decode_query,
+                attn_metadata.q_data_type_decode,
+                layer._q_scale,
+            )
+
+            if not decode_with_flashinfer_trtllm_api:
+                assert isinstance(attn_metadata.decode, FIDecode)
+                decode_wrapper = attn_metadata.decode.wrapper
+                assert decode_wrapper is not None
+                assert decode_wrapper._window_left == self.window_left
+                assert decode_wrapper._logits_soft_cap == (self.logits_soft_cap or 0.0)
+                assert decode_wrapper._sm_scale == self.scale
+
+                if self.is_kvcache_nvfp4:
+                    kv_cache_for_fi = nvfp4_kv_data
+                else:
+                    kv_cache_for_fi = kv_cache_tuple
+                kv_cache_sf = nvfp4_kv_block_scales if self.is_kvcache_nvfp4 else None
+
+                # NVFP4 kernel only supports FP8 output.
+                # Use a pre-allocated FP8 buffer and dequantize afterwards.
+                needs_fp8_out = self.is_kvcache_nvfp4 and output.dtype != FP8_DTYPE
+                if needs_fp8_out:
+                    out_decode = self._nvfp4_fp8_out[:num_decode_tokens]
+                else:
+                    out_decode = output[:num_decode_tokens]
+
+                if use_dcp:
+                    decode_query = get_dcp_group().all_gather(
+                        decode_query.contiguous(), dim=-2
+                    )
+                    output_tmp = torch.empty_like(decode_query)
+                    lse = torch.empty(
+                        (decode_query.size(0), decode_query.size(1)),
+                        dtype=torch.float32,
+                        device=decode_query.device,
+                    )
+                    decode_wrapper.run(
+                        decode_query,
+                        kv_cache_for_fi,
+                        q_scale=layer._q_scale_float,
+                        k_scale=layer._k_scale_float,
+                        v_scale=layer._v_scale_float,
+                        out=output_tmp,
+                        lse=lse,
+                        return_lse=True,
+                        kv_cache_sf=kv_cache_sf,
+                        sinks=self.sinks,
+                    )
+                    output[:num_decode_tokens] = self.dcp_combine(
+                        output_tmp,
+                        lse,
+                        get_dcp_group(),
+                    )
+                else:
+                    decode_wrapper.run(
+                        decode_query,
+                        kv_cache_for_fi,
+                        q_scale=layer._q_scale_float,
+                        k_scale=layer._k_scale_float,
+                        v_scale=layer._v_scale_float,
+                        out=out_decode,
+                        kv_cache_sf=kv_cache_sf,
+                        sinks=self.sinks,
+                    )
+
+                if needs_fp8_out:
+                    output[:num_decode_tokens].copy_(out_decode)
+            else:
+                assert isinstance(attn_metadata.decode, FlashInferTrtllmAPIDecode)
+                # decode_query may be non-contiguous or have degenerate strides
+                # on size=1 dims. contiguous() ensures memory layout; then
+                # canonicalize_singleton_dim_strides fixes any remaining
+                # degenerate strides on size=1 dims for TMA alignment.
+                decode_query = decode_query.contiguous()
+                decode_query = canonicalize_singleton_dim_strides(decode_query)
+                workspace_buffer = _get_trtllm_workspace_buffer()
+                block_tables_decode = attn_metadata.decode.block_tables
+                seq_lens_decode = attn_metadata.decode.seq_lens
+
+                # trtllm-gen needs HND layout on SM100. XQA is selected
+                # separately on SM90 and does not use this SM100 layout gate.
+                if decode_with_trtllm_gen:
+                    assert get_flashinfer_layout_string(self.kv_cache_layout) == "HND"
+                else:
+                    assert decode_with_xqa
+                assert is_strictly_contiguous(decode_query)
+                assert is_strictly_contiguous(workspace_buffer)
+                assert is_strictly_contiguous(block_tables_decode)
+                assert is_strictly_contiguous(seq_lens_decode)
+                kv_cache_permute = canonicalize_singleton_dim_strides(kv_cache_permute)
+                kv_strides = kv_cache_permute.stride()
+                assert (
+                    kv_strides[-1] == 1 and kv_strides[-2] == kv_cache_permute.shape[-1]
+                ), (
+                    "KV cache inner dims (block_size, head_size) must be "
+                    f"contiguous, got strides {kv_strides}"
+                )
+
+                if use_dcp:
+                    assert decode_with_trtllm_gen
+                    if output.dtype == FP4_DTYPE:
+                        raise NotImplementedError(
+                            "DCP decode with FlashInfer trtllm-gen does not support "
+                            "FP4 attention output yet."
+                        )
+                    decode_query = get_dcp_group().all_gather(
+                        decode_query.contiguous(), dim=-2
+                    )
+                    decode_query = canonicalize_singleton_dim_strides(decode_query)
+
+                if decode_with_xqa:
+                    bmm1_scale = self.get_xqa_bmm1_scale(
+                        layer, attn_metadata.q_data_type_decode
+                    )
+                    q_len_per_req: int | None = attn_metadata.decode.q_len_per_req
+
+                    flashinfer_xqa_batch_decode_with_kv_cache(
+                        query=decode_query,
+                        kv_cache=kv_cache_tuple,
+                        workspace_buffer=workspace_buffer,
+                        block_tables=block_tables_decode,
+                        seq_lens=seq_lens_decode,
+                        max_seq_len=attn_metadata.decode.max_seq_len,
+                        bmm1_scale=bmm1_scale,
+                        bmm2_scale=self.bmm2_scale,
+                        window_left=self.window_left,
+                        out=output_padded[:decode_query_tokens],
+                        sinks=self.sinks,
+                        kv_layout=get_flashinfer_layout_string(self.kv_cache_layout),
+                        q_len_per_req=q_len_per_req,
+                        mask=attn_metadata.decode.mask,
+                        q_cu_seq_lens=attn_metadata.decode.q_cu_seq_lens,
+                    )
+                    return output_padded
+
+                assert decode_with_trtllm_gen
+                if output.dtype == FP4_DTYPE:
+                    assert self.o_sf_scale is not None
+                    out = FP4Tensor(
+                        data=output[:num_decode_tokens],
+                        scale=output_block_scale,
+                        scale_start_index=0,
+                        original_shape=decode_query.shape,
+                    )
+                else:
+                    assert self.o_sf_scale is None
+                    out = output[:num_decode_tokens]
+
+                # NVFP4 trtllm kernel only supports FP8 output.
+                # Use a pre-allocated FP8 buffer and dequantize afterwards.
+                needs_fp8_out = self.is_kvcache_nvfp4 and output.dtype != FP8_DTYPE
+                if needs_fp8_out:
+                    out = self._nvfp4_fp8_out[:num_decode_tokens]
+
+                q_cu_seq_lens = attn_metadata.decode.q_cu_seq_lens
+                max_q_len = None
+                q_len_per_req = None
+                if q_cu_seq_lens is not None:
+                    # q_len_per_req must stay None for the kernel's varlen path.
+                    max_q_len = attn_metadata.decode.q_len_per_req
+                elif num_decode_tokens % attn_metadata.num_decodes != 0:
+                    # This gets triggered when the dummy_run forces
+                    # attention to be initialized with q_len = 0
+                    q_len_per_req = 1
+                else:
+                    q_len_per_req = num_decode_tokens // attn_metadata.num_decodes
+
+                lse = None
+                if use_dcp:
+                    out = torch.empty(
+                        decode_query.shape,
+                        dtype=output.dtype,
+                        device=decode_query.device,
+                    )
+                    lse = torch.empty(
+                        (decode_query.size(0), decode_query.size(1)),
+                        dtype=torch.float32,
+                        device=decode_query.device,
+                    )
+
+                trtllm_batch_decode_with_kv_cache(
+                    query=decode_query,
+                    kv_cache=(
+                        nvfp4_kv_data if self.is_kvcache_nvfp4 else kv_cache_tuple
+                    ),
+                    workspace_buffer=workspace_buffer,
+                    block_tables=block_tables_decode,
+                    seq_lens=seq_lens_decode,
+                    max_seq_len=attn_metadata.decode.max_seq_len,
+                    bmm1_scale=self.bmm1_scale,
+                    bmm2_scale=self.bmm2_scale,
+                    window_left=self.window_left,
+                    sinks=self.sinks,
+                    o_sf_scale=self.o_sf_scale,
+                    out=out,
+                    kv_layout=get_flashinfer_layout_string(self.kv_cache_layout),
+                    backend=attn_metadata.decode.kernel.value,
+                    q_len_per_req=q_len_per_req,
+                    max_q_len=max_q_len,
+                    cum_seq_lens_q=q_cu_seq_lens,
+                    kv_cache_sf=(
+                        nvfp4_kv_block_scales if self.is_kvcache_nvfp4 else None
+                    ),
+                    lse=lse,
+                    return_lse=self.need_to_return_lse_for_decode,
+                )
+
+                if use_dcp:
+                    assert isinstance(out, torch.Tensor)
+                    assert lse is not None
+                    output[:num_decode_tokens] = self.dcp_combine(
+                        out,
+                        lse,
+                        get_dcp_group(),
+                        seq_lens=seq_lens_decode,
+                        query_start_loc=attn_metadata.decode.dcp_query_start_loc,
+                    )
+                elif needs_fp8_out:
+                    output[:num_decode_tokens].copy_(out)
+        return output_padded
+

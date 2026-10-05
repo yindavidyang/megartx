@@ -25,7 +25,6 @@ class StorageProvider(NativeProvider):
     evidence_factory = CompactEvidence
     source_verifier = staticmethod(verify_adapter_sources)
     observe_cache_hashes = False
-    storage_binding_purpose = 'first-nine-frame-storage-frontier-control'
 
     def __init__(self, runner, plan, directory, torch, hook_checks):
         self.torch = torch
@@ -75,33 +74,11 @@ class StorageProvider(NativeProvider):
                 'schema': 'megartx-prefill-storage-binding-v1', 'plan_sha256': plan['plan_sha256'],
                 'source_head': plan['source_head'], 'owner_pid': self.access.identity.owner_pid,
                 'owner_start_ticks': self.access.identity.owner_start_ticks,
-                'purpose': self.storage_binding_purpose,
+                'purpose': 'first-nine-frame-storage-frontier-control',
                 'writer_hook_bound': True, 'checker_sha256': expected})
         except BaseException as error:
             self.poison_storage(error)
             raise
-
-    def on_processed_row(self, layer, position, slot, key, value):
-        """Purpose seam: already charged original CPU rows; default is a no-op."""
-
-    def retain_processed_row(self, layer, position, key, value):
-        if position in (15, 16, 1023, 1024, 2047, 2048):
-            self.evidence.raw(f'kv-layer-{layer:02d}-position-{position:04d}.bf16', key+value)
-            self.sample_count += 1
-
-    def retain_head_row(self, position, raw):
-        """Observation/hash/copy remains mandatory even without raw retention."""
-        self.evidence.raw(f'head-position-{position}.bf16', raw)
-
-    def sample_retention_receipt(self):
-        if self.sample_count != 180 or self.raw_heads != 2:
-            raise RuntimeError('Incomplete bounded storage raw sample retention')
-        return {'sample_combined_kv_rows': self.sample_count,
-                'raw_head_rows': self.raw_heads,
-                'raw_samples_sha256': digest(raw_manifest(self.directory))}
-
-    def write_control_receipt(self, receipt):
-        self.evidence.write('control.json', receipt)
 
     def row_diagnostic(self, phase, layer, position, slot, key=None, value=None):
         tag = struct.pack('<II', layer, position)
@@ -407,8 +384,9 @@ class StorageProvider(NativeProvider):
                     self.row_diagnostic('processed', layer, position, slots[layer][row], k, v)
                     self.control.processed(layer, position, slots[layer][row], k, v)
                     self.record_row('processed', layer, position, k, v)
-                    self.on_processed_row(layer, position, slots[layer][row], k, v)
-                    self.retain_processed_row(layer, position, k, v)
+                    if position in (15, 16, 1023, 1024, 2047, 2048):
+                        self.evidence.raw(f'kv-layer-{layer:02d}-position-{position:04d}.bf16', k+v)
+                        self.sample_count += 1
         self.writer_seen.add(layer)
         self.failure_context = {'phase': 'native_writer', 'layer': layer}
         return frame
@@ -483,7 +461,7 @@ class StorageProvider(NativeProvider):
         if position in (2047, 2048):
             raw = native_bytes(logits, torch, self.transfer, 'raw_heads')
             self.contract.finite_bf16(raw, 262144)
-            self.retain_head_row(position, raw)
+            self.evidence.raw(f'head-position-{position}.bf16', raw)
             self.raw_heads += 1
             raw_hash = hashlib.sha256(raw).hexdigest()
         else:
@@ -526,19 +504,19 @@ class StorageProvider(NativeProvider):
             expected = self.contract.capture_work_budget()
             transferred = sum(self.transfer.kinds.get(k, 0) for k in ('pre', 'processed', 'post'))
             if (self.control.end != 2049 or self.control.poisoned or self.storage_frames != 9
+                    or self.sample_count != 180 or self.raw_heads != 2
                     or self.counts != {'pre': 212355, 'processed': 61470, 'post': 273825}
                     or transferred != expected['transferred_bytes_per_context']):
                 raise RuntimeError('Incomplete bounded all-layer storage control')
-            retention = self.sample_retention_receipt()
             self.restore_storage()
-            self.write_control_receipt({'schema': 'megartx-prefill-storage-control-v1',
+            self.evidence.write('control.json', {'schema': 'megartx-prefill-storage-control-v1',
                 'plan_sha256': self.plan['plan_sha256'], 'status': 'storage_frontier_observed',
                 'capture_frames': 9, 'capture_end': 2049, 'checked_layer_frames': 270,
                 'pre_rows': self.counts['pre'], 'processed_rows': self.counts['processed'],
                 'post_rows': self.counts['post'], 'transferred_bytes': transferred,
                 'metadata_only_decode_inputs': 254, 'storage_exact': True, 'frontier_verified': True,
                 'storage_callbacks_restored': True,
-                **retention,
+                'sample_combined_kv_rows': self.sample_count, 'raw_head_rows': self.raw_heads,
                 'frontier': frontier, 'storage_roots': {k: v.hexdigest() for k, v in self.roots.items()},
                 'transfer': self.transfer.receipt(), 'manager': self.manager.receipt(),
                 'actual_sampling_params_sha256': self.sampler_identity[1],
@@ -546,6 +524,7 @@ class StorageProvider(NativeProvider):
                 'numerical_qualified': False, 'performance_qualified': False,
                 'independent_arithmetic_qualified': False, 'quality_qualified': False,
                 'sampled_repeatability_qualified': False, 'natural_positive_correction_coverage': None,
+                'raw_samples_sha256': digest(raw_manifest(self.directory)),
                 'frame_records_sha256': file_sha(self.directory/'control-frames.jsonl'),
                 'head_records_sha256': file_sha(self.directory/'heads.jsonl'),
                 'sample_records_sha256': file_sha(self.directory/'samples.jsonl'),

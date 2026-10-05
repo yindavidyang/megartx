@@ -78,12 +78,14 @@ class SelectPurpose(ast.NodeTransformer):
     Exact parent proofs cover the entire try/except/finally lifecycle. Two
     mechanical adaptations are allowed: the verified helper module rename and
     the otherwise unused native server-ready return binding added for decode.
+    The separate attention selector remains off for every historical purpose.
     """
     def __init__(self, native, storage=False):
         self.native, self.storage = native, storage
 
     def visit_Name(self, node):
-        values = {'prefill_native': self.native, 'prefill_storage': self.storage}
+        values = {'prefill_native': self.native, 'prefill_storage': self.storage,
+                  'prefill_attention': False}
         if self.native:
             values['eager_benchmark'] = False
         if node.id in values and isinstance(node.ctx, ast.Load):
@@ -321,6 +323,7 @@ class LauncherHarness:
             'math': math, 'output': self.output, 'base': Path('cpu-runtime'), 'project': ROOT,
             'env': {}, 'command': ['cpu-fake-server'], 'args': self.args,
             'prefill_native': self.native, 'prefill_storage': self.storage,
+            'prefill_attention': False,
             'prefill_plan': {'plan_sha256': 'prefill-cpu'}, 'prefill_evidence': self.evidence,
             'prefill_evidence_failed': False, 'prefill_deadline': time.monotonic() + 1800,
             'eager_benchmark': not self.native, 'benchmark_plan': {'plan_sha256': 'decode-cpu'},
@@ -425,6 +428,7 @@ class ExtractedLauncherTests(unittest.TestCase):
             with self.subTest(purpose=purpose):
                 harness = LauncherHarness(self, purpose)
                 harness.execute()
+                self.assertFalse(harness.env['prefill_attention'])
                 selected = 'prefill_owned_processes' if harness.native else 'm1_owned_processes'
                 other = 'm1_owned_processes' if harness.native else 'prefill_owned_processes'
                 self.assertIn(selected, harness.imports)
@@ -434,6 +438,9 @@ class ExtractedLauncherTests(unittest.TestCase):
                 self.assertEqual((harness.output / 'run.exit').read_text(), '0\n')
                 self.assertTrue(harness.signals)
                 if harness.native:
+                    self.assertEqual(Path(harness.client_calls[0][0][1]).name,
+                                     'prefill_storage_client.py' if harness.storage
+                                     else 'prefill_diagnostic_client.py')
                     harness.publish.assert_called_once()
                     harness.summary.assert_not_called()
                     self.assertNotIn('compiler_observation_intervals_ns', harness.cleanup())
